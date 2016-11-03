@@ -1,7 +1,8 @@
 #lang racket
 
 (require ffi/unsafe
-         ffi/unsafe/define)
+         ffi/unsafe/define
+         ffi/unsafe/alloc)
 (provide (all-defined-out))
 
 ;;utils
@@ -396,7 +397,7 @@
 (define-jit jit_insn_convert
   (_fun jit_function_t jit_value_t jit_type_t _int -> jit_value_t))
 (define-jit jit_insn_call
-  (_fun jit_function_t (pointer-to char) jit_function_t jit_type_t
+  (_fun jit_function_t _string jit_function_t jit_type_t
         (pointer-to jit_value_t) _uint _int ->
         jit_value_t))
 (define-jit jit_insn_call_indirect
@@ -515,7 +516,369 @@
   (_fun (pointer-to jit_insn_iter_t) -> jit_insn_t))
 
 
-;;jit-intrinsic.h - TODO
+;;jit-intrinsic.h - complete
+(define-jit jit_int_add (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_sub (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_mul (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_div
+  (_fun (pointer-to jit_int) jit_int jit_int -> jit_int))
+(define-jit jit_int_rem
+  (_fun (pointer-to jit_int) jit_int jit_int -> jit_int))
+(define-jit jit_int_add_ovf
+  (_fun (pointer-to jit_int) jit_int jit_int -> jit_int))
+(define-jit jit_int_sub_ovf
+  (_fun (pointer-to jit_int) jit_int jit_int -> jit_int))
+(define-jit jit_int_mul_ovf
+  (_fun (pointer-to jit_int) jit_int jit_int -> jit_int))
+(define-jit jit_int_neg (_fun jit_int -> jit_int))
+(define-jit jit_int_and (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_or (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_xor (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_not (_fun jit_int -> jit_int))
+(define-jit jit_int_shl (_fun jit_int jit_uint -> jit_int))
+(define-jit jit_int_shr (_fun jit_int jit_uint -> jit_int))
+(define-jit jit_int_eq (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_ne (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_lt (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_le (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_gt (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_ge (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_cmp (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_abs (_fun jit_int -> jit_int))
+(define-jit jit_int_min (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_max (_fun jit_int jit_int -> jit_int))
+(define-jit jit_int_sign (_fun jit_int -> jit_int))
+(define-jit jit_uint_add (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_uint_sub (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_uint_mul (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_uint_div
+  (_fun (pointer-to jit_uint) jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_rem
+  (_fun (pointer-to jit_uint) jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_add_ovf
+  (_fun (pointer-to jit_uint) jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_sub_ovf
+  (_fun (pointer-to jit_uint) jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_mul_ovf
+  (_fun (pointer-to jit_uint) jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_neg (_fun jit_uint -> jit_uint))
+(define-jit jit_uint_and (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_uint_or (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_uint_xor (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_uint_not (_fun jit_uint -> jit_uint))
+(define-jit jit_uint_shl (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_uint_shr (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_uint_eq (_fun jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_ne (_fun jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_lt (_fun jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_le (_fun jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_gt (_fun jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_ge (_fun jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_cmp (_fun jit_uint jit_uint -> jit_int))
+(define-jit jit_uint_min (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_uint_max (_fun jit_uint jit_uint -> jit_uint))
+(define-jit jit_long_add (_fun jit_long jit_long -> jit_long))
+(define-jit jit_long_sub (_fun jit_long jit_long -> jit_long))
+(define-jit jit_long_mul (_fun jit_long jit_long -> jit_long))
+(define-jit jit_long_div
+  (_fun (pointer-to jit_long) jit_long jit_long -> jit_int))
+(define-jit jit_long_rem
+  (_fun (pointer-to jit_long) jit_long jit_long -> jit_int))
+(define-jit jit_long_add_ovf
+  (_fun (pointer-to jit_long) jit_long jit_long -> jit_int))
+(define-jit jit_long_sub_ovf
+  (_fun (pointer-to jit_long) jit_long jit_long -> jit_int))
+(define-jit jit_long_mul_ovf
+  (_fun (pointer-to jit_long) jit_long jit_long -> jit_int))
+(define-jit jit_long_neg (_fun jit_long -> jit_long))
+(define-jit jit_long_and (_fun jit_long jit_long -> jit_long))
+(define-jit jit_long_or (_fun jit_long jit_long -> jit_long))
+(define-jit jit_long_xor (_fun jit_long jit_long -> jit_long))
+(define-jit jit_long_not (_fun jit_long -> jit_long))
+(define-jit jit_long_shl (_fun jit_long jit_uint -> jit_long))
+(define-jit jit_long_shr (_fun jit_long jit_uint -> jit_long))
+(define-jit jit_long_eq (_fun jit_long jit_long -> jit_int))
+(define-jit jit_long_ne (_fun jit_long jit_long -> jit_int))
+(define-jit jit_long_lt (_fun jit_long jit_long -> jit_int))
+(define-jit jit_long_le (_fun jit_long jit_long -> jit_int))
+(define-jit jit_long_gt (_fun jit_long jit_long -> jit_int))
+(define-jit jit_long_ge (_fun jit_long jit_long -> jit_int))
+(define-jit jit_long_cmp (_fun jit_long jit_long -> jit_int))
+(define-jit jit_long_abs (_fun jit_long -> jit_long))
+(define-jit jit_long_min (_fun jit_long jit_long -> jit_long))
+(define-jit jit_long_max (_fun jit_long jit_long -> jit_long))
+(define-jit jit_long_sign (_fun jit_long -> jit_int))
+(define-jit jit_ulong_add (_fun jit_ulong jit_ulong -> jit_ulong))
+(define-jit jit_ulong_sub (_fun jit_ulong jit_ulong -> jit_ulong))
+(define-jit jit_ulong_mul (_fun jit_ulong jit_ulong -> jit_ulong))
+(define-jit jit_ulong_div
+  (_fun (pointer-to jit_ulong) jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_rem
+  (_fun (pointer-to jit_ulong) jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_add_ovf
+  (_fun (pointer-to jit_ulong) jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_sub_ovf
+  (_fun (pointer-to jit_ulong) jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_mul_ovf
+  (_fun (pointer-to jit_ulong) jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_neg (_fun jit_ulong -> jit_ulong))
+(define-jit jit_ulong_and (_fun jit_ulong jit_ulong -> jit_ulong))
+(define-jit jit_ulong_or (_fun jit_ulong jit_ulong -> jit_ulong))
+(define-jit jit_ulong_xor (_fun jit_ulong jit_ulong -> jit_ulong))
+(define-jit jit_ulong_not (_fun jit_ulong -> jit_ulong))
+(define-jit jit_ulong_shl (_fun jit_ulong jit_uint -> jit_ulong))
+(define-jit jit_ulong_shr (_fun jit_ulong jit_uint -> jit_ulong))
+(define-jit jit_ulong_eq (_fun jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_ne (_fun jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_lt (_fun jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_le (_fun jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_gt (_fun jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_ge (_fun jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_cmp (_fun jit_ulong jit_ulong -> jit_int))
+(define-jit jit_ulong_min (_fun jit_ulong jit_ulong -> jit_ulong))
+(define-jit jit_ulong_max (_fun jit_ulong jit_ulong -> jit_ulong))
+(define-jit jit_float32_add (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_sub (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_mul (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_div (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_rem (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_ieee_rem
+  (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_neg (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_eq (_fun jit_float32 jit_float32 -> jit_int))
+(define-jit jit_float32_ne (_fun jit_float32 jit_float32 -> jit_int))
+(define-jit jit_float32_lt (_fun jit_float32 jit_float32 -> jit_int))
+(define-jit jit_float32_le (_fun jit_float32 jit_float32 -> jit_int))
+(define-jit jit_float32_gt (_fun jit_float32 jit_float32 -> jit_int))
+(define-jit jit_float32_ge (_fun jit_float32 jit_float32 -> jit_int))
+(define-jit jit_float32_cmpl (_fun jit_float32 jit_float32 -> jit_int))
+(define-jit jit_float32_cmpg (_fun jit_float32 jit_float32 -> jit_int))
+(define-jit jit_float32_acos (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_asin (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_atan (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_atan2 (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_ceil (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_cos (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_cosh (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_exp (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_floor (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_log (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_log10 (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_pow (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_rint (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_round (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_sin (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_sinh (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_sqrt (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_tan (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_tanh (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_trunc (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_is_finite (_fun jit_float32 -> jit_int))
+(define-jit jit_float32_is_nan (_fun jit_float32 -> jit_int))
+(define-jit jit_float32_is_inf (_fun jit_float32 -> jit_int))
+(define-jit jit_float32_abs (_fun jit_float32 -> jit_float32))
+(define-jit jit_float32_min (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_max (_fun jit_float32 jit_float32 -> jit_float32))
+(define-jit jit_float32_sign (_fun jit_float32 -> jit_int))
+(define-jit jit_float64_add (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_sub (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_mul (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_div (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_rem (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_ieee_rem
+  (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_neg (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_eq (_fun jit_float64 jit_float64 -> jit_int))
+(define-jit jit_float64_ne (_fun jit_float64 jit_float64 -> jit_int))
+(define-jit jit_float64_lt (_fun jit_float64 jit_float64 -> jit_int))
+(define-jit jit_float64_le (_fun jit_float64 jit_float64 -> jit_int))
+(define-jit jit_float64_gt (_fun jit_float64 jit_float64 -> jit_int))
+(define-jit jit_float64_ge (_fun jit_float64 jit_float64 -> jit_int))
+(define-jit jit_float64_cmpl (_fun jit_float64 jit_float64 -> jit_int))
+(define-jit jit_float64_cmpg (_fun jit_float64 jit_float64 -> jit_int))
+(define-jit jit_float64_acos (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_asin (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_atan (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_atan2 (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_ceil (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_cos (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_cosh (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_exp (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_floor (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_log (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_log10 (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_pow (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_rint (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_round (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_sin (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_sinh (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_sqrt (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_tan (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_tanh (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_trunc (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_is_finite (_fun jit_float64 -> jit_int))
+(define-jit jit_float64_is_nan (_fun jit_float64 -> jit_int))
+(define-jit jit_float64_is_inf (_fun jit_float64 -> jit_int))
+(define-jit jit_float64_abs (_fun jit_float64 -> jit_float64))
+(define-jit jit_float64_min (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_max (_fun jit_float64 jit_float64 -> jit_float64))
+(define-jit jit_float64_sign (_fun jit_float64 -> jit_int))
+(define-jit jit_nfloat_add (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_sub (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_mul (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_div (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_rem (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_ieee_rem (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_neg (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_eq (_fun jit_nfloat jit_nfloat -> jit_int))
+(define-jit jit_nfloat_ne (_fun jit_nfloat jit_nfloat -> jit_int))
+(define-jit jit_nfloat_lt (_fun jit_nfloat jit_nfloat -> jit_int))
+(define-jit jit_nfloat_le (_fun jit_nfloat jit_nfloat -> jit_int))
+(define-jit jit_nfloat_gt (_fun jit_nfloat jit_nfloat -> jit_int))
+(define-jit jit_nfloat_ge (_fun jit_nfloat jit_nfloat -> jit_int))
+(define-jit jit_nfloat_cmpl (_fun jit_nfloat jit_nfloat -> jit_int))
+(define-jit jit_nfloat_cmpg (_fun jit_nfloat jit_nfloat -> jit_int))
+(define-jit jit_nfloat_acos (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_asin (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_atan (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_atan2 (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_ceil (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_cos (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_cosh (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_exp (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_floor (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_log (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_log10 (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_pow (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_rint (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_round (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_sin (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_sinh (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_sqrt (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_tan (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_tanh (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_trunc (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_is_finite (_fun jit_nfloat -> jit_int))
+(define-jit jit_nfloat_is_nan (_fun jit_nfloat -> jit_int))
+(define-jit jit_nfloat_is_inf (_fun jit_nfloat -> jit_int))
+(define-jit jit_nfloat_abs (_fun jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_min (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_max (_fun jit_nfloat jit_nfloat -> jit_nfloat))
+(define-jit jit_nfloat_sign (_fun jit_nfloat -> jit_int))
+(define-jit jit_int_to_sbyte (_fun jit_int -> jit_int))
+(define-jit jit_int_to_ubyte (_fun jit_int -> jit_int))
+(define-jit jit_int_to_short (_fun jit_int -> jit_int))
+(define-jit jit_int_to_ushort (_fun jit_int -> jit_int))
+(define-jit jit_int_to_int (_fun jit_int -> jit_int))
+(define-jit jit_int_to_uint (_fun jit_int -> jit_uint))
+(define-jit jit_int_to_long (_fun jit_int -> jit_long))
+(define-jit jit_int_to_ulong (_fun jit_int -> jit_ulong))
+(define-jit jit_uint_to_int (_fun jit_uint -> jit_int))
+(define-jit jit_uint_to_uint (_fun jit_uint -> jit_uint))
+(define-jit jit_uint_to_long (_fun jit_uint -> jit_long))
+(define-jit jit_uint_to_ulong (_fun jit_uint -> jit_ulong))
+(define-jit jit_long_to_int (_fun jit_long -> jit_int))
+(define-jit jit_long_to_uint (_fun jit_long -> jit_uint))
+(define-jit jit_long_to_long (_fun jit_long -> jit_long))
+(define-jit jit_long_to_ulong (_fun jit_long -> jit_ulong))
+(define-jit jit_ulong_to_int (_fun jit_ulong -> jit_int))
+(define-jit jit_ulong_to_uint (_fun jit_ulong -> jit_uint))
+(define-jit jit_ulong_to_long (_fun jit_ulong -> jit_long))
+(define-jit jit_ulong_to_ulong (_fun jit_ulong -> jit_ulong))
+(define-jit jit_int_to_sbyte_ovf
+  (_fun (pointer-to jit_int) jit_int -> jit_int))
+(define-jit jit_int_to_ubyte_ovf
+  (_fun (pointer-to jit_int) jit_int -> jit_int))
+(define-jit jit_int_to_short_ovf
+  (_fun (pointer-to jit_int) jit_int -> jit_int))
+(define-jit jit_int_to_ushort_ovf
+  (_fun (pointer-to jit_int) jit_int -> jit_int))
+(define-jit jit_int_to_int_ovf
+  (_fun (pointer-to jit_int) jit_int -> jit_int))
+(define-jit jit_int_to_uint_ovf
+  (_fun (pointer-to jit_uint) jit_int -> jit_int))
+(define-jit jit_int_to_long_ovf
+  (_fun (pointer-to jit_long) jit_int -> jit_int))
+(define-jit jit_int_to_ulong_ovf
+  (_fun (pointer-to jit_ulong) jit_int -> jit_int))
+(define-jit jit_uint_to_int_ovf
+  (_fun (pointer-to jit_int) jit_uint -> jit_int))
+(define-jit jit_uint_to_uint_ovf
+  (_fun (pointer-to jit_uint) jit_uint -> jit_int))
+(define-jit jit_uint_to_long_ovf
+  (_fun (pointer-to jit_long) jit_uint -> jit_int))
+(define-jit jit_uint_to_ulong_ovf
+  (_fun (pointer-to jit_ulong) jit_uint -> jit_int))
+(define-jit jit_long_to_int_ovf
+  (_fun (pointer-to jit_int) jit_long -> jit_int))
+(define-jit jit_long_to_uint_ovf
+  (_fun (pointer-to jit_uint) jit_long -> jit_int))
+(define-jit jit_long_to_long_ovf
+  (_fun (pointer-to jit_long) jit_long -> jit_int))
+(define-jit jit_long_to_ulong_ovf
+  (_fun (pointer-to jit_ulong) jit_long -> jit_int))
+(define-jit jit_ulong_to_int_ovf
+  (_fun (pointer-to jit_int) jit_ulong -> jit_int))
+(define-jit jit_ulong_to_uint_ovf
+  (_fun (pointer-to jit_uint) jit_ulong -> jit_int))
+(define-jit jit_ulong_to_long_ovf
+  (_fun (pointer-to jit_long) jit_ulong -> jit_int))
+(define-jit jit_ulong_to_ulong_ovf
+  (_fun (pointer-to jit_ulong) jit_ulong -> jit_int))
+(define-jit jit_float32_to_int (_fun jit_float32 -> jit_int))
+(define-jit jit_float32_to_uint (_fun jit_float32 -> jit_uint))
+(define-jit jit_float32_to_long (_fun jit_float32 -> jit_long))
+(define-jit jit_float32_to_ulong (_fun jit_float32 -> jit_ulong))
+(define-jit jit_float32_to_int_ovf
+  (_fun (pointer-to jit_int) jit_float32 -> jit_int))
+(define-jit jit_float32_to_uint_ovf
+  (_fun (pointer-to jit_uint) jit_float32 -> jit_int))
+(define-jit jit_float32_to_long_ovf
+  (_fun (pointer-to jit_long) jit_float32 -> jit_int))
+(define-jit jit_float32_to_ulong_ovf
+  (_fun (pointer-to jit_ulong) jit_float32 -> jit_int))
+(define-jit jit_float64_to_int (_fun jit_float64 -> jit_int))
+(define-jit jit_float64_to_uint (_fun jit_float64 -> jit_uint))
+(define-jit jit_float64_to_long (_fun jit_float64 -> jit_long))
+(define-jit jit_float64_to_ulong (_fun jit_float64 -> jit_ulong))
+(define-jit jit_float64_to_int_ovf
+  (_fun (pointer-to jit_int) jit_float64 -> jit_int))
+(define-jit jit_float64_to_uint_ovf
+  (_fun (pointer-to jit_uint) jit_float64 -> jit_int))
+(define-jit jit_float64_to_long_ovf
+  (_fun (pointer-to jit_long) jit_float64 -> jit_int))
+(define-jit jit_float64_to_ulong_ovf
+  (_fun (pointer-to jit_ulong) jit_float64 -> jit_int))
+(define-jit jit_nfloat_to_int (_fun jit_nfloat -> jit_int))
+(define-jit jit_nfloat_to_uint (_fun jit_nfloat -> jit_uint))
+(define-jit jit_nfloat_to_long (_fun jit_nfloat -> jit_long))
+(define-jit jit_nfloat_to_ulong (_fun jit_nfloat -> jit_ulong))
+(define-jit jit_nfloat_to_int_ovf
+  (_fun (pointer-to jit_int) jit_nfloat -> jit_int))
+(define-jit jit_nfloat_to_uint_ovf
+  (_fun (pointer-to jit_uint) jit_nfloat -> jit_int))
+(define-jit jit_nfloat_to_long_ovf
+  (_fun (pointer-to jit_long) jit_nfloat -> jit_int))
+(define-jit jit_nfloat_to_ulong_ovf
+  (_fun (pointer-to jit_ulong) jit_nfloat -> jit_int))
+(define-jit jit_int_to_float32 (_fun jit_int -> jit_float32))
+(define-jit jit_int_to_float64 (_fun jit_int -> jit_float64))
+(define-jit jit_int_to_nfloat (_fun jit_int -> jit_nfloat))
+(define-jit jit_uint_to_float32 (_fun jit_uint -> jit_float32))
+(define-jit jit_uint_to_float64 (_fun jit_uint -> jit_float64))
+(define-jit jit_uint_to_nfloat (_fun jit_uint -> jit_nfloat))
+(define-jit jit_long_to_float32 (_fun jit_long -> jit_float32))
+(define-jit jit_long_to_float64 (_fun jit_long -> jit_float64))
+(define-jit jit_long_to_nfloat (_fun jit_long -> jit_nfloat))
+(define-jit jit_ulong_to_float32 (_fun jit_ulong -> jit_float32))
+(define-jit jit_ulong_to_float64 (_fun jit_ulong -> jit_float64))
+(define-jit jit_ulong_to_nfloat (_fun jit_ulong -> jit_nfloat))
+(define-jit jit_float32_to_float64 (_fun jit_float32 -> jit_float64))
+(define-jit jit_float32_to_nfloat (_fun jit_float32 -> jit_nfloat))
+(define-jit jit_float64_to_float32 (_fun jit_float64 -> jit_float32))
+(define-jit jit_float64_to_nfloat (_fun jit_float64 -> jit_nfloat))
+(define-jit jit_nfloat_to_float32 (_fun jit_nfloat -> jit_float32))
+(define-jit jit_nfloat_to_float64 (_fun jit_nfloat -> jit_float64))
 
 ;;jit-meta.h - complete
 (define jit_meta_t _pointer)
@@ -729,24 +1092,35 @@
 
 (define jit_abi_t (_enum '(jit_abi_cdecl jit_abi_vararg jit_abi_stdcall jit_abi_fastcall)))
 
+;; manually improved
+(define-jit jit_type_free (_fun jit_type_t -> _void) #:wrap (deallocator))
+
+(define-jit jit_type_copy (_fun jit_type_t -> jit_type_t) #:wrap (allocator jit_type_free))
+(define-jit jit_type_create_signature
+  (_fun jit_abi_t jit_type_t [params : (_list i jit_type_t)] [_uint = (length params)] _int ->
+        jit_type_t)
+  #:wrap (allocator jit_type_free))
+(define-jit jit_type_create_struct
+  (_fun [params : (_list i jit_type_t)] [_uint = (length params)] _int
+        -> jit_type_t)
+  #:wrap (allocator jit_type_free))
+(define-jit jit_type_create_union
+  (_fun [params : (_list i jit_type_t)] [_uint = (length params)] _int
+        -> jit_type_t)
+  #:wrap (allocator jit_type_free))
+
+(define-jit jit_type_create_pointer (_fun jit_type_t _int -> jit_type_t)
+  #:wrap (allocator jit_type_free))
+
 ;;;using autoffi
-(define-jit jit_type_copy (_fun jit_type_t -> jit_type_t))
-(define-jit jit_type_free (_fun jit_type_t -> _void))
-(define-jit
-  jit_type_create_struct
-  (_fun (pointer-to jit_type_t) _uint _int -> jit_type_t))
-(define-jit
-  jit_type_create_union
-  (_fun (pointer-to jit_type_t) _uint _int -> jit_type_t))
-(define-jit
-  jit_type_create_signature
-  (_fun jit_abi_t jit_type_t (pointer-to jit_type_t) _uint _int ->
-   jit_type_t))
-(define-jit jit_type_create_pointer (_fun jit_type_t _int -> jit_type_t))
+
+
+
 (define-jit
   jit_type_create_tagged
   (_fun jit_type_t _int (pointer-to _void) jit_meta_free_func _int ->
-   jit_type_t))
+   jit_type_t) #:wrap (allocator jit_type_free))
+
 (define-jit
   jit_type_set_names
   (_fun jit_type_t (pointer-to char) _uint -> _int))
