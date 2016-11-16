@@ -272,9 +272,9 @@
 (define-jit jit_insn_get_signature (_fun jit_insn_t -> jit_type_t))
 (define-jit jit_insn_dest_is_value (_fun jit_insn_t -> _int))
 (define-jit jit_insn_label
-  (_fun jit_function_t (pointer-to jit_label_t) -> _int))
+  (_fun jit_function_t [label : (_ptr i jit_label_t)] -> _int))
 (define-jit jit_insn_label_tight
-  (_fun jit_function_t (pointer-to jit_label_t) -> _int))
+  (_fun jit_function_t [label : (_ptr i jit_label_t)] -> _int))
 (define-jit jit_insn_new_block (_fun jit_function_t -> _int))
 (define-jit jit_insn_load (_fun jit_function_t jit_value_t -> jit_value_t))
 (define-jit jit_insn_dup (_fun jit_function_t jit_value_t -> jit_value_t))
@@ -382,43 +382,63 @@
 (define-jit jit_insn_max
   (_fun jit_function_t jit_value_t jit_value_t -> jit_value_t))
 (define-jit jit_insn_sign (_fun jit_function_t jit_value_t -> jit_value_t))
+
+;; these returns zero if out of memory
 (define-jit jit_insn_branch
-  (_fun jit_function_t (pointer-to jit_label_t) -> _int))
+  (_fun jit_function_t [label : (_ptr io jit_label_t)] -> [mem : _int] ->
+        (if (zero? mem) (error "out of memory") label)))
+
 (define-jit jit_insn_branch_if
-  (_fun jit_function_t jit_value_t (pointer-to jit_label_t) -> _int))
+  (_fun jit_function_t jit_value_t [label : (_ptr io jit_label_t)] -> [mem : _int] ->
+        (if (zero? mem) (error "out of memory") label)))
+
 (define-jit jit_insn_branch_if_not
-  (_fun jit_function_t jit_value_t (pointer-to jit_label_t) -> _int))
+  (_fun jit_function_t jit_value_t [label : (_ptr io jit_label_t)] -> [mem : _int] ->
+        (if (zero? mem) (error "out of memory") label)))
+
 (define-jit jit_insn_jump_table
   (_fun jit_function_t jit_value_t (pointer-to jit_label_t) _uint -> _int))
 (define-jit jit_insn_address_of
   (_fun jit_function_t jit_value_t -> jit_value_t))
 (define-jit jit_insn_address_of_label
-  (_fun jit_function_t (pointer-to jit_label_t) -> jit_value_t))
+  (_fun jit_function_t (_ptr i jit_label_t) -> jit_value_t))
 (define-jit jit_insn_convert
   (_fun jit_function_t jit_value_t jit_type_t _int -> jit_value_t))
+
+;; manually improved
 (define-jit jit_insn_call
-  (_fun jit_function_t _string jit_function_t jit_type_t
-        (pointer-to jit_value_t) _uint _int ->
+  (_fun [func : jit_function_t]
+        [name : _string]
+        [jit_func : jit_function_t]
+        [signature : jit_type_t]
+        [args : (_list i jit_value_t)]
+        [num_args : _uint = (length args)]
+        [flags : _int] ->
         jit_value_t))
+
 (define-jit jit_insn_call_indirect
-  (_fun jit_function_t jit_value_t jit_type_t (pointer-to jit_value_t)
-        _uint _int ->
+  (_fun jit_function_t jit_value_t jit_type_t
+        [args : (_list i jit_value_t)] [num_args : _uint = (length args)]
+        _int ->
         jit_value_t))
+
 (define-jit jit_insn_call_indirect_vtable
-  (_fun jit_function_t jit_value_t jit_type_t (pointer-to jit_value_t)
-        _uint _int ->
+  (_fun jit_function_t jit_value_t jit_type_t [args : (_list i jit_value_t)]
+        [num_args : _uint = (length args)] _int ->
         jit_value_t))
+
 (define-jit jit_insn_call_native
   (_fun
    jit_function_t
    (pointer-to char)
    (pointer-to _void)
    jit_type_t
-   (pointer-to jit_value_t)
-   _uint
+   [args : (_list i jit_value_t)]
+   [num_args : _uint = (length args)]
    _int
    ->
    jit_value_t))
+
 (define-jit jit_insn_call_intrinsic
   (_fun
    jit_function_t
@@ -429,6 +449,7 @@
    jit_value_t
    ->
    jit_value_t))
+
 (define-jit jit_insn_incoming_reg
   (_fun jit_function_t jit_value_t _int -> _int))
 (define-jit jit_insn_incoming_frame_posn
@@ -1096,10 +1117,12 @@
 (define-jit jit_type_free (_fun jit_type_t -> _void) #:wrap (deallocator))
 
 (define-jit jit_type_copy (_fun jit_type_t -> jit_type_t) #:wrap (allocator jit_type_free))
+
 (define-jit jit_type_create_signature
   (_fun jit_abi_t jit_type_t [params : (_list i jit_type_t)] [_uint = (length params)] _int ->
         jit_type_t)
   #:wrap (allocator jit_type_free))
+
 (define-jit jit_type_create_struct
   (_fun [params : (_list i jit_type_t)] [_uint = (length params)] _int
         -> jit_type_t)
@@ -1111,16 +1134,12 @@
 
 (define-jit jit_type_create_pointer (_fun jit_type_t _int -> jit_type_t)
   #:wrap (allocator jit_type_free))
-
-;;;using autoffi
-
-
-
 (define-jit
   jit_type_create_tagged
   (_fun jit_type_t _int (pointer-to _void) jit_meta_free_func _int ->
    jit_type_t) #:wrap (allocator jit_type_free))
 
+;;;using autoffi
 (define-jit
   jit_type_set_names
   (_fun jit_type_t (pointer-to char) _uint -> _int))
