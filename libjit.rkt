@@ -9,11 +9,12 @@
 (define (pointer-to t)
   _pointer) ;;TODO
 
-(define libjit (ffi-lib "libjit"))
+(define libjit (ffi-lib "./libjit"))
 (define-ffi-definer define-jit libjit)
 
 
 ;;jit-defs.h - complete
+(define jit_void _void)
 (define jit_sbyte _sbyte)
 (define jit_ubyte _ubyte)
 
@@ -271,10 +272,7 @@
 (define-jit jit_insn_get_name (_fun jit_insn_t -> (pointer-to char)))
 (define-jit jit_insn_get_signature (_fun jit_insn_t -> jit_type_t))
 (define-jit jit_insn_dest_is_value (_fun jit_insn_t -> _int))
-(define-jit jit_insn_label
-  (_fun jit_function_t [label : (_ptr i jit_label_t)] -> _int))
-(define-jit jit_insn_label_tight
-  (_fun jit_function_t [label : (_ptr i jit_label_t)] -> _int))
+
 (define-jit jit_insn_new_block (_fun jit_function_t -> _int))
 (define-jit jit_insn_load (_fun jit_function_t jit_value_t -> jit_value_t))
 (define-jit jit_insn_dup (_fun jit_function_t jit_value_t -> jit_value_t))
@@ -394,6 +392,14 @@
 
 (define-jit jit_insn_branch_if_not
   (_fun jit_function_t jit_value_t [label : (_ptr io jit_label_t)] -> [mem : _int] ->
+        (if (zero? mem) (error "out of memory") label)))
+
+(define-jit jit_insn_label
+  (_fun jit_function_t [label : (_ptr io jit_label_t)] -> [mem : _int] ->
+        (if (zero? mem) (error "out of memory") label)))
+
+(define-jit jit_insn_label_tight
+  (_fun jit_function_t [label : (_ptr io jit_label_t)] -> [mem : _int] ->
         (if (zero? mem) (error "out of memory") label)))
 
 (define-jit jit_insn_jump_table
@@ -1224,20 +1230,27 @@
 
 ;;jit-value.h - almost complete
 
-(define jit_constant_t _pointer)
+;(define jit_constant_t _pointer)
+(define-cstruct _jit_constant_t
+  ([type jit_type_t]
+   [un (_union
+        _pointer
+        jit_int
+        jit_nfloat)]))
+;(define jit_constant_t _jit_constant_t)
 ;; TODO racket error **stack smashing detected**
 ;; (define jit_constant_t
 ;;   (_list-struct
 ;;    jit_type_t
-;;    (_union _pointer
-;;            jit_int
-;;            jit_uint
-;;            jit_nint
-;;            jit_nuint
-;;            jit_long
-;;            jit_ulong
-;;            jit_float32
-;;            jit_float64
+;; (_union _pointer
+           ;; jit_int
+           ;; jit_uint
+           ;; jit_nint
+           ;; jit_nuint
+           ;; jit_long
+           ;; jit_ulong
+           ;; jit_float32
+           ;; jit_float64
 ;;            jit_nfloat)
 ;;    ))
 
@@ -1253,7 +1266,7 @@
 (define-jit jit_value_create_nfloat_constant
   (_fun jit_function_t jit_type_t jit_nfloat -> jit_value_t))
 (define-jit jit_value_create_constant
-  (_fun jit_function_t (pointer-to jit_constant_t) -> jit_value_t))
+  (_fun jit_function_t _jit_constant_t-pointer -> jit_value_t))
 (define-jit jit_value_get_param (_fun jit_function_t _uint -> jit_value_t))
 (define-jit jit_value_get_struct_pointer
   (_fun jit_function_t -> jit_value_t))
@@ -1270,7 +1283,7 @@
 (define-jit jit_value_get_function (_fun jit_value_t -> jit_function_t))
 (define-jit jit_value_get_block (_fun jit_value_t -> jit_block_t))
 (define-jit jit_value_get_context (_fun jit_value_t -> jit_context_t))
-(define-jit jit_value_get_constant (_fun jit_value_t -> jit_constant_t))
+(define-jit jit_value_get_constant (_fun jit_value_t -> _jit_constant_t))
 (define-jit jit_value_get_nint_constant (_fun jit_value_t -> jit_nint))
 (define-jit jit_value_get_long_constant (_fun jit_value_t -> jit_long))
 (define-jit jit_value_get_float32_constant (_fun jit_value_t -> jit_float32))
@@ -1278,7 +1291,7 @@
 (define-jit jit_value_get_nfloat_constant (_fun jit_value_t -> jit_nfloat))
 (define-jit jit_value_is_true (_fun jit_value_t -> _int))
 (define-jit jit_constant_convert
-  (_fun (pointer-to jit_constant_t) (pointer-to jit_constant_t) jit_type_t _int -> _int))
+  (_fun _jit_constant_t-pointer _jit_constant_t-pointer jit_type_t _int -> _int))
 
 ;;jit-vmem.h - complete
 (define jit_prot_t

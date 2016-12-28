@@ -1,0 +1,27 @@
+
+module ::= (module module-exp ...)
+
+module-exp ::= (define-type id type)
+             | (define-function (id:<fun-name> (id:<arg-name> : type:<arg-type>) ... : type:<ret-type>)
+	                                   statement)
+
+statement ::= (define-variable (id:<var-name> : id:<var-type>) statement)
+         | (assign lhs-exp exp)
+	 | (if exp statement statement) ; instead add jump instructions same as libjit or llvm
+	 | (while exp statement)
+	 | (return exp)
+	 | (return-tail exp)
+	 | (block statement ...)
+	 | exp
+lhs-exp ::= id | (-> id id) | (. id id) | (* id) | (& id)
+
+exp ::= id
+      | (#%app-racket id id ...)
+      | (#%app-jit    id id ...)
+      | (#%app-prim   id id ...)
+      | lhs-exp
+      | constants
+
+id ::= symbol
+
+type ::= prims | (struct (id : type) ...) | (pointer type) | (union type ...) | (-> type ... : type)
