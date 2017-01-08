@@ -47,11 +47,11 @@
         [else (error "value type not supported yet!" value type)]))
 
 (define (compile-lhs-assign lhs exp-value function env)
-  (match exp
+  (match lhs
     [(? symbol?)
      (define lhs-v (env-jit-value-v (env-lookup lhs env)))
      (jit_insn_store function lhs-v exp-value)]
-    [else (error "not implemented" exp)]))
+    [else (error "not implemented" lhs)]))
 
 (define (compile-lhs-expression exp function env)
   (match exp
@@ -78,27 +78,26 @@
 
 ;; returns an object of jit_value
 (define (compile-expression exp function env)
+  (printf "compiling expression ~a\n" exp)
   (match exp
     [`(#%app ,rator ,rands ...)
      (define rand-values
        (for/list ([rand rands])
          (compile-expression rand function env)))
      (compile-app rator rand-values function env)]
-    ;; [`(#%app (racket ,rator) ,rands ...)]
-    ;; [`(#%app (jit ,rator) ,rands ...)]
-    ;; [`(#%app (prim ,rator) ,rands ...)]
     [`(#%value ,value ,type) (create-value value type function env)]
     [else (compile-lhs-expression exp function env)]))
 
 ;; returns void
 (define (compile-statement stmt function env)
+  (printf "compiling statement ~a\n" stmt)
   (match stmt
     [`(define-variable (,id : ,type) ,st)
      (define id-type (env-lookup type env))
      (define id-value (jit_value_create function (type-prim-jit (env-type-prim id-type))))
-     (compile-statement function (env-extend id (env-jit-value id-value id-type) env))]
-    [`(assign ,lhs ,exp)
-     (define exp-value (compile-expression exp function env))
+     (compile-statement st function (env-extend id (env-jit-value id-value id-type) env))]
+    [`(assign ,lhs ,v)
+     (define exp-value (compile-expression v function env))
      (compile-lhs-assign lhs exp-value function env)]
     [`(if ,tst ,thn ,els)
      (define tst-value (compile-expression tst function env))
@@ -114,7 +113,7 @@
      (define end-label (jit_insn_branch_if_not function tst-value empty-label))
      (compile-statement body function env)
      (jit_insn_branch function start-label)
-     (jit_insn_label end-label)]
+     (jit_insn_label function end-label)]
     [`(return ,exp) (jit_insn_return function (compile-expression exp function env))]
     [`(return-tail ,exp) (jit_insn_return function (compile-expression exp function env))];;TODO
     [`(block ,stmts ...)
@@ -188,14 +187,52 @@
          (define-type bc (struct (b : int) (c : int)))
          (define-type pbc (pointer bc))
        (define-type ui (struct (bc1 : pbc) (bc2 : pbc)))
+
        (define-function (f (x : int) : int)
          (return (#%app jit-add x x)))
+
        (define-function (even? (x : int) : int)
          (if (#%app jit-eq? (#%app jit-rem x (#%value 2 int)) (#%value 0 int))
              (return (#%value 1 int))
              (return (#%value 0 int))))
+
+       (define-function (meven? (x : int) : int)
+         (if (#%app jit-eq? x (#%value 0 int))
+             (return (#%value 1 int))
+             (return (#%app modd? (#%app jit-sub x (#%value 1 int))))))
+
+       (define-function (modd? (x : int) : int)
+         (if (#%app jit-eq? x (#%value 0 int))
+             (return (#%value 0 int))
+             (return (#%app meven? (#%app jit-sub x (#%value 1 int))))))
+       (define-function (fact (x : int) : int)
+         (if (#%app jit-eq? x (#%value 0 int))
+             (return (#%value 1 int))
+             (return (#%app jit-mul
+                     x
+                     (#%app fact
+                            (#%app jit-sub x (#%value 1 int)))))))
+       (define-function (factr (x : int) : int)
+         (define-variable (result : int)
+           (block
+            (assign result (#%value 1 int))
+            (define-variable (i : int)
+              (block
+               (assign i (#%value 1 int))
+               (while (#%app jit-le? i x)
+                 (block
+                  (assign result (#%app jit-mul result i))
+                  (assign i (#%app jit-add i (#%value 1 int)))))
+               (return result))))))
        )))
   (define f (jit-get-function (env-lookup 'f module-env)))
   (pretty-print (f 21))
   (define even? (jit-get-function (env-lookup 'even? module-env)))
-  (pretty-print (even? 42)))
+  (pretty-print (even? 42))
+  (define meven? (jit-get-function (env-lookup 'meven? module-env)))
+  (pretty-print (meven? 21))
+
+  (define fact (jit-get-function (env-lookup 'fact module-env)))
+  (pretty-print (fact 5))
+  (define factr (jit-get-function (env-lookup 'factr module-env)))
+  (pretty-print (factr 5)))

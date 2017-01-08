@@ -9,9 +9,8 @@
 (define (pointer-to t)
   _pointer) ;;TODO
 
-(define libjit (ffi-lib "./libjit"))
+(define libjit (ffi-lib "/usr/local/lib/libjit"))
 (define-ffi-definer define-jit libjit)
-
 
 ;;jit-defs.h - complete
 (define jit_void _void)

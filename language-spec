@@ -16,13 +16,11 @@ statement ::= (define-variable (id:<var-name> : id:<var-type>) statement)
 lhs-exp ::= id | (-> id id) | (. id id) | (* id) | (& id)
 
 exp ::= id
-      | (#%app-racket id id ...)
-      | (#%app-jit    id id ...)
-      | (#%app-prim   id id ...)
+      | (#%app id id ...)
       | (#value value type)
       | lhs-exp
 
-value ::= 123 | "abcd..." | (struct name (id : value) ...)
+value ::= 123 | "abcd..." | (struct-value name (id : value) ...)
 id ::= symbol
 
 type ::= prims | (struct (id : type) ...) | (pointer type) | (union type ...) | (-> type ... : type)
