@@ -292,6 +292,7 @@
   (_fun jit_function_t jit_value_t jit_value_t jit_type_t -> jit_value_t))
 (define-jit jit_insn_store_elem
   (_fun jit_function_t jit_value_t jit_value_t jit_value_t -> _int))
+
 (define-jit jit_insn_check_null (_fun jit_function_t jit_value_t -> _int))
 (define-jit jit_insn_nop (_fun jit_function_t -> _int))
 (define-jit jit_insn_add

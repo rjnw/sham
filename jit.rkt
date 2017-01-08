@@ -3,131 +3,147 @@
 (require "libjit.rkt")
 (require "jit-env.rkt")
 (require "jit-type.rkt")
-(provide (all-defined-out))
+(require "jit-intr.rkt")
+(provide compile-module
+         create-jit-context
+         create-initial-environment
+         context)
 
 (define empty-label (jit_uint_not 0))
 
 (struct context (jit env))
-;; (define jit_type_scheme_object (jit_type_create_struct (list jit_type_short jit_type_short) 1))
-;; (define jit_type_scheme_object_p (jit_type_create_pointer jit_type_scheme_object 1))
 
 (define (create-jit-context)
   (jit_context_create))
 (define global-jit-context (create-jit-context))
 
 (define (create-initial-environment)
-  (register-initial-types (empty-env)))
+  (register-jit-internals (register-initial-types (empty-env))))
 (define global-environment (create-initial-environment))
 (define global-context (context global-jit-context global-environment))
 
+(define (get-jit-function-pointer fobj)
+  (jit_function_to_closure fobj))
 
-;; returns a function object, can be given to jit_function_to_closure to get a pointer
-;; (define (compile-exp exp [context global-context])
-;;   (match exp
-;;     [`(define (,fun-name (,args : ,types) ... : ,ret-type) ,body ...)
-;;      (jit_context_build_start (context-jit context))
-;;      (define sig (jit_type_create_signature 'jit_abi_cdecl (context-get-jit-type context ret-type)
-;;                                             (map
-;;                                              (curry context-get-jit-type context) types)
-;;                                             1))
-;;      (define fobj (jit_function_create (context-jit context) sig))
-;;      (define env (cons
-;;                   (cons fun-name (cons `(,@(map (curry context-get-jit-type context) types) -> ,ret-type) fobj))
-;;                   (for/list
-;;                       [(v args)
-;;                        (t types)
-;;                        (i (in-range (length args)))]
-;;                     (cons v (cons (context-get-jit-type context t) (jit_value_get_param fobj i))))))
-;;      (foldl (lambda (body env) (compile-body-exp fobj body env context)) env body)
-;;      (jit_function_compile fobj)
-;;      (jit_context_build_end (context-jit context))
-;;      (values fobj `(,@types -> ,ret-type))]))
+(define (jit-get-function f)
+  (match f
+    [(env-jit-function type object cpointer)
+     (racket-type-cast cpointer type-void* type)]))
 
-;; ;;returns a new environment
-;; (define (compile-body-exp fobj body env context)
-;;   (match body
-;;     [`(define-var (,name : ,type) ,body ...)
-;;      (define value (jit_value_create fobj (context-get-jit-type context type)))
-;;      (define new-env (cons (cons name (cons type
-;;                                             value))
-;;                            env))
-;;      (foldl (lambda (body env)
-;;               (compile-body-exp fobj body env context)) new-env body)]
-;;     [`(assign ,name ,value-exp)
-;;      (jit_insn_store fobj (lookup-value env name) (compile-value-exp fobj value-exp env))
-;;      env]
-;;     [`(if ,value-exp-test ,body-then ,body-else)
-;;      (define value-test
-;;        (compile-value-exp fobj value-exp-test env))
-;;      (define else-label
-;;        (jit_insn_branch_if_not fobj value-test empty-label))
-;;      (compile-body-exp fobj body-then env)
-;;      (define end-label
-;;        (jit_insn_branch fobj empty-label))
-;;      (jit_insn_label fobj else-label)
-;;      (define new-env
-;;        (compile-body-exp fobj body-else env context))
-;;      (jit_insn_label fobj end-label)
-;;      new-env]
-;;     [`(return ,value-exp)
-;;      (jit_insn_return fobj (compile-value-exp fobj value-exp env))
-;;      env]
-;;     [`(return-tail ,value-exp)
-;;      (jit_insn_return fobj (compile-value-exp fobj value-exp env))
-;;      env]))
+(define (create-value value type function env)
+  (define envtype (env-lookup type env))
+  (define prim-type (type-prim-jit (env-type-prim envtype)))
+  (cond [(or (type-native-int? envtype)
+             (type-pointer? envtype))
+         (jit_value_create_nint_constant
+          function
+          prim-type
+          value)]
+        [(type-float32? type)
+         (jit_value_create_float32_constant
+          function
+          prim-type
+          value)]
+        [else (error "value type not supported yet!" value type)]))
 
-;no env changes to go back
-;; returns jit-value and type
-;; (define (compile-value-exp fobj value-exp env)
-;;   (match value-exp
-;;     ;; [`(,rator ,rands ...)
-;;     ;;  (define-values (rator-value rator-type) (compile-value-exp fobj rator env))
-;;     ;;  (for/fold ([arg-values '()] [arg-types '()]) [(arg args)]
-;;     ;;    (define-values (arg-value arg-type) (compile-value-exp fobj value-exp env))
-;;     ;;    (values (cons arg-value arg-values)))
-;;     ;;  (map (lambda (arg) (define-values (arg-value arg-type) (compile-value-exp fobj value-exp env))
-;;     ;;               (cons arg-value arg-type)) rands)
-;;     ;;  (check-types )]
-    
+(define (compile-lhs-assign lhs exp-value function env)
+  (match exp
+    [(? symbol?)
+     (define lhs-v (env-jit-value-v (env-lookup lhs env)))
+     (jit_insn_store function lhs-v exp-value)]
+    [else (error "not implemented" exp)]))
 
-;;     [`(+ ,x1 ,x2)
-;;      (jit_insn_add fobj
-;;                    (compile-value-exp fobj x1 env)
-;;                    (compile-value-exp fobj x2 env))]
-;;     [`(- ,x1 ,x2)
-;;      (jit_insn_sub fobj
-;;                    (compile-value-exp fobj x1 env)
-;;                    (compile-value-exp fobj x2 env))]
-;;     [x #:when (symbol? x)
-;;        (lookup-value env x)]
-;;     [x #:when (number? x)h
-;;        (jit_value_create_nint_constant fobj jit_type_uint x)]))
+(define (compile-lhs-expression exp function env)
+  (match exp
+    [(? symbol?) (env-jit-value-v (env-lookup exp env))]
+    [else (error "not implemented lhs expression" exp)]))
 
-;; (define (context-get-jit-type context type)
-;;   (define type-store (context-type-store context))
-;;   (get-jit-type type-store type))
-;; (define (context-get-racket-type context type)
-;;   (define type-store (context-type-store context))
-;;   (get-racket-type type-store type))
-;; (define (lookup-value env x)
-;;   (cdr (cdr (assoc x env))))
+(define (compile-app rator rand-values function env)
+  (match (env-lookup rator env)
+    [(env-jit-function type object cpointer)
+     (jit_insn_call function "" object (type-prim-jit (env-type-prim type)) rand-values 0)]
+    [(env-jit-function-decl type object)
+     (jit_insn_call function "" object (type-prim-jit (env-type-prim type)) rand-values 0)]
+    [(env-jit-internal-function compiler)
+     (compiler function rand-values)]
+    [(env-racket-function type f)
+     ;TODO
+     (error "not implemented applicative")]
+    [(env-racket-ffi-function type f)
+     ;TODO
+     (error "not implemented applicative")]
+    [(env-c-function type f)
+     (jit_insn_call_native function #f f type rand-values 0)]
+    [else (printf "rator ~a\n" (env-lookup rator env))]))
 
-;; (define (get-function-closure fobj)
-;;   (jit_function_to_closure fobj))
+;; returns an object of jit_value
+(define (compile-expression exp function env)
+  (match exp
+    [`(#%app ,rator ,rands ...)
+     (define rand-values
+       (for/list ([rand rands])
+         (compile-expression rand function env)))
+     (compile-app rator rand-values function env)]
+    ;; [`(#%app (racket ,rator) ,rands ...)]
+    ;; [`(#%app (jit ,rator) ,rands ...)]
+    ;; [`(#%app (prim ,rator) ,rands ...)]
+    [`(#%value ,value ,type) (create-value value type function env)]
+    [else (compile-lhs-expression exp function env)]))
 
-;; (define (compile-function f [context global-context])
-;;   (define-values (fobj type) (compile-exp f))
-;;   (define f-ptr (get-function-closure fobj))
-;;   (cast f-ptr _pointer (_cprocedure (map (curry context-get-racket-type context) (get-input-function-types type))
-;;                                     (context-get-racket-type context (get-output-function-type type)))))
+;; returns void
+(define (compile-statement stmt function env)
+  (match stmt
+    [`(define-variable (,id : ,type) ,st)
+     (define id-type (env-lookup type env))
+     (define id-value (jit_value_create function (type-prim-jit (env-type-prim id-type))))
+     (compile-statement function (env-extend id (env-jit-value id-value id-type) env))]
+    [`(assign ,lhs ,exp)
+     (define exp-value (compile-expression exp function env))
+     (compile-lhs-assign lhs exp-value function env)]
+    [`(if ,tst ,thn ,els)
+     (define tst-value (compile-expression tst function env))
+     (define label-if (jit_insn_branch_if function tst-value empty-label))
+     (compile-statement els function env)
+     (define label-end (jit_insn_branch function empty-label))
+     (jit_insn_label function label-if)
+     (compile-statement thn function env)
+     (jit_insn_label function label-end)]
+    [`(while ,tst ,body)
+     (define start-label (jit_insn_label function empty-label))
+     (define tst-value (compile-expression tst function env))
+     (define end-label (jit_insn_branch_if_not function tst-value empty-label))
+     (compile-statement body function env)
+     (jit_insn_branch function start-label)
+     (jit_insn_label end-label)]
+    [`(return ,exp) (jit_insn_return function (compile-expression exp function env))]
+    [`(return-tail ,exp) (jit_insn_return function (compile-expression exp function env))];;TODO
+    [`(block ,stmts ...)
+     (for ([stmt stmts])
+       (compile-statement stmt function env))]
+    [else (error "unknown statement or not implemented")]))
 
-
-(define (compile-function-definition name args types ret-type body fobject env)
-  (void))
+(define (compile-function-definition name args types ret-type body f-decl env context)
+  (define fobject (env-jit-function-decl-object f-decl))
+  (define ftype (env-jit-function-decl-type f-decl))
+  (define jitc (context-jit context))
+  (jit_context_build_start jitc)
+  (define new-env
+    (for/fold ([env env])
+             ([arg args]
+              [type types]
+              [i (in-range (length args))])
+      (env-extend arg (env-jit-value (jit_value_get_param fobject i) type) env)))
+  (compile-statement body fobject new-env)
+  (jit_function_compile fobject)
+  (jit_context_build_end jitc)
+  (env-jit-function ftype fobject (get-jit-function-pointer fobject)))
 
 (define (compile-function-declaration function-type context)
   (define sig (type-prim-jit (env-type-prim function-type)))
-  (jit_function_create (context-jit context) sig))
+  (jit_context_build_start (context-jit context))
+  (define function-obj (jit_function_create (context-jit context) sig))
+  (jit_context_build_end (context-jit context))
+  function-obj)
 
 ;; returns a binding of all the define-function as an assoc list
 ;; TODO support recursive struct types
@@ -151,7 +167,7 @@
 
       [`(define-function (,function-name (,args : ,types) ... : ,ret-type) ,body)
        (define f (compile-function-definition function-name args types ret-type body
-                                              (env-lookup function-name env) env))
+                                              (env-lookup function-name env) env context))
        (env-extend function-name f module-env)]))
 
   (match m
@@ -166,10 +182,20 @@
 
 (module+ test
   (require rackunit)
-  (pretty-print
+  (define module-env
    (compile-module
     '(module
          (define-type bc (struct (b : int) (c : int)))
          (define-type pbc (pointer bc))
-         (define-type ui (struct (bc1 : pbc) (bc2 : pbc)))
-       ))))
+       (define-type ui (struct (bc1 : pbc) (bc2 : pbc)))
+       (define-function (f (x : int) : int)
+         (return (#%app jit-add x x)))
+       (define-function (even? (x : int) : int)
+         (if (#%app jit-eq? (#%app jit-rem x (#%value 2 int)) (#%value 0 int))
+             (return (#%value 1 int))
+             (return (#%value 0 int))))
+       )))
+  (define f (jit-get-function (env-lookup 'f module-env)))
+  (pretty-print (f 21))
+  (define even? (jit-get-function (env-lookup 'even? module-env)))
+  (pretty-print (even? 42)))

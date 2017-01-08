@@ -19,9 +19,10 @@ exp ::= id
       | (#%app-racket id id ...)
       | (#%app-jit    id id ...)
       | (#%app-prim   id id ...)
+      | (#value value type)
       | lhs-exp
-      | constants
 
+value ::= 123 | "abcd..." | (struct name (id : value) ...)
 id ::= symbol
 
 type ::= prims | (struct (id : type) ...) | (pointer type) | (union type ...) | (-> type ... : type)

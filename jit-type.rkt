@@ -4,7 +4,6 @@
 (require "jit-env.rkt")
 (provide (all-defined-out))
 
-
 ;; type ::= prims | (struct (id : type) ...) | (pointer type) | (union type ...) | (-> type ... : type)
 (struct type-prim (racket jit) #:prefab)
 
@@ -19,7 +18,7 @@
     [x #:when (symbol? typ) (type-ref (env-lookup typ env))]
     [`(struct (,ids : ,types) ...) (type-struct ids (map (curryr env-lookup env) types))]
     [`(pointer ,t) (type-pointer (env-lookup t env))]
-    [`(-> ,args ... : ,ret)
+    [`(,args ... -> ,ret)
      (type-function (map (curryr env-lookup env) args) (env-lookup ret env))]))
 
 (define (compile-type-declaration t env)
@@ -91,13 +90,42 @@
       (float32 ,jit_float32 ,jit_type_float32)
       (float64 ,jit_float64 ,jit_type_float64)
       (void ,jit_void ,jit_type_void))))
-  (env-extend 'void* (env-type (type-pointer 'void) (type-prim jit_ptr jit_type_void_ptr)) new-env))
+  (env-extend 'void* type-void* new-env))
 
+(define type-void* (env-type (type-pointer 'void) (type-prim jit_ptr jit_type_void_ptr)))
+
+(define native-int-types (set jit_type_int jit_type_uint jit_type_sbyte jit_type_ubyte jit_type_short
+                              jit_type_ushort jit_type_long jit_type_ulong))
+(define (type-native-int? envtype)
+  (match envtype
+    [(env-type (type-internal) (type-prim racket-type jit-type))
+     (set-member? native-int-types jit-type)]
+    [(env-type (type-ref t) _)
+     (type-native-int? t)]
+    [else #f]))
+
+(define (type-float32? envtype)
+  (match envtype
+    [(env-type (type-internal) (type-prim racket-type jit-type))
+     (equal? jit_type_float32 jit-type)]
+    [(env-type (type-ref t) _)
+     (type-float32? t)]
+    [else #f]))
+
+(define (racket-type-cast object from-type to-type)
+  (cast object
+        (type-prim-racket (env-type-prim from-type))
+        (type-prim-racket (env-type-prim to-type))))
 
 (module+ test
   (require rackunit)
   (define env (register-initial-types (empty-env)))
   (pretty-display env)
   (pretty-display (create-type '(pointer int) env))
-  (pretty-display (create-type '(-> int : int) env))
-  (pretty-display (create-type '(struct (a : int) (b : int)) env)))
+  (pretty-display (create-type '(int -> int) env))
+  (pretty-display (create-type '(struct (a : int) (b : int)) env))
+  (define new-env (env-extend 'intref (create-type 'int env) env))
+  (pretty-display (type-native-int? (env-lookup 'int new-env)))
+  (pretty-display (type-native-int? (env-lookup 'intref new-env)))
+  (pretty-display (type-float32? (env-lookup 'float32 new-env)))
+  )
