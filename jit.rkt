@@ -34,7 +34,7 @@
   (define envtype (env-lookup type env))
   (define prim-type (type-prim-jit (env-type-prim envtype)))
   (cond [(or (type-native-int? envtype)
-             (type-pointer? envtype))
+             (type-pointer? (env-type-skel envtype)))
          (jit_value_create_nint_constant
           function
           prim-type
@@ -74,7 +74,7 @@
      (error "not implemented applicative")]
     [(env-c-function type f)
      (jit_insn_call_native function #f f type rand-values 0)]
-    [else (printf "rator ~a\n" (env-lookup rator env))]))
+    [else (error "rator ~a\n" (env-lookup rator env))]))
 
 ;; returns an object of jit_value
 (define (compile-expression exp function env)
@@ -119,6 +119,8 @@
     [`(block ,stmts ...)
      (for ([stmt stmts])
        (compile-statement stmt function env))]
+    [`(#%exp ,e)
+     (compile-expression e function env)]
     [else (error "unknown statement or not implemented")]))
 
 (define (compile-function-definition name args types ret-type body f-decl env context)
@@ -224,6 +226,12 @@
                   (assign result (#%app jit-mul result i))
                   (assign i (#%app jit-add i (#%value 1 int)))))
                (return result))))))
+       (define-function (malloc-test : void)
+         (define-variable (ptr : void*)
+           (block
+            (assign ptr (#%app jit-malloc (#%value 5 int)))
+            (#%exp (#%app jit-free ptr))
+            (return (#%value 0 int)))))
        )))
   (define f (jit-get-function (env-lookup 'f module-env)))
   (pretty-print (f 21))
@@ -235,4 +243,6 @@
   (define fact (jit-get-function (env-lookup 'fact module-env)))
   (pretty-print (fact 5))
   (define factr (jit-get-function (env-lookup 'factr module-env)))
-  (pretty-print (factr 5)))
+  (pretty-print (factr 5))
+  (define malloc-test (jit-get-function (env-lookup 'malloc-test module-env)))
+  (malloc-test))

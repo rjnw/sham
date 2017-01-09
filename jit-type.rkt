@@ -127,5 +127,6 @@
   (define new-env (env-extend 'intref (create-type 'int env) env))
   (pretty-display (type-native-int? (env-lookup 'int new-env)))
   (pretty-display (type-native-int? (env-lookup 'intref new-env)))
+  (pretty-display (type-native-int? (env-lookup 'void* new-env)))
   (pretty-display (type-float32? (env-lookup 'float32 new-env)))
   )

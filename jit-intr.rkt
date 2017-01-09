@@ -2,14 +2,36 @@
 (require ffi/unsafe)
 (require "libjit.rkt")
 (require "jit-env.rkt")
+(require "jit-type.rkt")
 (provide register-jit-internals)
 
 (define (register-jit-internals env)
   (register-intrinsics
    (register-internal-instructions env)))
 
+(define (get-c-native-call-compiler f racket-type jit-type)
+  (lambda (function rands)
+    (printf "calling native function ~a with args ~a" f rands)
+    (jit_insn_call_native function #f (cast f racket-type _pointer) jit-type rands 0)))
+
 (define (register-intrinsics env)
-  env)
+  (define (register-native sym f type env)
+    (define typeprim (env-type-prim (create-type type env)))
+    (env-extend sym
+                (env-jit-internal-function
+                 (get-c-native-call-compiler
+                  f (type-prim-racket typeprim) (type-prim-jit typeprim)))
+                env))
+  (for/fold ([env env])
+            [(jitmn jit-memory-natives)]
+    (register-native (first jitmn) (second jitmn) (third jitmn) env)))
+
+(define jit-memory-natives
+  `((jit-malloc ,jit_malloc (uint -> void*))
+    (jit-calloc ,jit_calloc (uint uint -> void*))
+    (jit-realloc ,jit_realloc (void* uint -> void*))
+    (jit-free ,jit_free (void* -> void))
+    ))
 
 (define (register-internal-instructions env)
   (define (get-binary-compiler f)
@@ -83,4 +105,4 @@
     (jit-sign ,jit_insn_sign)))
 
 (module+ test
-  (display (register-jit-internals (empty-env))))
+  (display (register-internal-instructions (empty-env))))
