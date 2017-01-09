@@ -86,6 +86,10 @@
          (compile-expression rand function env)))
      (compile-app rator rand-values function env)]
     [`(#%value ,value ,type) (create-value value type function env)]
+    [`(#%sizeof ,type)
+     (define envtype (env-lookup type env))
+     (create-value (jit_type_get_size (type-prim-jit (env-type-prim envtype)))
+                   'uint function env)]
     [else (compile-lhs-expression exp function env)]))
 
 ;; returns void
@@ -229,7 +233,7 @@
        (define-function (malloc-test : void)
          (define-variable (ptr : void*)
            (block
-            (assign ptr (#%app jit-malloc (#%value 5 int)))
+            (assign ptr (#%app jit-malloc (#%sizeof int)))
             (#%exp (#%app jit-free ptr))
             (return (#%value 0 int)))))
        )))

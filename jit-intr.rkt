@@ -6,12 +6,12 @@
 (provide register-jit-internals)
 
 (define (register-jit-internals env)
-  (register-intrinsics
-   (register-internal-instructions env)))
+  (register-specifics
+   (register-intrinsics
+    (register-internal-instructions env))))
 
 (define (get-c-native-call-compiler f racket-type jit-type)
   (lambda (function rands)
-    (printf "calling native function ~a with args ~a" f rands)
     (jit_insn_call_native function #f (cast f racket-type _pointer) jit-type rands 0)))
 
 (define (register-intrinsics env)
@@ -103,6 +103,9 @@
     (jit-is-finite ,jit_insn_is_finite)
     (jit-abs ,jit_insn_abs)
     (jit-sign ,jit_insn_sign)))
+
+(define (register-specifics env)
+  env)
 
 (module+ test
   (display (register-internal-instructions (empty-env))))
