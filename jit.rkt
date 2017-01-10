@@ -51,11 +51,24 @@
     [(? symbol?)
      (define lhs-v (env-jit-value-v (env-lookup lhs env)))
      (jit_insn_store function lhs-v exp-value)]
+    [`(* ,ptr ,off) ;off should be number of bytes, we don't do pointer arithmatic
+     (define ptr-value (compile-expression ptr function env))
+     (define off-value (compile-expression off function env))
+     (define ptr-with-off (jit_insn_add function ptr-value off-value))
+     (jit_insn_store_relative function ptr-with-off 0 exp-value)]
     [else (error "not implemented" lhs)]))
 
 (define (compile-lhs-expression exp function env)
   (match exp
     [(? symbol?) (env-jit-value-v (env-lookup exp env))]
+    [`(* ,ptr ,off : ,type) ;; again off is in bytes
+     (define value-type (type-prim-jit
+                       (env-type-prim
+                        (env-lookup type env))))
+     (define ptr-value (compile-expression ptr function env))
+     (define off-value (compile-expression off function env))
+     (define ptr-with-off (jit_insn_add function ptr-value off-value))
+     (jit_insn_load_relative function ptr-with-off 0 value-type)]
     [else (error "not implemented lhs expression" exp)]))
 
 (define (compile-app rator rand-values function env)
@@ -89,7 +102,7 @@
     [`(#%sizeof ,type)
      (define envtype (env-lookup type env))
      (create-value (jit_type_get_size (type-prim-jit (env-type-prim envtype)))
-                   'uint function env)]
+                   'uint function env)] 
     [else (compile-lhs-expression exp function env)]))
 
 ;; returns void
@@ -230,12 +243,49 @@
                   (assign result (#%app jit-mul result i))
                   (assign i (#%app jit-add i (#%value 1 int)))))
                (return result))))))
-       (define-function (malloc-test : void)
+       (define-function (malloc-test  : int)
          (define-variable (ptr : void*)
-           (block
-            (assign ptr (#%app jit-malloc (#%sizeof int)))
-            (#%exp (#%app jit-free ptr))
-            (return (#%value 0 int)))))
+           (define-variable (x : int)
+             (block
+              (assign ptr (#%app jit-malloc (#%sizeof int)))
+              (assign (* ptr (#%value 0 int)) (#%value 8 int))
+              (assign x (* ptr (#%value 0 int) : int))
+              (#%exp (#%app jit-free ptr))
+              (return x)))))
+       (define-type int* (pointer int))
+
+       (define-function (sum-array (arr : int*) (size : int) : int)
+         (define-variable (i : int)
+           (define-variable (sum : int)
+             (block
+              (assign i (#%value 0 int))
+              (assign sum (#%value 0 int))
+              (while (#%app jit-lt? i size)
+                (block
+                 (assign sum (#%app jit-add
+                                    sum
+                                    (* arr (#%app jit-mul i (#%sizeof int)) : int)))
+                 (assign i (#%app jit-add i (#%value 1 int)))))
+              (return sum)))))
+
+       (define-type ulong* (pointer ulong))
+       (define-function (dot-product (arr1 : ulong*) (arr2 : ulong*) (size : ulong) : ulong)
+         (define-variable (sum : ulong)
+           (define-variable (i : ulong)
+             (block
+              (assign i (#%value 0 ulong))
+              (assign sum (#%value 0 ulong))
+              (while (#%app jit-lt? i size)
+                (define-variable (ptr-pos : int)
+                  (block
+                   (assign ptr-pos (#%app jit-mul i (#%sizeof ulong)))
+                   (assign sum (#%app jit-add
+                                      sum
+                                      (#%app jit-mul
+                                             (* arr1 ptr-pos : ulong)
+                                             (* arr2 ptr-pos : ulong))))
+                   (assign i (#%app jit-add i (#%value 1 ulong))))))
+              (return sum)))))
        )))
   (define f (jit-get-function (env-lookup 'f module-env)))
   (pretty-print (f 21))
@@ -249,4 +299,16 @@
   (define factr (jit-get-function (env-lookup 'factr module-env)))
   (pretty-print (factr 5))
   (define malloc-test (jit-get-function (env-lookup 'malloc-test module-env)))
-  (malloc-test))
+  (malloc-test)
+  (define sum-array (jit-get-function (env-lookup 'sum-array module-env)))
+  (define biglist (stream->list (in-range 100000)))
+  (define bigarray (list->cblock biglist _ulong))
+  ;; (sum-array bigarray (length biglist))
+
+  (define dot-product (jit-get-function (env-lookup 'dot-product module-env)))
+  (time (dot-product bigarray bigarray (length biglist)))
+  (time
+   (for/sum [(a1 biglist)
+             (a2 biglist)]
+     (* a1 a2)))
+  )
