@@ -51,7 +51,7 @@
     [(? symbol?)
      (define lhs-v (env-jit-value-v (env-lookup lhs env)))
      (jit_insn_store function lhs-v exp-value)]
-    [`(* ,ptr ,off) ;off should be number of bytes, we don't do pointer arithmatic
+    [`(* ,ptr ,off : ,type) ;off should be number of bytes, we don't do pointer arithmatic
      (define ptr-value (compile-expression ptr function env))
      (define off-value (compile-expression off function env))
      (define ptr-with-off (jit_insn_add function ptr-value off-value))
@@ -91,7 +91,7 @@
 
 ;; returns an object of jit_value
 (define (compile-expression exp function env)
-  (printf "compiling expression ~a\n" exp)
+  ;; (printf "compiling expression ~a\n" exp)
   (match exp
     [`(#%app ,rator ,rands ...)
      (define rand-values
@@ -107,7 +107,7 @@
 
 ;; returns void
 (define (compile-statement stmt function env)
-  (printf "compiling statement ~a\n" stmt)
+  ;; (printf "compiling statement ~a\n" stmt)
   (match stmt
     [`(define-variable (,id : ,type) ,st)
      (define id-type (env-lookup type env))
@@ -198,7 +198,9 @@
                ([stmt module-stmts])
        (compile-module-statement stmt env module-env))]))
 
+
 (module+ test
+  (require racket/unsafe/ops)
   (require rackunit)
   (define module-env
    (compile-module
@@ -248,7 +250,7 @@
            (define-variable (x : int)
              (block
               (assign ptr (#%app jit-malloc (#%sizeof int)))
-              (assign (* ptr (#%value 0 int)) (#%value 8 int))
+              (assign (* ptr (#%value 0 int) : int) (#%value 8 int))
               (assign x (* ptr (#%value 0 int) : int))
               (#%exp (#%app jit-free ptr))
               (return x)))))
@@ -301,14 +303,30 @@
   (define malloc-test (jit-get-function (env-lookup 'malloc-test module-env)))
   (malloc-test)
   (define sum-array (jit-get-function (env-lookup 'sum-array module-env)))
-  (define biglist (stream->list (in-range 100000)))
-  (define bigarray (list->cblock biglist _ulong))
+  (define biglist (stream->list (in-range 1000000)))
+  
+  (define bigvec (for/vector ([i (in-range 1000000)])
+                   i))
   ;; (sum-array bigarray (length biglist))
 
   (define dot-product (jit-get-function (env-lookup 'dot-product module-env)))
-  (time (dot-product bigarray bigarray (length biglist)))
+  (define bigarray (list->cblock biglist _ulong))
+  (time (begin
+          (dot-product bigarray bigarray (length biglist))
+          (dot-product bigarray bigarray (length biglist))
+          (dot-product bigarray bigarray (length biglist))
+          (dot-product bigarray bigarray (length biglist))))
   (time
-   (for/sum [(a1 biglist)
-             (a2 biglist)]
-     (* a1 a2)))
+   (begin(for/sum [(a1 (in-vector bigvec))
+              (a2 (in-vector bigvec))]
+           (unsafe-fx* a1 a2))
+         (for/sum [(a1 (in-vector bigvec))
+                   (a2 (in-vector bigvec))]
+           (unsafe-fx* a1 a2))
+         (for/sum [(a1 (in-vector bigvec))
+                   (a2 (in-vector bigvec))]
+           (unsafe-fx* a1 a2))
+         (for/sum [(a1 (in-vector bigvec))
+                   (a2 (in-vector bigvec))]
+           (unsafe-fx* a1 a2))))
   )

@@ -4,7 +4,6 @@
 (require "jit-env.rkt")
 (provide (all-defined-out))
 
-;; type ::= prims | (struct (id : type) ...) | (pointer type) | (union type ...) | (-> type ... : type)
 (struct type-prim (racket jit) #:prefab)
 
 (struct type-internal ())
