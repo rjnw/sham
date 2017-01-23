@@ -111,8 +111,24 @@
   (match stmt
     [`(define-variable (,id : ,type) ,st)
      (define id-type (env-lookup type env))
-     (define id-value (jit_value_create function (type-prim-jit (env-type-prim id-type))))
-     (compile-statement st function (env-extend id (env-jit-value id-value id-type) env))]
+     (define id-value (jit_value_create function
+					(type-prim-jit (env-type-prim id-type))))
+     (compile-statement st function
+			(env-extend id (env-jit-value id-value id-type) env))]
+    [`(define-variables ((,ids : ,types) ...) ,st)
+     (define id-types (map (curryr env-lookup env) types))
+     (define id-values
+       (map (λ (id-type)
+	      (jit_value_create function
+				(type-prim-jit (env-type-prim id-type))))
+	    id-types))
+     (define new-env
+       (for/fold ([env env])
+	   ([id-type id-types]
+	    [id ids]
+	    [id-value id-values])
+	 (env-extend id (env-jit-value id-value id-type) env)))
+     (compile-statement st function new-env)]
     [`(assign ,lhs ,v)
      (define exp-value (compile-expression v function env))
      (compile-lhs-assign lhs exp-value function env)]
@@ -131,8 +147,10 @@
      (compile-statement body function env)
      (jit_insn_branch function start-label)
      (jit_insn_label function end-label)]
-    [`(return ,exp) (jit_insn_return function (compile-expression exp function env))]
-    [`(return-tail ,exp) (jit_insn_return function (compile-expression exp function env))];;TODO
+    [`(return ,exp) (jit_insn_return function
+				     (compile-expression exp function env))]
+    [`(return-tail ,exp) (jit_insn_return function
+					  (compile-expression exp function env))] ;;TODO
     [`(block ,stmts ...)
      (for ([stmt stmts])
        (compile-statement stmt function env))]
@@ -140,7 +158,8 @@
      (compile-expression e function env)]
     [else (error "unknown statement or not implemented")]))
 
-(define (compile-function-definition name args types ret-type body f-decl env context)
+(define (compile-function-definition name args types ret-type
+				     body f-decl env context)
   (define fobject (env-jit-function-decl-object f-decl))
   (define ftype (env-jit-function-decl-type f-decl))
   (define jitc (context-jit context))
@@ -150,7 +169,9 @@
              ([arg args]
               [type types]
               [i (in-range (length args))])
-      (env-extend arg (env-jit-value (jit_value_get_param fobject i) type) env)))
+      (env-extend arg
+		  (env-jit-value (jit_value_get_param fobject i) type)
+		  env)))
   (compile-statement body fobject new-env)
   (jit_function_compile fobject)
   (jit_context_build_end jitc)
@@ -175,7 +196,9 @@
       [`(define-function (,function-name (,args : ,types) ... : ,ret-type) ,body)
        (define type (create-type `(,@types -> ,ret-type) env))
        (define function-obj (compile-function-declaration type context))
-       (env-extend function-name (env-jit-function-decl type function-obj) env)]))
+       (env-extend function-name
+		   (env-jit-function-decl type function-obj)
+		   env)]))
 
   (define (compile-module-statement stmt env module-env)
     (match stmt
@@ -184,8 +207,9 @@
        (env-extend type-name (env-lookup type-name env) module-env)]
 
       [`(define-function (,function-name (,args : ,types) ... : ,ret-type) ,body)
-       (define f (compile-function-definition function-name args types ret-type body
-                                              (env-lookup function-name env) env context))
+       (define f (compile-function-definition function-name args types ret-type
+					      body (env-lookup function-name env)
+					      env context))
        (env-extend function-name f module-env)]))
 
   (match m
@@ -271,23 +295,24 @@
               (return sum)))))
 
        (define-type ulong* (pointer ulong))
-       (define-function (dot-product (arr1 : ulong*) (arr2 : ulong*) (size : ulong) : ulong)
-         (define-variable (sum : ulong)
-           (define-variable (i : ulong)
-             (block
-              (assign i (#%value 0 ulong))
-              (assign sum (#%value 0 ulong))
-              (while (#%app jit-lt? i size)
-                (define-variable (ptr-pos : int)
-                  (block
-                   (assign ptr-pos (#%app jit-mul i (#%sizeof ulong)))
-                   (assign sum (#%app jit-add
-                                      sum
-                                      (#%app jit-mul
-                                             (* arr1 ptr-pos : ulong)
-                                             (* arr2 ptr-pos : ulong))))
-                   (assign i (#%app jit-add i (#%value 1 ulong))))))
-              (return sum)))))
+       (define-function (dot-product (arr1 : ulong*) (arr2 : ulong*)
+				     (size : ulong) : ulong)
+         (define-variables ((sum : ulong)
+                            (i : ulong))
+           (block
+            (assign i (#%value 0 ulong))
+            (assign sum (#%value 0 ulong))
+            (while (#%app jit-lt? i size)
+              (define-variable (ptr-pos : int)
+                (block
+                 (assign ptr-pos (#%app jit-mul i (#%sizeof ulong)))
+                 (assign sum (#%app jit-add
+                                    sum
+                                    (#%app jit-mul
+                                           (* arr1 ptr-pos : ulong)
+                                           (* arr2 ptr-pos : ulong))))
+                 (assign i (#%app jit-add i (#%value 1 ulong))))))
+            (return sum))))
        )))
   (define f (jit-get-function (env-lookup 'f module-env)))
   (pretty-print (f 21))

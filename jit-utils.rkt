@@ -43,15 +43,15 @@
 (define (for-loopb var-sym var-type start-exp check-bexp inc-bexp body-bstmt)
   `(define-variable (,var-sym : ,var-type)
      (block
-      (assign var-sym ,start-exp)
+      (assign ,var-sym ,start-exp)
       (while ,(check-bexp var-sym)
-        (block
-         ,(body-bstmt var-sym)
-         (assign var-sym ,(inc-bexp var-sym)))))))
+        ,(combine-blocks
+          `(block
+          ,(body-bstmt var-sym)
+          (assign var-sym ,(inc-bexp var-sym))))))))
 
 (define ((add1b [t 'int]) var-sym)
-  `(appb-add var-sym (vl 1 t)))
-
+  `(appb-add ,var-sym (vl 1 t)))
 
 
 ;;binary jit ops
@@ -76,3 +76,21 @@
 (define (symbol-append s1 s2)
   (string->symbol (string-append (symbol->string s1)
 				 (symbol->string s2))))
+
+
+(define (clean-block stmt)
+  (match stmt
+    [`(block ,sts ...)
+     (define ne-sts (filter (compose not null?) sts))
+     (if (eq? 1 (length ne-sts))
+         (car ne-sts)
+         `(block ,@ne-sts))]
+    [else exp]))
+
+(define (combine-blocks stmt)
+  (match stmt
+      [`(block (block ,stmts ...) ,estms ..)
+       (combine-blocks `(block ,@stmts ,@estms))]
+      [`(block ,estms1 ... (block ,stmts ...) ,estms2 ...)
+       (combine-blocks `(block ,@estms1 ,@stmts ,@estms2))]
+      [else stmt]))
