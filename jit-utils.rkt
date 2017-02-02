@@ -20,11 +20,11 @@
   `(#%app ,rator ,@rands))
 
 (splicing-let ([gensym-hash (make-hash)])
-  (define (gensym^ sym)
+  (define (gensym^ sym [sep ""])
     (define n (add1 (hash-ref gensym-hash sym 0)))
     (hash-set! gensym-hash sym n)
     (string->symbol (string-append (symbol->string sym)
-                                   "-"
+                                   sep
                                    (number->string n)))))
 
 (require (for-syntax racket/syntax))

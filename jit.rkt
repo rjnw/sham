@@ -1,9 +1,13 @@
 #lang racket
 (require ffi/unsafe)
+
 (require "libjit.rkt")
+
 (require "jit-env.rkt")
 (require "jit-type.rkt")
 (require "jit-intr.rkt")
+(require "jit-expand.rkt")
+
 (provide compile-module
          create-jit-context
          create-initial-environment
@@ -46,7 +50,7 @@
           value)]
         [else (error "value type not supported yet!" value type)]))
 
-(define (compile-lhs-assign lhs exp-value function env)
+(define (compile-lhs-set lhs exp-value function env)
   (match lhs
     [(? symbol?)
      (define lhs-v (env-jit-value-v (env-lookup lhs env)))
@@ -108,14 +112,8 @@
 ;; returns void
 (define (compile-statement stmt function env)
   ;; (printf "compiling statement ~a\n" stmt)
-  (match stmt
-    [`(define-variable (,id : ,type) ,st)
-     (define id-type (env-lookup type env))
-     (define id-value (jit_value_create function
-					(type-prim-jit (env-type-prim id-type))))
-     (compile-statement st function
-			(env-extend id (env-jit-value id-value id-type) env))]
-    [`(define-variables ((,ids : ,types) ...) ,st)
+  (match (statement-expander stmt)
+    [`(let ((,ids : ,types) ...) ,st)
      (define id-types (map (curryr env-lookup env) types))
      (define id-values
        (map (λ (id-type)
@@ -129,9 +127,9 @@
 	    [id-value id-values])
 	 (env-extend id (env-jit-value id-value id-type) env)))
      (compile-statement st function new-env)]
-    [`(assign ,lhs ,v)
+    [`(set! ,lhs ,v)
      (define exp-value (compile-expression v function env))
-     (compile-lhs-assign lhs exp-value function env)]
+     (compile-lhs-set lhs exp-value function env)]
     [`(if ,tst ,thn ,els)
      (define tst-value (compile-expression tst function env))
      (define label-if (jit_insn_branch_if function tst-value empty-label))
@@ -227,7 +225,7 @@
   (require racket/unsafe/ops)
   (require rackunit)
   (define module-env
-   (compile-module
+    (compile-module
     '(module
          (define-type bc (struct (b : int) (c : int)))
          (define-type pbc (pointer bc))
@@ -249,7 +247,9 @@
        (define-function (modd? (x : int) : int)
          (if (#%app jit-eq? x (#%value 0 int))
              (return (#%value 0 int))
-             (return (#%app meven? (#%app jit-sub x (#%value 1 int))))))
+             (return (#%app meven?
+                            (#%app jit-sub x (#%value 1 int))))))
+
        (define-function (fact (x : int) : int)
          (if (#%app jit-eq? x (#%value 0 int))
              (return (#%value 1 int))
@@ -257,61 +257,63 @@
                      x
                      (#%app fact
                             (#%app jit-sub x (#%value 1 int)))))))
+
        (define-function (factr (x : int) : int)
-         (define-variable (result : int)
+         (let ((result : int))
            (block
-            (assign result (#%value 1 int))
-            (define-variable (i : int)
+            (set! result (#%value 1 int))
+            (let ((i : int))
               (block
-               (assign i (#%value 1 int))
+               (set! i (#%value 1 int))
                (while (#%app jit-le? i x)
                  (block
-                  (assign result (#%app jit-mul result i))
-                  (assign i (#%app jit-add i (#%value 1 int)))))
+                  (set! result (#%app jit-mul result i))
+                  (set! i (#%app jit-add i (#%value 1 int)))))
                (return result))))))
+
        (define-function (malloc-test  : int)
-         (define-variable (ptr : void*)
-           (define-variable (x : int)
+         (let ((ptr : void*))
+           (let ((x : int))
              (block
-              (assign ptr (#%app jit-malloc (#%sizeof int)))
-              (assign (* ptr (#%value 0 int) : int) (#%value 8 int))
-              (assign x (* ptr (#%value 0 int) : int))
+              (set! ptr (#%app jit-malloc (#%sizeof int)))
+              (set! (* ptr (#%value 0 int) : int) (#%value 8 int))
+              (set! x (* ptr (#%value 0 int) : int))
               (#%exp (#%app jit-free ptr))
               (return x)))))
        (define-type int* (pointer int))
 
        (define-function (sum-array (arr : int*) (size : int) : int)
-         (define-variable (i : int)
-           (define-variable (sum : int)
+         (let ((i : int))
+           (let ((sum : int))
              (block
-              (assign i (#%value 0 int))
-              (assign sum (#%value 0 int))
+              (set! i (#%value 0 int))
+              (set! sum (#%value 0 int))
               (while (#%app jit-lt? i size)
                 (block
-                 (assign sum (#%app jit-add
+                 (set! sum (#%app jit-add
                                     sum
                                     (* arr (#%app jit-mul i (#%sizeof int)) : int)))
-                 (assign i (#%app jit-add i (#%value 1 int)))))
+                 (set! i (#%app jit-add i (#%value 1 int)))))
               (return sum)))))
 
        (define-type ulong* (pointer ulong))
        (define-function (dot-product (arr1 : ulong*) (arr2 : ulong*)
 				     (size : ulong) : ulong)
-         (define-variables ((sum : ulong)
+         (let ((sum : ulong)
                             (i : ulong))
            (block
-            (assign i (#%value 0 ulong))
-            (assign sum (#%value 0 ulong))
+            (set! i (#%value 0 ulong))
+            (set! sum (#%value 0 ulong))
             (while (#%app jit-lt? i size)
-              (define-variable (ptr-pos : int)
+              (let ((ptr-pos : int))
                 (block
-                 (assign ptr-pos (#%app jit-mul i (#%sizeof ulong)))
-                 (assign sum (#%app jit-add
+                 (set! ptr-pos (#%app jit-mul i (#%sizeof ulong)))
+                 (set! sum (#%app jit-add
                                     sum
                                     (#%app jit-mul
                                            (* arr1 ptr-pos : ulong)
                                            (* arr2 ptr-pos : ulong))))
-                 (assign i (#%app jit-add i (#%value 1 ulong))))))
+                 (set! i (#%app jit-add i (#%value 1 ulong))))))
             (return sum))))
        )))
   (define f (jit-get-function (env-lookup 'f module-env)))
