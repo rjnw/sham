@@ -103,6 +103,8 @@
          (compile-expression rand function env)))
      (compile-app rator rand-values function env)]
     [`(#%value ,value ,type) (create-value value type function env)]
+    [`(#%offset ,type ,field)
+     (compile-expression `(#%value ,(get-struct-offset type field env) int) function env)]
     [`(#%sizeof ,type)
      (define envtype (env-lookup type env))
      (create-value (jit_type_get_size (type-prim-jit (env-type-prim envtype)))
@@ -154,7 +156,7 @@
        (compile-statement stmt function env))]
     [`(#%exp ,e)
      (compile-expression e function env)]
-    [else (error "unknown statement or not implemented")]))
+    [else (error "unknown statement or not implemented" stmt)]))
 
 (define (compile-function-definition name args types ret-type
 				     body f-decl env context)
@@ -315,6 +317,17 @@
                                            (* arr2 ptr-pos : ulong))))
                  (set! i (#%app jit-add i (#%value 1 ulong))))))
             (return sum))))
+       (define-type float32-p (pointer float32))
+       (define-type array-real (struct (size : int) (data : float32-p)))
+       (define-type array-real-p (pointer array-real))
+       (define-function (get-size (arr : array-real-p) : int)
+         (return (* arr (#%offset array-real size) : int)))
+       
+       (define-function (test : int)
+         (let ((ap : array-real-p))
+           (block (set! ap (#%app jit-malloc (#%sizeof array-real)))
+                  (set! (* ap (#%offset array-real size) : int) (#%value 42 int))
+                  (return (#%app get-size ap)))))
        )))
   (define f (jit-get-function (env-lookup 'f module-env)))
   (pretty-print (f 21))
@@ -356,4 +369,12 @@
          (for/sum [(a1 (in-vector bigvec))
                    (a2 (in-vector bigvec))]
            (unsafe-fx* a1 a2))))
+  (define test (jit-get-function (env-lookup 'test module-env)))
+  (pretty-print (test))
+
   )
+
+
+;;struct tests
+
+

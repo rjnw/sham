@@ -25,7 +25,7 @@
          (set! ,i ,init-i)
          (set! ,acc ,init-acc)
          (while ,end-exp
-           ,(if (eq? (length body) 1)
+           ,(if (eq? (length bodys) 1)
                 bodys
                 `(block ,@bodys)))
          (set! ,set-to ,acc)))]

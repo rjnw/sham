@@ -116,10 +116,27 @@
         (type-prim-racket (env-type-prim from-type))
         (type-prim-racket (env-type-prim to-type))))
 
+(define (get-struct-offset type-sym field env)
+  (define (get-field-index skel field-name)
+    (define i (index-of (type-struct-names skel) field-name))
+    (if i i (error "calcluting offset for unknown field:" field-name)))
+  (define struct-env-type (env-lookup type-sym env))
+  (define field-index (get-field-index (env-type-skel struct-env-type) field))
+  (jit_type_get_offset (type-prim-jit (env-type-prim struct-env-type))
+                       field-index))
 (module+ test
   (require rackunit)
   (define env (register-initial-types (empty-env)))
-  (pretty-display env)
+  (define env1 (env-extend 'float32-p
+                              (create-type '(pointer float32)  env)
+                              env))
+  (define env2 (env-extend 'sp
+                              (create-type '(struct (a : int) (b : int))  env1)
+                              env1))
+  (define new-env1 (env-extend 'array-real
+                              (create-type '(struct (size : int)  (data : int)) env2) env2))
+  (pretty-print new-env1)
+  (pretty-print (get-struct-offset 'array-real 'data new-env1))
   (pretty-display (create-type '(pointer int) env))
   (pretty-display (create-type '(int -> int) env))
   (pretty-display (create-type '(struct (a : int) (b : int)) env))
