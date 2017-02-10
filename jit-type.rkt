@@ -6,12 +6,14 @@
 
 (struct type-prim (racket jit) #:prefab)
 
+;skeleton of types
 (struct type-internal ())
-(struct type-ref (to) #:prefab)
+(struct type-ref (to) #:prefab) ;to: env-type
 (struct type-struct (names types) #:prefab)
 (struct type-function (args ret) #:prefab)
 (struct type-pointer (to) #:prefab)
 
+;;returns one of the skeleton
 (define (create-type-skel typ env)
   (match typ
     [x #:when (symbol? typ) (type-ref (env-lookup typ env))]
@@ -24,13 +26,15 @@
   (match t
     [`(define-type ,id ,typ) (create-type-skel typ env)]))
 
+
+;;returns one of env-type object
 (define (compile-type-definition t-obj env)
   (define (env-lookup-prim types)
     (map env-type-prim (map (curryr env-lookup env) types)))
   (env-type
    t-obj
    (match t-obj
-     [(type-ref t) t]
+     [(type-ref t) (env-type-prim t)]
      [(type-struct names types)
       (create-struct-type (map env-type-prim types))]
      [(type-function args ret)
@@ -127,9 +131,10 @@
 (module+ test
   (require rackunit)
   (define env (register-initial-types (empty-env)))
+  (define env0 (env-extend 'double (create-type 'float32 env) env))
   (define env1 (env-extend 'float32-p
-                              (create-type '(pointer float32)  env)
-                              env))
+                              (create-type '(pointer double)  env0)
+                              env0))
   (define env2 (env-extend 'sp
                               (create-type '(struct (a : int) (b : int))  env1)
                               env1))
