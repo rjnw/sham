@@ -92,9 +92,11 @@
 (define (compile-app rator rand-values function env)
   (match (env-lookup rator env)
     [(env-jit-function type object cpointer)
-     (jit_insn_call function "" object (type-prim-jit (env-type-prim type)) rand-values 0)]
+     (jit_insn_call function (symbol->string rator) object
+                    (type-prim-jit (env-type-prim type)) rand-values 0)]
     [(env-jit-function-decl type object)
-     (jit_insn_call function "" object (type-prim-jit (env-type-prim type)) rand-values 0)]
+     (jit_insn_call function (symbol->string rator) object
+                    (type-prim-jit (env-type-prim type)) rand-values 0)]
     [(env-jit-internal-function compiler)
      (compiler function rand-values)]
     [(env-racket-function type f)
@@ -187,7 +189,7 @@
 		  (env-jit-value (jit_value_get_param fobject i) type)
 		  env)))
   (compile-statement body fobject new-env)
-  (jit_function_compile fobject)
+  ;; (jit_function_compile fobject)
   (jit_context_build_end jitc)
   (env-jit-function ftype fobject (get-jit-function-pointer fobject)))
 
@@ -345,8 +347,8 @@
        )))
 
   (define f (jit-get-function (env-lookup 'f module-env)))
-  ;; (dump-jit-function (env-jit-function-object (env-lookup 'dot-product module-env))
-  ;;                    "dot-product" "/tmp/jitdump")
+  (jit-dump-function (env-lookup 'fact module-env)
+                      "/tmp/jitdump" "fact")
   (pretty-print (f 21))
   (define even? (jit-get-function (env-lookup 'even? module-env)))
   (pretty-print (even? 42))
