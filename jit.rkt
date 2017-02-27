@@ -11,6 +11,10 @@
 (provide compile-module
          create-jit-context
          create-initial-environment
+         jit-get-function
+         jit-dump-function
+         jit-get-racket-type
+         env-lookup
          context)
 
 (define empty-label (jit_uint_not 0))
@@ -29,10 +33,20 @@
 (define (get-jit-function-pointer fobj)
   (jit_function_to_closure fobj))
 
+(define _fopen (get-ffi-obj "fopen" #f (_fun _string _string -> _pointer)))
+(define _fclose (get-ffi-obj "fclose" #f (_fun _pointer -> _int)))
+(define (jit-dump-function fobject (filename "/tmp/jitdump") (function-name ""))
+  (define fptr (_fopen filename "a"))
+  (jit_dump_function fptr (env-jit-function-object fobject) function-name)
+  (_fclose fptr))
+
 (define (jit-get-function f)
   (match f
     [(env-jit-function type object cpointer)
      (racket-type-cast cpointer type-void* type)]))
+
+(define (jit-get-racket-type t)
+  (type-prim-racket (env-type-prim t)))
 
 (define (create-value value type function env)
   (define envtype (env-lookup type env))
@@ -43,7 +57,7 @@
           function
           prim-type
           value)]
-        [(type-float32? type)
+        [(type-float32? envtype)
          (jit_value_create_float32_constant
           function
           prim-type
@@ -329,7 +343,10 @@
                   (set! (* ap (#%offset array-real size) : int) (#%value 42 int))
                   (return (#%app get-size ap)))))
        )))
+
   (define f (jit-get-function (env-lookup 'f module-env)))
+  ;; (dump-jit-function (env-jit-function-object (env-lookup 'dot-product module-env))
+  ;;                    "dot-product" "/tmp/jitdump")
   (pretty-print (f 21))
   (define even? (jit-get-function (env-lookup 'even? module-env)))
   (pretty-print (even? 42))

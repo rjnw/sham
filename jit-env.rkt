@@ -3,8 +3,7 @@
 (provide (all-defined-out))
 
 (define (env-lookup key env)
-  ;; (pretty-display env)
-  ;; (printf "env-lookup: ~a\n" key)
+  ;; (printf "env-lookup, env: ~a, key: ~a\n" env key)
   (define val (assoc key env))
   (if val
       (cdr val)

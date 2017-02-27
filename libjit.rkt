@@ -139,6 +139,14 @@
 
 ;;jit-debugger.h
 
+;;jit-compile.c
+(define-jit jit_optimize (_fun jit_function_t -> _int))
+;;jit-dump.h
+(define-jit jit_dump_type (_fun _pointer jit_type_t -> _void))
+(define-jit jit_dump_value (_fun _pointer jit_function_t jit_value_t _string -> _void))
+(define-jit jit_dump_insn (_fun _pointer jit_function_t jit_insn_t -> _void))
+(define-jit jit_dump_function (_fun _pointer jit_function_t _string -> _void))
+
 ;;jit-elf.h
 
 ;;jit-except.h -complete
