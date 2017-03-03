@@ -189,7 +189,7 @@
 		  (env-jit-value (jit_value_get_param fobject i) type)
 		  env)))
   (compile-statement body fobject new-env)
-  ;; (jit_function_compile fobject)
+  (jit_function_compile fobject)
   (jit_context_build_end jitc)
   (env-jit-function ftype fobject (get-jit-function-pointer fobject)))
 
