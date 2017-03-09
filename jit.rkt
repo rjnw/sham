@@ -13,6 +13,7 @@
          create-initial-environment
          jit-get-function
          jit-dump-function
+         jit-dump-module
          jit-get-racket-type
          env-lookup
          context)
@@ -33,8 +34,19 @@
 (define (get-jit-function-pointer fobj)
   (jit_function_to_closure fobj))
 
+
 (define _fopen (get-ffi-obj "fopen" #f (_fun _string _string -> _pointer)))
 (define _fclose (get-ffi-obj "fclose" #f (_fun _pointer -> _int)))
+(define (jit-dump-module mod (filename "/tmp/jitdump"))
+  (define fptr (_fopen filename "a"))
+  (for ([p mod])
+    (cond
+      [(env-jit-function? (cdr p))
+       (jit_dump_function fptr (env-jit-function-object (cdr p)) (symbol->string (car p)))]
+      [(env-type? (cdr p))
+       (jit_dump_type fptr (type-prim-jit (env-type-prim (cdr p))))]))
+
+  (_fclose fptr))
 (define (jit-dump-function fobject (filename "/tmp/jitdump") (function-name ""))
   (define fptr (_fopen filename "a"))
   (jit_dump_function fptr (env-jit-function-object fobject) function-name)
@@ -315,23 +327,25 @@
               (return sum)))))
 
        (define-type ulong* (pointer ulong))
-       (define-function (dot-product (arr1 : ulong*) (arr2 : ulong*)
-				     (size : ulong) : ulong)
-         (let ((sum : ulong)
-                            (i : ulong))
+       (define-type uint* (pointer uint))
+
+       (define-function (dot-product (arr1 : uint*) (arr2 : uint*)
+				     (size : uint) : uint)
+         (let ((sum : uint)
+                            (i : uint))
            (block
-            (set! i (#%value 0 ulong))
-            (set! sum (#%value 0 ulong))
+            (set! i (#%value 0 uint))
+            (set! sum (#%value 0 uint))
             (while (#%app jit-lt? i size)
               (let ((ptr-pos : int))
                 (block
-                 (set! ptr-pos (#%app jit-mul i (#%sizeof ulong)))
+                 (set! ptr-pos (#%app jit-mul i (#%sizeof uint)))
                  (set! sum (#%app jit-add
                                     sum
                                     (#%app jit-mul
-                                           (* arr1 ptr-pos : ulong)
-                                           (* arr2 ptr-pos : ulong))))
-                 (set! i (#%app jit-add i (#%value 1 ulong))))))
+                                           (* arr1 ptr-pos : uint)
+                                           (* arr2 ptr-pos : uint))))
+                 (set! i (#%app jit-add i (#%value 1 uint))))))
             (return sum))))
        (define-type float32-p (pointer float32))
        (define-type array-real (struct (size : int) (data : float32-p)))
@@ -347,49 +361,50 @@
        )))
 
   (define f (jit-get-function (env-lookup 'f module-env)))
-  (jit-dump-function (env-lookup 'fact module-env)
-                      "/tmp/jitdump" "fact")
-  (pretty-print (f 21))
-  (define even? (jit-get-function (env-lookup 'even? module-env)))
-  (pretty-print (even? 42))
-  (define meven? (jit-get-function (env-lookup 'meven? module-env)))
-  (pretty-print (meven? 21))
+  (jit-dump-module module-env)
+  ;; (jit-dump-function (env-lookup 'fact module-env)
+  ;;                     "/tmp/jitdump" "fact")
+  ;; (pretty-print (f 21))
+  ;; (define even? (jit-get-function (env-lookup 'even? module-env)))
+  ;; (pretty-print (even? 42))
+  ;; (define meven? (jit-get-function (env-lookup 'meven? module-env)))
+  ;; (pretty-print (meven? 21))
 
-  (define fact (jit-get-function (env-lookup 'fact module-env)))
-  (pretty-print (fact 5))
-  (define factr (jit-get-function (env-lookup 'factr module-env)))
-  (pretty-print (factr 5))
-  (define malloc-test (jit-get-function (env-lookup 'malloc-test module-env)))
-  (malloc-test)
-  (define sum-array (jit-get-function (env-lookup 'sum-array module-env)))
-  (define biglist (stream->list (in-range 1000000)))
+  ;; (define fact (jit-get-function (env-lookup 'fact module-env)))
+  ;; (pretty-print (fact 5))
+  ;; (define factr (jit-get-function (env-lookup 'factr module-env)))
+  ;; (pretty-print (factr 5))
+  ;; (define malloc-test (jit-get-function (env-lookup 'malloc-test module-env)))
+  ;; (malloc-test)
+  ;; (define sum-array (jit-get-function (env-lookup 'sum-array module-env)))
+  ;; (define biglist (stream->list (in-range 1000000)))
   
-  (define bigvec (for/vector ([i (in-range 1000000)])
-                   i))
-  ;; (sum-array bigarray (length biglist))
+  ;; (define bigvec (for/vector ([i (in-range 1000000)])
+  ;;                  i))
+  ;; ;; (sum-array bigarray (length biglist))
 
-  (define dot-product (jit-get-function (env-lookup 'dot-product module-env)))
-  (define bigarray (list->cblock biglist _ulong))
-  (time (begin
-          (dot-product bigarray bigarray (length biglist))
-          (dot-product bigarray bigarray (length biglist))
-          (dot-product bigarray bigarray (length biglist))
-          (dot-product bigarray bigarray (length biglist))))
-  (time
-   (begin(for/sum [(a1 (in-vector bigvec))
-              (a2 (in-vector bigvec))]
-           (unsafe-fx* a1 a2))
-         (for/sum [(a1 (in-vector bigvec))
-                   (a2 (in-vector bigvec))]
-           (unsafe-fx* a1 a2))
-         (for/sum [(a1 (in-vector bigvec))
-                   (a2 (in-vector bigvec))]
-           (unsafe-fx* a1 a2))
-         (for/sum [(a1 (in-vector bigvec))
-                   (a2 (in-vector bigvec))]
-           (unsafe-fx* a1 a2))))
-  (define test (jit-get-function (env-lookup 'test module-env)))
-  (pretty-print (test))
+  ;; (define dot-product (jit-get-function (env-lookup 'dot-product module-env)))
+  ;; (define bigarray (list->cblock biglist _ulong))
+  ;; (time (begin
+  ;;         (dot-product bigarray bigarray (length biglist))
+  ;;         (dot-product bigarray bigarray (length biglist))
+  ;;         (dot-product bigarray bigarray (length biglist))
+  ;;         (dot-product bigarray bigarray (length biglist))))
+  ;; (time
+  ;;  (begin(for/sum [(a1 (in-vector bigvec))
+  ;;             (a2 (in-vector bigvec))]
+  ;;          (unsafe-fx* a1 a2))
+  ;;        (for/sum [(a1 (in-vector bigvec))
+  ;;                  (a2 (in-vector bigvec))]
+  ;;          (unsafe-fx* a1 a2))
+  ;;        (for/sum [(a1 (in-vector bigvec))
+  ;;                  (a2 (in-vector bigvec))]
+  ;;          (unsafe-fx* a1 a2))
+  ;;        (for/sum [(a1 (in-vector bigvec))
+  ;;                  (a2 (in-vector bigvec))]
+  ;;          (unsafe-fx* a1 a2))))
+  ;; (define test (jit-get-function (env-lookup 'test module-env)))
+  ;; (pretty-print (test))
 
   )
 

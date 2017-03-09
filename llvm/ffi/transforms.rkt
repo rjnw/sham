@@ -1,0 +1,86 @@
+#lang racket
+
+(require
+  "define.rkt"
+  "ctypes.rkt")
+
+(require ffi/unsafe)
+
+(provide (all-defined-out))
+
+;; pass manager builder
+(define-llvm-types LLVMPassManagerBuilderRef)
+
+(define-llvm LLVMPassManagerBuilderCreate                      (_fun -> LLVMPassManagerBuilderRef))
+(define-llvm LLVMPassManagerBuilderDispose                     (_fun LLVMPassManagerBuilderRef -> _void))
+(define-llvm LLVMPassManagerBuilderSetOptLevel                 (_fun LLVMPassManagerBuilderRef _uint -> _void))
+(define-llvm LLVMPassManagerBuilderSetSizeLevel                (_fun LLVMPassManagerBuilderRef _uint -> _void))
+(define-llvm LLVMPassManagerBuilderSetDisableUnitAtATime       (_fun LLVMPassManagerBuilderRef LLVMBool -> _void))
+(define-llvm LLVMPassManagerBuilderSetDisableUnrollLoops       (_fun LLVMPassManagerBuilderRef LLVMBool -> _void))
+(define-llvm LLVMPassManagerBuilderSetDisableSimplifyLibCalls  (_fun LLVMPassManagerBuilderRef LLVMBool -> _void))
+(define-llvm LLVMPassManagerBuilderUseInlinerWithThreshold     (_fun LLVMPassManagerBuilderRef _uint -> _void))
+(define-llvm LLVMPassManagerBuilderPopulateFunctionPassManager (_fun LLVMPassManagerBuilderRef LLVMPassManagerRef -> _void))
+(define-llvm LLVMPassManagerBuilderPopulateModulePassManager   (_fun LLVMPassManagerBuilderRef LLVMPassManagerRef -> _void))
+(define-llvm LLVMPassManagerBuilderPopulateLTOPassManager      (_fun LLVMPassManagerBuilderRef LLVMPassManagerRef LLVMBool LLVMBool -> _void))
+
+;; Scaler transformations
+(define-llvm LLVMAddAggressiveDCEPass                          (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddBitTrackingDCEPass                         (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddAlignmentFromAssumptionsPass               (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddCFGSimplificationPass                      (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddDeadStoreEliminationPass                   (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddScalarizerPass                             (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddMergedLoadStoreMotionPass                  (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddGVNPass                                    (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddIndVarSimplifyPass                         (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddInstructionCombiningPass                   (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddJumpThreadingPass                          (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLICMPass                                   (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLoopDeletionPass                           (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLoopIdiomPass                              (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLoopRotatePass                             (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLoopRerollPass                             (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLoopUnrollPass                             (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLoopUnswitchPass                           (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddMemCpyOptPass                              (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddPartiallyInlineLibCallsPass                (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLowerSwitchPass                            (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddPromoteMemoryToRegisterPass                (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddReassociatePass                            (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddSCCPPass                                   (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddScalarReplAggregatesPass                   (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddScalarReplAggregatesPassSSA                (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddScalarReplAggregatesPassWithThreshold      (_fun LLVMPassManagerRef _int -> _void))
+(define-llvm LLVMAddSimplifyLibCallsPass                       (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddTailCallEliminationPass                    (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddConstantPropagationPass                    (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddDemoteMemoryToRegisterPass                 (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddVerifierPass                               (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddCorrelatedValuePropagationPass             (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddEarlyCSEPass                               (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLowerExpectIntrinsicPass                   (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddTypeBasedAliasAnalysisPass                 (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddScopedNoAliasAAPass                        (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddBasicAliasAnalysisPass                     (_fun LLVMPassManagerRef -> _void))
+
+;; Vectorization transformations
+(define-llvm LLVMAddBBVectorizePass                            (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddLoopVectorizePass                          (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddSLPVectorizePass                           (_fun LLVMPassManagerRef -> _void))
+
+;; Interprocedural transformations
+(define-llvm LLVMAddArgumentPromotionPass                      (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddConstantMergePass                          (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddDeadArgEliminationPass                     (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddFunctionAttrsPass                          (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddFunctionInliningPass                       (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddAlwaysInlinerPass                          (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddGlobalDCEPass                              (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddGlobalOptimizerPass                        (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddIPConstantPropagationPass                  (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddPruneEHPass                                (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddIPSCCPPass                                 (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddInternalizePass                            (_fun LLVMPassManagerRef _uint -> _void))
+(define-llvm LLVMAddStripDeadPrototypesPass                    (_fun LLVMPassManagerRef -> _void))
+(define-llvm LLVMAddStripSymbolsPass                           (_fun LLVMPassManagerRef -> _void))
+

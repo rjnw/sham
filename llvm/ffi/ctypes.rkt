@@ -29,7 +29,9 @@
  LLVMIntPredicate
  LLVMRealPredicate
  LLVMAtomicOrdering
- LLVMAtomicRMWBinOp)
+ LLVMAtomicRMWBinOp
+
+ pointer-to)
 
 (define LLVMBool _bool)
 
@@ -249,3 +251,4 @@
      LLVMAnyRegCallConv = 13
      LLVMX86StdcallCallConv = 64
      LLVMX86FastcallCallConv = 65)))
+(define (pointer-to p) _pointer)
