@@ -21,17 +21,23 @@
  LLVMUseRef
  LLVMDiagnosticInfoRef
 
+ LLVMAttribute
  LLVMOpcode
  LLVMTypeKind
  LLVMLinkage
  LLVMVisibility
+ LLVMDLLStorageClass
  LLVMCallConv
  LLVMIntPredicate
  LLVMRealPredicate
+ LLVMLandingPadClauseTy
+ LLVMThreadLocalMode
  LLVMAtomicOrdering
  LLVMAtomicRMWBinOp
+ LLVMDiagnosticSeverity
 
- pointer-to)
+ pointer-to
+ unsigned)
 
 (define LLVMBool _bool)
 
@@ -70,6 +76,35 @@
   )
 
 ;;enumeration
+(define LLVMAttribute
+  (_bitmask
+   `(LLVMZExtAttribute            = ,(arithmetic-shift 1  0)
+     LLVMSExtAttribute            = ,(arithmetic-shift 1  1)
+     LLVMNoReturnAttribute        = ,(arithmetic-shift 1  2)
+     LLVMInRegAttribute           = ,(arithmetic-shift 1  3)
+     LLVMStructRetAttribute       = ,(arithmetic-shift 1  4)
+     LLVMNoUnwindAttribute        = ,(arithmetic-shift 1  5)
+     LLVMNoAliasAttribute         = ,(arithmetic-shift 1  6)
+     LLVMByValAttribute           = ,(arithmetic-shift 1  7)
+     LLVMNestAttribute            = ,(arithmetic-shift 1  8)
+     LLVMReadNoneAttribute        = ,(arithmetic-shift 1  9)
+     LLVMReadOnlyAttribute        = ,(arithmetic-shift 1  10)
+     LLVMNoInlineAttribute        = ,(arithmetic-shift 1  11)
+     LLVMAlwaysInlineAttribute    = ,(arithmetic-shift 1  12)
+     LLVMOptimizeForSizeAttribute = ,(arithmetic-shift 1  13)
+     LLVMStackProtectAttribute    = ,(arithmetic-shift 1  14)
+     LLVMStackProtectReqAttribute = ,(arithmetic-shift 1  15)
+     LLVMAlignment                = ,(arithmetic-shift 31 16)
+     LLVMNoCaptureAttribute       = ,(arithmetic-shift 1  21)
+     LLVMNoRedZoneAttribute       = ,(arithmetic-shift 1  22)
+     LLVMNoImplicitFloatAttribute = ,(arithmetic-shift 1  23)
+     LLVMNakedAttribute           = ,(arithmetic-shift 1  24)
+     LLVMInlineHintAttribute      = ,(arithmetic-shift 1  25)
+     LLVMStackAlignment           = ,(arithmetic-shift 7  26)
+     LLVMReturnsTwice             = ,(arithmetic-shift 1  29)
+     LLVMUWTable                  = ,(arithmetic-shift 1  30)
+     LLVMNonLazyBind              = ,(arithmetic-shift 1  31))))
+
 (define LLVMOpcode
   (_enum
    '(LLVMRet            = 1
@@ -237,11 +272,13 @@
      LLVMAtomicRMWBinOpMin
      LLVMAtomicRMWBinOpUMax
      LLVMAtomicRMWBinOpUMin)))
+(define LLVMDiagnosticSeverity (_enum '(LLVMDSError LLVMDSWarning LLVMDSRemark LLVMDSNote )))
 (define LLVMVisibility
   (_enum
    '(LLVMDefaultVisibility
      LLVMHiddenVisibility
      LLVMProtectedVisibility)))
+(define LLVMDLLStorageClass (_enum '(LLVMDefaultStorageClass = 0 LLVMDLLImportStorageClass = 1 LLVMDLLExportStorageClass = 2 )) )
 (define LLVMCallConv
   (_enum
    '(LLVMCCallConv = 0
@@ -252,3 +289,4 @@
      LLVMX86StdcallCallConv = 64
      LLVMX86FastcallCallConv = 65)))
 (define (pointer-to p) _pointer)
+(define unsigned _uint)
