@@ -5,39 +5,40 @@
 
 (require "define.rkt")
 
-(provide
- define-llvm-types
- LLVMBool
- LLVMMemoryBufferRef
- LLVMContextRef
- LLVMModuleRef
- LLVMTypeRef
- LLVMValueRef
- LLVMBasicBlockRef
- LLVMBuilderRef
- LLVMModuleProviderRef
- LLVMPassManagerRef
- LLVMPassRegistryRef
- LLVMUseRef
- LLVMDiagnosticInfoRef
+(provide (all-defined-out))
+;; (provide
+;;  define-llvm-types
+;;  LLVMBool
+;;  LLVMMemoryBufferRef
+;;  LLVMContextRef
+;;  LLVMModuleRef
+;;  LLVMTypeRef
+;;  LLVMValueRef
+;;  LLVMBasicBlockRef
+;;  LLVMBuilderRef
+;;  LLVMModuleProviderRef
+;;  LLVMPassManagerRef
+;;  LLVMPassRegistryRef
+;;  LLVMUseRef
+;;  LLVMDiagnosticInfoRef
 
- LLVMAttribute
- LLVMOpcode
- LLVMTypeKind
- LLVMLinkage
- LLVMVisibility
- LLVMDLLStorageClass
- LLVMCallConv
- LLVMIntPredicate
- LLVMRealPredicate
- LLVMLandingPadClauseTy
- LLVMThreadLocalMode
- LLVMAtomicOrdering
- LLVMAtomicRMWBinOp
- LLVMDiagnosticSeverity
+;;  LLVMAttribute
+;;  LLVMOpcode
+;;  LLVMTypeKind
+;;  LLVMLinkage
+;;  LLVMVisibility
+;;  LLVMDLLStorageClass
+;;  LLVMCallConv
+;;  LLVMIntPredicate
+;;  LLVMRealPredicate
+;;  LLVMLandingPadClauseTy
+;;  LLVMThreadLocalMode
+;;  LLVMAtomicOrdering
+;;  LLVMAtomicRMWBinOp
+;;  LLVMDiagnosticSeverity
 
- pointer-to
- unsigned)
+;;  pointer-to
+;;  unsigned)
 
 (define LLVMBool _bool)
 
@@ -290,3 +291,10 @@
      LLVMX86FastcallCallConv = 65)))
 (define (pointer-to p) _pointer)
 (define unsigned _uint)
+(define-llvm-types
+  LLVMGenericValueRef
+  LLVMExecutionEngineRef
+  LLVMTargetDataRef
+  LLVMTargetMachineRef
+  LLVMTargetLibraryInfoRef
+  LLVMMCJITMemoryManagerRef)

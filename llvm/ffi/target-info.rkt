@@ -8,11 +8,13 @@
 
 (provide (all-defined-out))
 
-(define-llvm-types
-  LLVMTargetDataRef
-  LLVMTargetLibraryInfoRef)
-
 (define LLVMByteOrdering (_enum '(LLVMBigEndian LLVMLittleEndian)))
+(define-llvm LLVMInitializeX86Target (_fun -> _void))
+(define-llvm LLVMInitializeX86TargetInfo (_fun -> _void))
+(define-llvm LLVMInitializeX86TargetMC (_fun -> _void))
+(define-llvm LLVMInitializeX86AsmPrinter (_fun -> _void))
+(define-llvm LLVMInitializeX86AsmParser (_fun -> _void))
+(define-llvm LLVMInitializeX86Disassembler (_fun -> _void))
 ;; (define-llvm LLVMInitializeAllTargetInfos (_fun -> _void))
 ;; (define-llvm LLVMInitializeAllTargets (_fun -> _void))
 ;; (define-llvm LLVMInitializeAllTargetMCs (_fun -> _void))

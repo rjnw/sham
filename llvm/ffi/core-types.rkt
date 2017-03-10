@@ -46,7 +46,9 @@
 (define-llvm LLVMPPCFP128Type (_fun -> LLVMTypeRef))
 
 ;;function types
-(define-llvm LLVMFunctionType (_fun LLVMTypeRef (pointer-to LLVMTypeRef) _uint LLVMBool -> LLVMTypeRef))
+(define-llvm LLVMFunctionType (_fun LLVMTypeRef
+                                    [arg-types : (_list i LLVMTypeRef)]
+                                    [num-args : _uint = (length arg-types)] LLVMBool -> LLVMTypeRef))
 (define-llvm LLVMIsFunctionVarArg (_fun LLVMTypeRef -> LLVMBool))
 (define-llvm LLVMGetReturnType (_fun LLVMTypeRef -> LLVMTypeRef))
 (define-llvm LLVMCountParamTypes (_fun LLVMTypeRef -> unsigned))

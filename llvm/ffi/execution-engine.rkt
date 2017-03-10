@@ -2,12 +2,8 @@
 (require "define.rkt"
          "ctypes.rkt")
 (require ffi/unsafe)
+(provide (all-defined-out))
 
-(define-llvm-types LLVMGenericValueRef
-  LLVMExecutionEngineRef
-  LLVMTargetDataRef
-  LLVMTargetMachineRef
-  LLVMMCJITMemoryManagerRef)
 (define-llvm LLVMLinkInMCJIT (_fun -> _void))
 (define-llvm LLVMLinkInInterpreter (_fun -> _void))
 (define-llvm LLVMCreateGenericValueOfInt (_fun LLVMTypeRef _ullong LLVMBool -> LLVMGenericValueRef))
@@ -18,11 +14,21 @@
 (define-llvm LLVMGenericValueToPointer (_fun LLVMGenericValueRef -> _pointer))
 (define-llvm LLVMGenericValueToFloat (_fun LLVMTypeRef LLVMGenericValueRef -> _double))
 (define-llvm LLVMDisposeGenericValue (_fun LLVMGenericValueRef -> _void))
-;; (define-llvm LLVMCreateExecutionEngineForModule (_fun (pointer-to LLVMExecutionEngineRef) LLVMModuleRef _string -> LLVMBool))
-;; (define-llvm LLVMCreateInterpreterForModule (_fun (pointer-to LLVMExecutionEngineRef) LLVMModuleRef _string -> LLVMBool))
-;; (define-llvm LLVMCreateJITCompilerForModule (_fun (pointer-to LLVMExecutionEngineRef) LLVMModuleRef unsigned _string -> LLVMBool))
+(define-llvm LLVMCreateExecutionEngineForModule
+  (_fun (ee : (_ptr o LLVMExecutionEngineRef)) LLVMModuleRef (err : (_ptr o _string))
+        -> (status : LLVMBool)
+        -> (values ee status err)))
+(define-llvm LLVMCreateInterpreterForModule
+  (_fun (ee : (_ptr o LLVMExecutionEngineRef)) LLVMModuleRef (err : (_ptr o _string))
+        -> (status : LLVMBool)
+        -> (values ee status err)))
+(define-llvm LLVMCreateJITCompilerForModule
+  (_fun (ee : (_ptr o LLVMExecutionEngineRef)) LLVMModuleRef (err : (_ptr o _string))
+        -> (status : LLVMBool)
+        -> (values ee status err)))
 ;; first argument is of type struct LLVMMCJITCompilerOptions
-(define-llvm LLVMInitializeMCJITCompilerOptions (_fun _pointer _size -> _void))
+;; (define-llvm LLVMInitializeMCJITCompilerOptions
+;;   (_fun (options : (_list o LLVMMCJITCompilerOptions len)) (len : _size) -> _void -> options))
 ;; (define-llvm LLVMCreateMCJITCompilerForModule (_fun (pointer-to LLVMExecutionEngineRef) LLVMModuleRef (pointer-to _pointer) _size _string -> LLVMBool))
 (define-llvm LLVMDisposeExecutionEngine (_fun LLVMExecutionEngineRef -> _void))
 (define-llvm LLVMRunStaticConstructors (_fun LLVMExecutionEngineRef -> _void))

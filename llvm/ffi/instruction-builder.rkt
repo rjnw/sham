@@ -5,6 +5,7 @@
 
 (require ffi/unsafe)
 
+(provide (all-defined-out))
 ; Instruction builders ;
 ; An instruction builder represents a point within a basic block, and is the
 ; exclusive means of building instructions using the C interface.
@@ -75,8 +76,8 @@
 (define-llvm LLVMBuildFree                 (_fun LLVMBuilderRef LLVMValueRef                                                                                                     -> LLVMValueRef))
 (define-llvm LLVMBuildLoad                 (_fun LLVMBuilderRef LLVMValueRef _string                                                                                             -> LLVMValueRef))
 (define-llvm LLVMBuildStore                (_fun LLVMBuilderRef LLVMValueRef LLVMValueRef                                                                                        -> LLVMValueRef))
-(define-llvm LLVMBuildGEP                  (_fun LLVMBuilderRef LLVMValueRef (_list i LLVMValueRef) _uint _string                                                                -> LLVMValueRef))
-(define-llvm LLVMBuildInBoundsGEP          (_fun LLVMBuilderRef LLVMValueRef (_list i LLVMValueRef) _uint _string                                                                -> LLVMValueRef))
+(define-llvm LLVMBuildGEP                  (_fun LLVMBuilderRef LLVMValueRef (indices : (_list i LLVMValueRef)) (len : _uint = (length indices)) _string                         -> LLVMValueRef))
+(define-llvm LLVMBuildInBoundsGEP          (_fun LLVMBuilderRef LLVMValueRef (indices : (_list i LLVMValueRef)) (len : _uint = (length indices)) _string                         -> LLVMValueRef))
 (define-llvm LLVMBuildStructGEP            (_fun LLVMBuilderRef LLVMValueRef _uint _string                                                                                       -> LLVMValueRef))
 (define-llvm LLVMBuildGlobalString         (_fun LLVMBuilderRef _string _string                                                                                                  -> LLVMValueRef))
 (define-llvm LLVMBuildGlobalStringPtr      (_fun LLVMBuilderRef _string _string                                                                                                  -> LLVMValueRef))
