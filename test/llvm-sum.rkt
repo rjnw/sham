@@ -4,7 +4,7 @@
 
 (define module (LLVMModuleCreateWithName "test_module"))
 (define param-types (list (LLVMInt32Type) (LLVMInt32Type)))
-(define ret-type (LLVMFunctionType (LLVMInt32Type) param-types 0))
+(define ret-type (LLVMFunctionType (LLVMInt32Type) param-types #f))
 (define sum-f (LLVMAddFunction module "sum" ret-type))
 
 (define entry-block (LLVMAppendBasicBlock sum-f "entry"))
@@ -25,10 +25,11 @@
 (define-values (engine status err) (LLVMCreateExecutionEngineForModule module))
 
 
-(define args (list (LLVMCreateGenericValueOfInt (LLVMInt32Type) 5 #f)
+(define args (list (LLVMCreateGenericValueOfInt (LLVMInt32Type) 2 #f)
                    (LLVMCreateGenericValueOfInt (LLVMInt32Type) 4 #f)))
 
 (define res (LLVMRunFunction engine sum-f args))
 (printf "result: ~a\n" (LLVMGenericValueToInt res #f))
 
-(LLVMWriteBitcodeToFile module "test.bc")
+ ;(LLVMWriteBitcodeToFile module "test.bc")
+(LLVMDumpModule module)

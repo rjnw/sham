@@ -39,7 +39,11 @@
 (define-llvm LLVMGetSwitchDefaultDest (_fun LLVMValueRef -> LLVMBasicBlockRef))
 
 ;;phi nodes
-(define-llvm LLVMAddIncoming (_fun LLVMValueRef (pointer-to LLVMValueRef) (pointer-to LLVMBasicBlockRef) _uint -> _void))
+(define-llvm LLVMAddIncoming
+  (_fun LLVMValueRef
+        (values : (_list i LLVMValueRef))
+        (_list i LLVMBasicBlockRef)
+        (size : _uint = (length values)) -> _void))
 (define-llvm LLVMCountIncoming (_fun LLVMValueRef -> unsigned))
 (define-llvm LLVMGetIncomingValue (_fun LLVMValueRef _uint -> LLVMValueRef))
 (define-llvm LLVMGetIncomingBlock (_fun LLVMValueRef _uint -> LLVMBasicBlockRef))

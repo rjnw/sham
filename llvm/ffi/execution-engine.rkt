@@ -27,14 +27,35 @@
         -> (status : LLVMBool)
         -> (values ee status err)))
 ;; first argument is of type struct LLVMMCJITCompilerOptions
-;; (define-llvm LLVMInitializeMCJITCompilerOptions
-;;   (_fun (options : (_list o LLVMMCJITCompilerOptions len)) (len : _size) -> _void -> options))
-;; (define-llvm LLVMCreateMCJITCompilerForModule (_fun (pointer-to LLVMExecutionEngineRef) LLVMModuleRef (pointer-to _pointer) _size _string -> LLVMBool))
+(define-cstruct _LLVMMCJITCompilerOptions ([OptLevel unsigned]
+                                           [CodeModel LLVMCodeModel]
+                                           [NoFramePointerElim LLVMBool]
+                                           [EnableFastISel LLVMBool]
+                                           [MCJMM LLVMMCJITMemoryManagerRef]))
+
+(define-llvm LLVMInitializeMCJITCompilerOptions
+  (_fun (options : (_ptr o _LLVMMCJITCompilerOptions))
+        (len : _size = (ctype-sizeof _LLVMMCJITCompilerOptions))
+        -> _void
+        -> options))
+(define-llvm LLVMCreateMCJITCompilerForModule
+  (_fun (ee : (_ptr o LLVMExecutionEngineRef))
+        (mod : LLVMModuleRef)
+        (options : (_ptr i _LLVMMCJITCompilerOptions))
+        (len : _size = (ctype-sizeof _LLVMMCJITCompilerOptions))
+        (err : (_ptr o _string))
+        -> (status : LLVMBool)
+        -> (values ee status err)))
 (define-llvm LLVMDisposeExecutionEngine (_fun LLVMExecutionEngineRef -> _void))
 (define-llvm LLVMRunStaticConstructors (_fun LLVMExecutionEngineRef -> _void))
 (define-llvm LLVMRunStaticDestructors (_fun LLVMExecutionEngineRef -> _void))
 ;; (define-llvm LLVMRunFunctionAsMain (_fun LLVMExecutionEngineRef LLVMValueRef unsigned (pointer-to unknowntype) (pointer-to unknowntype) -> _int))
-(define-llvm LLVMRunFunction (_fun LLVMExecutionEngineRef LLVMValueRef [_uint = (length args)] [args : (_list i LLVMGenericValueRef)] -> LLVMGenericValueRef))
+(define-llvm LLVMRunFunction
+  (_fun LLVMExecutionEngineRef
+        LLVMValueRef
+        [_uint = (length args)]
+        [args : (_list i LLVMGenericValueRef)]
+        -> LLVMGenericValueRef))
 (define-llvm LLVMFreeMachineCodeForFunction (_fun LLVMExecutionEngineRef LLVMValueRef -> _void))
 (define-llvm LLVMAddModule (_fun LLVMExecutionEngineRef LLVMModuleRef -> _void))
 ;; (define-llvm LLVMRemoveModule (_fun LLVMExecutionEngineRef LLVMModuleRef (pointer-to LLVMModuleRef) _string -> LLVMBool))
@@ -46,6 +67,7 @@
 (define-llvm LLVMGetPointerToGlobal (_fun LLVMExecutionEngineRef LLVMValueRef -> _pointer))
 (define-llvm LLVMGetGlobalValueAddress (_fun LLVMExecutionEngineRef _string -> _uint64))
 (define-llvm LLVMGetFunctionAddress (_fun LLVMExecutionEngineRef _string -> _uint64))
+
 ;; (define-llvm
 ;;   LLVMCreateSimpleMCJITMemoryManager
 ;;   (_fun

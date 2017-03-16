@@ -289,6 +289,14 @@
      LLVMAnyRegCallConv = 13
      LLVMX86StdcallCallConv = 64
      LLVMX86FastcallCallConv = 65)))
+(define LLVMCodeModel
+  (_enum
+   '(LLVMCodeModelDefault 	
+     LLVMCodeModelJITDefault 	
+     LLVMCodeModelSmall 	
+     LLVMCodeModelKernel 	
+     LLVMCodeModelMedium 	
+     LLVMCodeModelLarge)))
 (define (pointer-to p) _pointer)
 (define unsigned _uint)
 (define-llvm-types
@@ -298,3 +306,4 @@
   LLVMTargetMachineRef
   LLVMTargetLibraryInfoRef
   LLVMMCJITMemoryManagerRef)
+
