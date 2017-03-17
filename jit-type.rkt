@@ -1,6 +1,7 @@
 #lang racket
+
 (require ffi/unsafe)
-(require "libjit.rkt")
+(require "llvm/ffi/all.rkt")
 (require "jit-env.rkt")
 (provide (all-defined-out))
 
@@ -16,11 +17,11 @@
 ;;returns one of the skeleton
 (define (create-type-skel typ env)
   (match typ
-    [x #:when (symbol? typ) (type-ref (env-lookup typ env))]
     [`(struct (,ids : ,types) ...) (type-struct ids (map (curryr env-lookup env) types))]
     [`(pointer ,t) (type-pointer (env-lookup t env))]
     [`(,args ... -> ,ret)
-     (type-function (map (curryr env-lookup env) args) (env-lookup ret env))]))
+     (type-function (map (curryr env-lookup env) args) (env-lookup ret env))]
+    [symbol? (type-ref (env-lookup typ env))]))
 
 (define (compile-type-declaration t env)
   (match t
@@ -51,7 +52,7 @@
     (_cprocedure (map type-prim-racket args)
                  (type-prim-racket ret)))
   (define (create-jit-function-type args ret)
-    (jit_type_create_signature 'jit_abi_cdecl (type-prim-jit ret) (map type-prim-jit args) 1))
+    (LLVMFunctionType (type-prim-jit ret) (map type-prim-jit args) #f))
   (type-prim (create-racket-function-type args ret)
              (create-jit-function-type args ret)))
 
@@ -59,7 +60,7 @@
   (define (create-racket-struct-type types)
     (make-cstruct-type (map type-prim-racket types)))
   (define (create-jit-struct-type types)
-    (jit_type_create_struct (map type-prim-jit types) 1))
+    (LLVMStructType (map type-prim-jit types) #t))
   (type-prim (create-racket-struct-type types)
              (create-jit-struct-type types)))
 
@@ -67,7 +68,8 @@
   (define (create-racket-pointer-type type)
     _pointer)
   (define (create-jit-pointer-type type)
-    (jit_type_create_pointer (type-prim-jit type) 1))
+    (LLVMPointerType (type-prim-jit type) 0))
+  (printf "type ~a jit-type ~a\n" type (type-prim-jit type))
   (type-prim (create-racket-pointer-type type)
              (create-jit-pointer-type type)))
 
@@ -78,31 +80,29 @@
               [(t types)]
       (env-extend (first t)
                   (env-type (type-internal)
-                            (type-prim (second t) (third t)))
+                            (type-prim (third t) (second t)))
                   env)))
   (define new-env
     (register-types
-    `((int ,jit_int ,jit_type_int)
-      (uint ,jit_uint ,jit_type_uint)
-      (sbyte ,jit_sbyte ,jit_type_sbyte)
-      (ubyte ,jit_ubyte ,jit_type_ubyte)
-      (short ,jit_short ,jit_type_short)
-      (ushort ,jit_ushort ,jit_type_ushort)
-      (long ,jit_long ,jit_type_long)
-      (ulong ,jit_ulong ,jit_type_ulong)
-      (float32 ,jit_float32 ,jit_type_float32)
-      (float64 ,jit_float64 ,jit_type_float64)
-      (void ,jit_void ,jit_type_void))))
+     `((i1 ,(LLVMInt1Type) ,_uint)
+       (i8 ,(LLVMInt8Type) ,_uint8)
+       (i16 ,(LLVMInt16Type) ,_uint16)
+       (i32 ,(LLVMInt32Type) ,_uint32)
+       (i64 ,(LLVMInt64Type) ,_uint64)
+       (i128 ,(LLVMInt128Type) ,_ullong)
+       (f32 ,(LLVMFloatType) ,_float)
+       (f64 ,(LLVMDoubleType) ,_double)
+      (void ,(LLVMVoidType) ,_void))))
   (env-extend 'void* type-void* new-env))
 
-(define type-void* (env-type (type-pointer 'void) (type-prim jit_ptr jit_type_void_ptr)))
+(define type-void* (env-type (type-pointer 'void)
+                             (type-prim  _pointer (LLVMPointerType (LLVMVoidType) 0))))
 
-(define native-int-types (set jit_type_int jit_type_uint jit_type_sbyte jit_type_ubyte jit_type_short
-                              jit_type_ushort jit_type_long jit_type_ulong))
+(define native-int-types (set _int _uint _sbyte _ubyte _short _ushort _long _ulong))
 (define (type-native-int? envtype)
   (match envtype
     [(env-type (type-internal) (type-prim racket-type jit-type))
-     (set-member? native-int-types jit-type)]
+     (set-member? native-int-types racket-type)]
     [(env-type (type-ref t) _)
      (type-native-int? t)]
     [else #f]))
@@ -110,7 +110,7 @@
 (define (type-float32? envtype)
   (match envtype
     [(env-type (type-internal) (type-prim racket-type jit-type))
-     (equal? jit_type_float32 jit-type)]
+     (equal? _float jit-type)]
     [(env-type (type-ref t) _)
      (type-float32? t)]
     [else #f]))
@@ -120,34 +120,25 @@
         (type-prim-racket (env-type-prim from-type))
         (type-prim-racket (env-type-prim to-type))))
 
-(define (get-struct-offset type-sym field env)
-  (define (get-field-index skel field-name)
-    (define i (index-of (type-struct-names skel) field-name))
-    (if i i (error "calcluting offset for unknown field:" field-name)))
-  (define struct-env-type (env-lookup type-sym env))
-  (define field-index (get-field-index (env-type-skel struct-env-type) field))
-  (jit_type_get_offset (type-prim-jit (env-type-prim struct-env-type))
-                       field-index))
+
 (module+ test
   (require rackunit)
-  (define env (register-initial-types (empty-env)))
-  (define env0 (env-extend 'double (create-type 'float32 env) env))
-  (define env1 (env-extend 'float32-p
-                              (create-type '(pointer double)  env0)
+  (define env0 (register-initial-types (empty-env)))
+  (printf "env0: ~a\n" env0)
+  (define env1 (env-extend 'double*
+                              (create-type '(pointer f64)  env0)
                               env0))
   (define env2 (env-extend 'sp
-                              (create-type '(struct (a : int) (b : int))  env1)
+                              (create-type '(struct (a : i32) (b : i32))  env1)
                               env1))
   (define new-env1 (env-extend 'array-real
-                              (create-type '(struct (size : int)  (data : int)) env2) env2))
+                              (create-type '(struct (size : i32)  (data : i32)) env2) env2))
   (pretty-print new-env1)
-  (pretty-print (get-struct-offset 'array-real 'data new-env1))
-  (pretty-display (create-type '(pointer int) env))
-  (pretty-display (create-type '(int -> int) env))
-  (pretty-display (create-type '(struct (a : int) (b : int)) env))
-  (define new-env (env-extend 'intref (create-type 'int env) env))
-  (pretty-display (type-native-int? (env-lookup 'int new-env)))
+  (pretty-display (create-type '(pointer i32) env0))
+  (pretty-display (create-type '(i32 -> i32) env0))
+  (pretty-display (create-type '(struct (a : i32) (b : i32)) env0))
+  (define new-env (env-extend 'intref (create-type 'i32 env0) env0))
+  (pretty-display (type-native-int? (env-lookup 'i32 new-env)))
   (pretty-display (type-native-int? (env-lookup 'intref new-env)))
   (pretty-display (type-native-int? (env-lookup 'void* new-env)))
-  (pretty-display (type-float32? (env-lookup 'float32 new-env)))
-  )
+  (pretty-display (type-float32? (env-lookup 'f32 new-env))))

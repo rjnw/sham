@@ -56,7 +56,11 @@
 
 ;;structure types
 (define-llvm LLVMStructTypeInContext (_fun LLVMContextRef (pointer-to LLVMTypeRef) _uint LLVMBool -> LLVMTypeRef))
-(define-llvm LLVMStructType (_fun (pointer-to LLVMTypeRef) _uint LLVMBool -> LLVMTypeRef))
+(define-llvm LLVMStructType
+  (_fun [elements : (_list i LLVMTypeRef)]
+        [num-elements : _uint = (length elements)]
+        LLVMBool
+        -> LLVMTypeRef))
 (define-llvm LLVMStructCreateNamed (_fun LLVMContextRef _string -> LLVMTypeRef))
 (define-llvm LLVMGetStructName (_fun LLVMTypeRef -> _string))
 (define-llvm LLVMStructSetBody (_fun LLVMTypeRef (pointer-to LLVMTypeRef) _uint LLVMBool -> _void))
