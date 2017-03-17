@@ -27,7 +27,6 @@
   (match t
     [`(define-type ,id ,typ) (create-type-skel typ env)]))
 
-
 ;;returns one of env-type object
 (define (compile-type-definition t-obj env)
   (define (env-lookup-prim types)
@@ -74,7 +73,7 @@
              (create-jit-pointer-type type)))
 
 ;TODO add couple more pointer types for basic types
-(define (register-initial-types env)
+(define (register-initial-types env context)
   (define (register-types types)
     (for/fold [(env env)]
               [(t types)]
@@ -82,21 +81,24 @@
                   (env-type (type-internal)
                             (type-prim (third t) (second t)))
                   env)))
+  (define type-void*
+    (env-type (type-pointer 'void)
+              (type-prim  _pointer
+                          (LLVMPointerType (LLVMVoidTypeInContext context) 0))))
   (define new-env
     (register-types
-     `((i1 ,(LLVMInt1Type) ,_uint)
-       (i8 ,(LLVMInt8Type) ,_uint8)
-       (i16 ,(LLVMInt16Type) ,_uint16)
-       (i32 ,(LLVMInt32Type) ,_uint32)
-       (i64 ,(LLVMInt64Type) ,_uint64)
-       (i128 ,(LLVMInt128Type) ,_ullong)
-       (f32 ,(LLVMFloatType) ,_float)
-       (f64 ,(LLVMDoubleType) ,_double)
-      (void ,(LLVMVoidType) ,_void))))
+     `((i1 ,(LLVMInt1TypeInContext context) ,_uint)
+       (i8 ,(LLVMInt8TypeInContext context) ,_uint8)
+       (i16 ,(LLVMInt16TypeInContext context) ,_uint16)
+       (i32 ,(LLVMInt32TypeInContext context) ,_uint32)
+       (i64 ,(LLVMInt64TypeInContext context) ,_uint64)
+       (i128 ,(LLVMInt128TypeInContext context) ,_ullong)
+       (f32 ,(LLVMFloatTypeInContext context) ,_float)
+       (f64 ,(LLVMDoubleTypeInContext context) ,_double)
+      (void ,(LLVMVoidTypeInContext context) ,_void))))
   (env-extend 'void* type-void* new-env))
 
-(define type-void* (env-type (type-pointer 'void)
-                             (type-prim  _pointer (LLVMPointerType (LLVMVoidType) 0))))
+
 
 (define native-int-types (set _int _uint _sbyte _ubyte _short _ushort _long _ulong))
 (define (type-native-int? envtype)
@@ -123,7 +125,7 @@
 
 (module+ test
   (require rackunit)
-  (define env0 (register-initial-types (empty-env)))
+  (define env0 (register-initial-types (empty-env) (LLVMGetGlobalContext)))
   (printf "env0: ~a\n" env0)
   (define env1 (env-extend 'double*
                               (create-type '(pointer f64)  env0)
