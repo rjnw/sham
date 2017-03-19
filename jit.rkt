@@ -136,9 +136,21 @@
 ;;                    'uint function env)]
 ;;     [else (compile-lhs-expression exp function env)]))
 
+
 ;; returns new env  
 (define (statement-builder stmt function-ref env jit-module jit-builder)
   (define (build-statement stmt env)
+    (define (find-common-change env1 env2)
+      (define env1-ids (list->set (map car env1)))
+      (define env2-ids (list->set (map car env2)))
+      (for/list [(id (set-intersect env1-ids env2-ids))
+                 #:when (not (eq? (env-lookup id env1)
+                                  (env-lookup id env2)))]
+        id))
+    (define (find-different env1 env2)
+      (define env1-ids (list->set (map car env1)))
+      (define env2-ids (list->set (map car env2)))
+      (set-subtract env2-ids env1-ids))
     (match (statement-expander stmt)
       [`(let ((,ids : ,types ,vals) ...) ,st)
        (define id-types (map (curryr env-lookup env) types))
@@ -171,16 +183,27 @@
        (LLVMBuildCondBr jit-builder tst-value then-block else-block)
 
        (LLVMPositionBuilderAtEnd jit-builder then-block)
-       (build-statement els env)
+       (define thn-env (build-statement thn env))
        (LLVMBuildBr jit-builder end-block)
 
        (LLVMPositionBuilderAtEnd jit-builder else-block)
-       (build-statement thn env)
+       (define els-env (build-statement els env))
        (LLVMBuildBr jit-builder end-block)
 
-       ;;TODO add phi nodes and return correct env
        (LLVMPositionBuilderAtEnd jit-builder end-block)
-       env]
+       (for/fold [(env env)]
+                 [(id (find-common-change thn-env els-env))]
+         (define id-phi
+           (LLVMBuildPhi jit-builder
+                         (type-prim-jit
+                          (env-type-prim
+                           (jit-value-type
+                            (env-lookup id thn-env))))
+                         (symbol->string id)))
+         (LLVMAddIncoming id-phi
+                          (list (env-lookup id thn-env) (env-lookup id els-env))
+                          (list then-block else-block))
+         (env-extend id id-phi env))]
 
       [`(while ,tst ,body)
        (define tst-value (build-expression tst env))
@@ -194,11 +217,23 @@
        (LLVMBuildCondBr jit-builder tst-value loop-block afterloop-block)
 
        (LLVMPositionBuilderAtEnd jit-builder loop-block)
-       (build-statement body env)
+       (define body-env (build-statement body env))
        (LLVMBuildBr jit-builder afterloop-block)
 
-       ;;TODO add phi nodes
-       (LLVMPositionBuilderAtEnd jit-builder afterloop-block)]
+       ;;TODO add phi nodes for induction variables
+       (LLVMPositionBuilderAtEnd jit-builder afterloop-block)
+       (for/fold ([env env])
+                 ([id (find-different env body-env)])
+         (define id-phi
+           (LLVMBuildPhi jit-builder
+                         (type-prim-jit
+                          (env-type-prim
+                           (jit-value-type
+                            (env-lookup id body-env))))
+                         (symbol->string id)))
+         (LLVMAddIncoming id-phi
+                          (list (env-lookup id body-env))
+                          (list body-block)))]
       [`(return ,v)
        (LLVMBuildRet jit-builder (build-expression v env))]
       [`(block ,stmts ...)
