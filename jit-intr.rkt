@@ -5,10 +5,12 @@
 (require "jit-type.rkt")
 (provide register-jit-internals)
 
-(define (register-jit-internals env)
-  (register-specifics
-   (register-intrinsics
-    (register-internal-instructions env))))
+(define (register-jit-internals env context)
+  ;; (register-specifics
+  ;;  (register-intrinsics
+  ;;   (register-internal-instructions env)))
+  env
+  )
 
 (define (get-c-native-call-compiler f racket-type jit-type)
   (lambda (function rands)
