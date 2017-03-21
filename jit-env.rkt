@@ -18,8 +18,6 @@
 (struct env-type (skel prim) #:prefab)
 (struct env-jit-function (ref type) #:prefab)
 
-(struct env-jit-internal-function (compiler))
 (struct env-jit-value (ref type))
-(struct env-c-function (type pointer))
 (struct env-racket-function (type object))
 (struct env-racket-ffi-function (type object))

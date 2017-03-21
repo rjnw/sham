@@ -16,17 +16,17 @@
   (lambda (function rands)
     (jit_insn_call_native function #f (cast f racket-type _pointer) jit-type rands 0)))
 
-(define (register-intrinsics env)
-  (define (register-native sym f type env)
-    (define typeprim (env-type-prim (create-type type env)))
-    (env-extend sym
-                (env-jit-internal-function
-                 (get-c-native-call-compiler
-                  f (type-prim-racket typeprim) (type-prim-jit typeprim)))
-                env))
-  (for/fold ([env env])
-            [(jitmn jit-memory-natives)]
-    (register-native (first jitmn) (second jitmn) (third jitmn) env)))
+;; (define (register-intrinsics env)
+;;   (define (register-native sym f type env)
+;;     (define typeprim (env-type-prim (create-type type env)))
+;;     (env-extend sym
+;;                 (env-jit-internal-function
+;;                  (get-c-native-call-compiler
+;;                   f (type-prim-racket typeprim) (type-prim-jit typeprim)))
+;;                 env))
+;;   (for/fold ([env env])
+;;             [(jitmn jit-memory-natives)]
+;;     (register-native (first jitmn) (second jitmn) (third jitmn) env)))
 
 (define jit-memory-natives
   `((jit-malloc ,jit_malloc (uint -> void*))
@@ -43,7 +43,7 @@
     (lambda (function rands)
       (f function (car rands))))
   (define (register-internal intr reg env)
-    (env-extend (car intr) (env-jit-internal-function (reg (cadr intr))) env))
+    (env-extend (car intr) (env-jit-function (reg (cadr intr))) env))
   (define (register-internals intrs reg env)
     (for/fold ([env env])
               ([intr intrs])

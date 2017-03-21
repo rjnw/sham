@@ -22,10 +22,9 @@
   (LLVMContextCreate))
 (define global-jit-context (LLVMGetGlobalContext))
 
-;; (define (create-initial-environment context)
-;;   (register-jit-internals
-;;    (register-initial-types (empty-env) context)
-;;    context))
+(define (create-initial-environment context)
+  (register-initial-types (empty-env) context))
+
 ;; (define global-environment (create-initial-environment global-jit-context))
 ;; (define global-context (context global-jit-context global-environment))
 
@@ -57,88 +56,10 @@
 ;; (define (jit-get-racket-type t)
 ;;   (type-prim-racket (env-type-prim t)))
 
-;; (define (create-value value type function env)
-;;   (define envtype (env-lookup type env))
-;;   (define prim-type (type-prim-jit (env-type-prim envtype)))
-;;   (cond [(or (type-native-int? envtype)
-;;              (type-pointer? (env-type-skel envtype)))
-;;          (jit_value_create_nint_constant
-;;           function
-;;           prim-type
-;;           value)]
-;;         [(type-float32? envtype)
-;;          (jit_value_create_float32_constant
-;;           function
-;;           prim-type
-;;           value)]
-;;         [else (error "value type not supported yet!" value type)]))
-
-;; (define (compile-lhs-set lhs exp-value function env)
-;;   (match lhs
-;;     [(? symbol?)
-;;      (define lhs-v (env-jit-value-v (env-lookup lhs env)))
-;;      (jit_insn_store function lhs-v exp-value)]
-;;     [`(* ,ptr ,off : ,type) ;off should be number of bytes, we don't do pointer arithmatic
-;;      (define ptr-value (compile-expression ptr function env))
-;;      (define off-value (compile-expression off function env))
-;;      (define ptr-with-off (jit_insn_add function ptr-value off-value))
-;;      (jit_insn_store_relative function ptr-with-off 0 exp-value)]
-;;     [else (error "not implemented" lhs)]))
-
-;; (define (compile-lhs-expression exp function env)
-;;   (match exp
-;;     [(? symbol?) (env-jit-value-v (env-lookup exp env))]
-;;     [`(* ,ptr ,off : ,type) ;; again off is in bytes
-;;      (define value-type (type-prim-jit
-;;                        (env-type-prim
-;;                         (env-lookup type env))))
-;;      (define ptr-value (compile-expression ptr function env))
-;;      (define off-value (compile-expression off function env))
-;;      (define ptr-with-off (jit_insn_add function ptr-value off-value))
-;;      (jit_insn_load_relative function ptr-with-off 0 value-type)]
-;;     [else (error "not implemented lhs expression" exp)]))
-
-;; (define (compile-app rator rand-values function env)
-;;   (match (env-lookup rator env)
-;;     [(env-jit-function type object cpointer)
-;;      (jit_insn_call function (symbol->string rator) object
-;;                     (type-prim-jit (env-type-prim type)) rand-values 0)]
-;;     [(env-jit-function-decl type object)
-;;      (jit_insn_call function (symbol->string rator) object
-;;                     (type-prim-jit (env-type-prim type)) rand-values 0)]
-;;     [(env-jit-internal-function compiler)
-;;      (compiler function rand-values)]
-;;     [(env-racket-function type f)
-;;      ;TODO
-;;      (error "not implemented applicative")]
-;;     [(env-racket-ffi-function type f)
-;;      ;TODO
-;;      (error "not implemented applicative")]
-;;     [(env-c-function type f)
-;;      (jit_insn_call_native function #f f type rand-values 0)]
-;;     [else (error "rator ~a\n" (env-lookup rator env))]))
-
-;; ;; returns an object of jit_value
-;; (define (compile-expression exp function env)
-;;   ;; (printf "compiling expression ~a\n" exp)
-;;   (match exp
-;;     [`(#%app ,rator ,rands ...)
-;;      (define rand-values
-;;        (for/list ([rand rands])
- ;;          (compile-expression rand function env)))
-;;      (compile-app rator rand-values function env)]
-;;     [`(#%value ,value ,type) (create-value value type function env)]
-;;     [`(#%offset ,type ,field)
-;;      (compile-expression `(#%value ,(get-struct-offset type field env) int) function env)]
-;;     [`(#%sizeof ,type)
-;;      (define envtype (env-lookup type env))
-;;      (create-value (jit_type_get_size (type-prim-jit (env-type-prim envtype)))
-;;                    'uint function env)]
-;;     [else (compile-lhs-expression exp function env)]))
 
 
 ;; returns new env  
-(define (statement-builder stmt function-ref env jit-module jit-builder)
+(define (compile-statement stmt function-ref env jit-module jit-builder)
   (define (build-statement stmt env)
     (define (find-common-change env1 env2)
       (define env1-ids (list->set (map car env1)))
@@ -164,10 +85,14 @@
        (build-statement st new-env)]
 
       [`(set! ,lhs ,v)
-       (define v-ref (compile-expression v function env))
+       (define v-ref (build-expression v env))
        (define lhs-v (env-lookup lhs env))
-       ;;TODO verify the order of load store
        (env-extend lhs (env-jit-value v-ref (env-jit-value-type lhs-v)))]
+
+      [`(store! ,lhs ,v)
+       (LLVMBuildStore jit-builder
+                       (env-jit-value-ref (env-lookup lhs env))
+                       (build-expression v env))]
 
       [`(if ,tst ,thn ,els)
        (define tst-value (build-expression tst env))
@@ -197,7 +122,7 @@
            (LLVMBuildPhi jit-builder
                          (type-prim-jit
                           (env-type-prim
-                           (jit-value-type
+                           (env-jit-value-type
                             (env-lookup id thn-env))))
                          (symbol->string id)))
          (LLVMAddIncoming id-phi
@@ -217,10 +142,10 @@
        (LLVMBuildCondBr jit-builder tst-value loop-block afterloop-block)
 
        (LLVMPositionBuilderAtEnd jit-builder loop-block)
+       ;;TODO add phi nodes for incoming variables
        (define body-env (build-statement body env))
        (LLVMBuildBr jit-builder afterloop-block)
 
-       ;;TODO add phi nodes for induction variables
        (LLVMPositionBuilderAtEnd jit-builder afterloop-block)
        (for/fold ([env env])
                  ([id (find-different env body-env)])
@@ -228,23 +153,65 @@
            (LLVMBuildPhi jit-builder
                          (type-prim-jit
                           (env-type-prim
-                           (jit-value-type
+                           (env-jit-value-type
                             (env-lookup id body-env))))
                          (symbol->string id)))
          (LLVMAddIncoming id-phi
                           (list (env-lookup id body-env))
-                          (list body-block)))]
+                          (list loop-block)))]
+
       [`(return ,v)
        (LLVMBuildRet jit-builder (build-expression v env))]
+
       [`(block ,stmts ...)
-       (for ([stmt stmts])
-         ;;TODO merge environments
+       (for/fold ([env env])
+                 ([stmt stmts])
          (build-statement stmt env))]
+
       [`(#%exp ,e)
        (build-expression e env)]
       [else (error "unknown statement or not implemented" stmt)]))
+  
   (define (build-expression e env)
-    )
+    (match e
+      [`(#%app ,rator ,rands ...);;rator needs to be symbol
+       (define rand-values
+         (for/list ([rand rands])
+           (build-expression rand env)))
+       (build-app rator rand-values env)] ;;higher order functions
+      [`(#%value ,value ,type) (build-value value type env)]
+      [`(#%load ,ptr) (LLVMBuildLoad jit-builder (build-expression ptr env) "ld")]
+      [`(#%sizeof ,type)
+       (define envtype (env-lookup type env))
+       (build-value (LLVMStoreSizeOfType (type-prim-jit (env-type-prim envtype)))
+                     'i32 env)]
+      [`(#%gep ,ptr ,indxs) ;;TODO pointer
+       (LLVMBuildGEP jit-builder (build-expression ptr env)
+                     (map (curryr build-expression indxs env))
+                     "gep")]
+      [(? symbol?) (env-jit-value-ref (env-lookup e env))]))
+  
+  (define (build-value value type env)
+    (define envtype (env-lookup type env))
+    (define prim-type (type-prim-jit (env-type-prim envtype)))
+    (cond [(or (type-native-int? envtype)
+               (type-pointer? (env-type-skel envtype)))
+           (LLVMConstInt jit-builder prim-type #f)] ;;add signed
+          [(type-float32? envtype)
+           (LLVMConstReal prim-type value)]
+          [else (error "value type not supported yet!" value type)]))
+  (define (build-app rator rand-values function env)
+    (match (env-lookup rator env)
+      [(env-jit-function ref type)
+       (LLVMBuildCall jit-builder ref rand-values (symbol->string rator))]
+
+      [(env-racket-function type f)
+       ;TODO
+       (error "not implemented applicative")]
+      [(env-racket-ffi-function type f)
+       ;TODO
+       (error "not implemented applicative")]
+      [else (error "rator ~a\n" (env-lookup rator env))]))
   (build-statement stmt env))
 
 (define (compile-function-definition name args types ret-type
@@ -261,7 +228,7 @@
 		  env)))
   (define entry-block (LLVMAppendBasicBlockInContext
                        (LLVMGetModuleContext jit-module) fref "entry"))
-  (build-statement body fref new-env entry-block jit-module jit-builder)
+  (compile-statement body fref new-env entry-block jit-module jit-builder)
   env-function)
 
 (define (compile-function-declaration env-function-type function-name jit-module)
@@ -297,17 +264,15 @@
         				      body (env-lookup function-name env)
         				      env jit-module jit-builder))
        (env-extend function-name f module-env)]))
-  (void)
-  ;; (match m
-  ;;   [`(module ,module-stmts ...)
-  ;;    (define env
-  ;;      (for/fold ([env (context-env context)])
-  ;;                ([stmt module-stmts])
-  ;;        (register-module-statement stmt env)))
-  ;;    (for/fold ([module-env (empty-env)])
-  ;;              ([stmt module-stmts])
-  ;;      (compile-module-statement stmt env module-env))])
-  )
+  (match m
+    [`(module ,module-stmts ...)
+     (define env
+       (for/fold ([env (create-initial-environment context)])
+                 ([stmt module-stmts])
+         (register-module-statement stmt env)))
+     (for/fold ([module-env (empty-env)])
+               ([stmt module-stmts])
+       (compile-module-statement stmt env module-env))]))
 
 
 ;; (module+ test
