@@ -130,7 +130,7 @@
                           (list then-block else-block))
          (env-extend id id-phi env))]
 
-      [`(while ,tst ,body)
+      [`(while ((,vars : ,var-types) ...) ,tst ,body)
        (define tst-value (build-expression tst env))
        (define loop-block
          (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
@@ -142,8 +142,25 @@
        (LLVMBuildCondBr jit-builder tst-value loop-block afterloop-block)
 
        (LLVMPositionBuilderAtEnd jit-builder loop-block)
-       ;;TODO add phi nodes for incoming variables
+       (define loop-phis
+         (for/list
+             ([var vars]
+              [type var-types])
+           (LLVMBuildPhi jit-builder
+                         (type-prim-jit (env-type-prim (env-lookup type env)))
+                         (symbol->string var))))
+       (define new-env (for/fold
+                           [(env env)]
+                           [(var vars)
+                            (var-ref loop-phis)
+                            (type var-types)]
+                         (env-extend var (env-jit-value var-ref (env-lookup type env)) env)))
        (define body-env (build-statement body env))
+       (for ([var vars]
+             [phi loop-phis])
+         (LLVMAddIncoming phi
+                          (list (env-jit-value-ref (env-lookup var body-env)))
+                          (list loop-block)))
        (LLVMBuildBr jit-builder afterloop-block)
 
        (LLVMPositionBuilderAtEnd jit-builder afterloop-block)
@@ -158,7 +175,8 @@
                          (symbol->string id)))
          (LLVMAddIncoming id-phi
                           (list (env-lookup id body-env))
-                          (list loop-block)))]
+                          (list loop-block))
+         (env-extend id id-phi env))]
 
       [`(return ,v)
        (LLVMBuildRet jit-builder (build-expression v env))]
@@ -185,7 +203,7 @@
        (define envtype (env-lookup type env))
        (build-value (LLVMStoreSizeOfType (type-prim-jit (env-type-prim envtype)))
                      'i32 env)]
-      [`(#%gep ,ptr ,indxs) ;;TODO pointer
+      [`(#%gep ,ptr ,indxs) 
        (LLVMBuildGEP jit-builder (build-expression ptr env)
                      (map (curryr build-expression indxs env))
                      "gep")]
@@ -196,15 +214,14 @@
     (define prim-type (type-prim-jit (env-type-prim envtype)))
     (cond [(or (type-native-int? envtype)
                (type-pointer? (env-type-skel envtype)))
-           (LLVMConstInt jit-builder prim-type #f)] ;;add signed
+           (env-jit-value (LLVMConstInt jit-builder prim-type #f) envtype)] ;;add signed
           [(type-float32? envtype)
-           (LLVMConstReal prim-type value)]
+           (env-jit-value (LLVMConstReal prim-type value) envtype)]
           [else (error "value type not supported yet!" value type)]))
   (define (build-app rator rand-values function env)
     (match (env-lookup rator env)
       [(env-jit-function ref type)
        (LLVMBuildCall jit-builder ref rand-values (symbol->string rator))]
-
       [(env-racket-function type f)
        ;TODO
        (error "not implemented applicative")]
