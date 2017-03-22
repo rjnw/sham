@@ -68,7 +68,7 @@
     _pointer)
   (define (create-jit-pointer-type type)
     (LLVMPointerType (type-prim-jit type) 0))
-  (printf "type ~a jit-type ~a\n" type (type-prim-jit type))
+  ;; (printf "type ~a jit-type ~a\n" type (type-prim-jit type))
   (type-prim (create-racket-pointer-type type)
              (create-jit-pointer-type type)))
 

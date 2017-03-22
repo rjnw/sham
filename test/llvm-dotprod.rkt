@@ -2,14 +2,23 @@
 (require "../llvm/ffi/all.rkt")
 (require ffi/unsafe)
 
+(LLVMLinkInMCJIT)
+(LLVMInitializeX86Target)
+(LLVMInitializeX86TargetInfo)
+(LLVMInitializeX86TargetMC)
+(LLVMInitializeX86AsmParser)
+(LLVMInitializeX86AsmPrinter)
+
 (define module (LLVMModuleCreateWithName "test_module"))
 (define builder (LLVMCreateBuilder))
 
+(define int64 (LLVMInt64Type))
 (define int32 (LLVMInt32Type))
-(define int32* (LLVMPointerType int32 0))
 
-(define param-types (list int32* int32* int32))
-(define fun-type (LLVMFunctionType int32 param-types #f))
+(define int64* (LLVMPointerType int64 0))
+
+(define param-types (list int64* int64* int64))
+(define fun-type (LLVMFunctionType int64 param-types #f))
 (printf "hello")
 (define dotp (LLVMAddFunction module "dotp" fun-type))
 
@@ -22,16 +31,16 @@
 (define arg3 (LLVMGetParam dotp 2))
 
 (define zero (LLVMConstInt int32 0 #f))
-(define one (LLVMConstInt int32 1 #f))
-(define five (LLVMConstInt int32 20 #f))
+(define one (LLVMConstInt int64 1 #f))
+(define five (LLVMConstInt int64 20 #f))
 
 (LLVMPositionBuilderAtEnd builder entry-block)
 (LLVMBuildBr builder loop-block)
 
 (LLVMPositionBuilderAtEnd builder loop-block)
 (printf "entering loopblock")
-(define i (LLVMBuildPhi builder int32 "i"))
-(define prevsum (LLVMBuildPhi builder int32 "prevsum"))
+(define i (LLVMBuildPhi builder int64 "i"))
+(define prevsum (LLVMBuildPhi builder int64 "prevsum"))
 
 (define lc (LLVMBuildICmp builder 'LLVMIntEQ i zero "loopcond"))
 (define arr1vp (LLVMBuildGEP builder
@@ -52,11 +61,11 @@
 (define nextval (LLVMBuildSub builder i one "nextval"))
 (LLVMBuildCondBr builder lc afterloop-block loop-block)
 
-(LLVMAddIncoming i (list five nextval) (list entry-block loop-block))
+(LLVMAddIncoming i (list arg3 nextval) (list entry-block loop-block))
 (LLVMAddIncoming prevsum (list zero nextsum) (list entry-block loop-block))
 
 (LLVMPositionBuilderAtEnd builder afterloop-block)
-(define totalsum (LLVMBuildPhi builder int32 "totalsum"))
+(define totalsum (LLVMBuildPhi builder int64 "totalsum"))
 (LLVMAddIncoming totalsum (list nextsum) (list loop-block))
 (LLVMBuildRet builder totalsum)
 
@@ -64,16 +73,16 @@
 (define verif (LLVMVerifyModule module 'LLVMPrintMessageAction #f))
 
 
-(define-values (engine status err) (LLVMCreateExecutionEngineForModule module))
-(printf "engine err: ~a\n" err)
+;; (define-values (engine status err) (LLVMCreateExecutionEngineForModule module))
+;; (printf "engine err: ~a\n" err)
 
-(define args (list (LLVMCreateGenericValueOfPointer (list->cblock '(1 2 3 4 5 6) _int32))
-                   (LLVMCreateGenericValueOfPointer (list->cblock '(1 2 3 4 5 6) _int32))
-                   (LLVMCreateGenericValueOfInt (LLVMInt32Type) 3 #f)))
+
+;; (define args (list (LLVMCreateGenericValueOfPointer (list->cblock biglist _int64))
+;;                    (LLVMCreateGenericValueOfPointer (list->cblock biglist _int64))
+;;                    (LLVMCreateGenericValueOfInt (LLVMInt64Type) (length biglist) #f)))
 
 ;; (define res (LLVMRunFunction engine dotp args))
 ;; (printf "result: ~a\n" (LLVMGenericValueToInt res #f))
-
 
 (define fpm (LLVMCreateFunctionPassManagerForModule module))
 (LLVMAddIndVarSimplifyPass fpm)
@@ -93,9 +102,50 @@
 (LLVMPassManagerBuilderPopulateFunctionPassManager fbpm fpmwithb)
 
 (define change2 (LLVMRunFunctionPassManager fpmwithb dotp))
-(printf "change2: ~a" change2)
+(printf "change2: ~a\n" change2)
 (LLVMDumpModule module)
 
+(define mcjit-options (LLVMInitializeMCJITCompilerOptions))
+(set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options 2)
+(define-values (engine status err)
+  (LLVMCreateMCJITCompilerForModule module mcjit-options))
+(printf "mcjit optlevel ~a\n" (LLVMMCJITCompilerOptions-OptLevel mcjit-options))
 
+(define fptr (LLVMGetFunctionAddress engine "dotp"))
+
+(define fun (cast fptr _uint64 _pointer))
+;; (define fbytes (cast fun _pointer _bytes))
+(define f (cast (cast fptr _uint64 _pointer) _pointer (_fun _pointer _pointer _int64 -> _int64)))
+
+(define biglist (stream->list  (in-range 10000)))
+  
+(define bigvec (for/vector ([i (in-range 10000)])
+                 i))
+
+(define bg (list->cblock biglist _int64))
+
+(printf "result: ~a\n" (time (begin
+                               (f bg bg  (length biglist))
+                               (f bg bg  (length biglist))
+                               (f bg bg  (length biglist))
+                               (f bg bg  (length biglist)))))
+
+(time
+   (begin
+     (for/sum [(a1 (in-vector bigvec))
+                   (a2 (in-vector bigvec))]
+       (+ a1 a2))
+     (for/sum [(a1 (in-vector bigvec))
+                   (a2 (in-vector bigvec))]
+       (+ a1 a2))
+     (for/sum [(a1 (in-vector bigvec))
+                   (a2 (in-vector bigvec))]
+       (+ a1 a2))
+     (for/sum [(a1 (in-vector bigvec))
+                   (a2 (in-vector bigvec))]
+           (+ a1 a2))))
 
 (LLVMPassManagerBuilderDispose fbpm)
+
+;; (require "../../disassemble/disassemble/main.rkt")
+;; (disassemble-ffi-function fun #:size 100)
