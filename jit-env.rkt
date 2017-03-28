@@ -17,6 +17,7 @@
 
 (struct env-type (skel prim) #:prefab)
 (struct env-jit-function (ref type) #:prefab)
+(struct env-jit-intr-function (builder) #:prefab)
 
 (struct env-jit-value (ref type))
 (struct env-racket-function (type object))

@@ -30,7 +30,7 @@
 (define arr2 (LLVMGetParam dotp 1))
 (define arg3 (LLVMGetParam dotp 2))
 
-(define zero (LLVMConstInt int32 0 #f))
+(define zero (LLVMConstInt int64 0 #f))
 (define one (LLVMConstInt int64 1 #f))
 (define five (LLVMConstInt int64 20 #f))
 
@@ -98,7 +98,9 @@
 (define fpmwithb (LLVMCreateFunctionPassManagerForModule module))
 (define fbpm (LLVMPassManagerBuilderCreate))
 (LLVMPassManagerBuilderSetOptLevel fbpm 3)
-(LLVMPassManagerBuilderSetSizeLevel fbpm 1000)
+(LLVMPassManagerBuilderSetDisableUnrollLoops fbpm #t)
+(LLVMPassManagerBuilderSetSizeLevel fbpm 100000)
+
 (LLVMPassManagerBuilderPopulateFunctionPassManager fbpm fpmwithb)
 
 (define change2 (LLVMRunFunctionPassManager fpmwithb dotp))
@@ -106,7 +108,7 @@
 (LLVMDumpModule module)
 
 (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
-(set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options 2)
+(set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options 3)
 (define-values (engine status err)
   (LLVMCreateMCJITCompilerForModule module mcjit-options))
 (printf "mcjit optlevel ~a\n" (LLVMMCJITCompilerOptions-OptLevel mcjit-options))
@@ -115,37 +117,28 @@
 
 (define fun (cast fptr _uint64 _pointer))
 ;; (define fbytes (cast fun _pointer _bytes))
-(define f (cast (cast fptr _uint64 _pointer) _pointer (_fun _pointer _pointer _int64 -> _int64)))
+(define f (cast (cast fptr _uint64 _pointer)
+                _pointer
+                (_fun _pointer _pointer _int64 -> _int64)))
 
-(define biglist (stream->list  (in-range 10000)))
+;; (define size 5000000)
+;; (define biglist (stream->list  (in-range size)))
   
-(define bigvec (for/vector ([i (in-range 10000)])
-                 i))
+;; (define bigvec (for/vector ([i (in-range size)])
+;;                  i))
 
-(define bg (list->cblock biglist _int64))
+;; (define bg (list->cblock biglist _int64))
 
-(printf "result: ~a\n" (time (begin
-                               (f bg bg  (length biglist))
-                               (f bg bg  (length biglist))
-                               (f bg bg  (length biglist))
-                               (f bg bg  (length biglist)))))
+#;(printf "result: ~a\n" (time (f bg bg size)))
 
-(time
-   (begin
-     (for/sum [(a1 (in-vector bigvec))
-                   (a2 (in-vector bigvec))]
-       (+ a1 a2))
-     (for/sum [(a1 (in-vector bigvec))
-                   (a2 (in-vector bigvec))]
-       (+ a1 a2))
-     (for/sum [(a1 (in-vector bigvec))
-                   (a2 (in-vector bigvec))]
-       (+ a1 a2))
-     (for/sum [(a1 (in-vector bigvec))
+#;
+(printf "racket result: ~a\n"
+        (time
+         (for/sum [(a1 (in-vector bigvec))
                    (a2 (in-vector bigvec))]
            (+ a1 a2))))
 
 (LLVMPassManagerBuilderDispose fbpm)
 
-;; (require "../../disassemble/disassemble/main.rkt")
-;; (disassemble-ffi-function fun #:size 100)
+(require "../../disassemble/disassemble/main.rkt")
+(disassemble-ffi-function fun #:size 100)

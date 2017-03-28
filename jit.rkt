@@ -223,6 +223,8 @@
     (match (env-lookup rator env)
       [(env-jit-function ref type)
        (LLVMBuildCall jit-builder ref rand-values (symbol->string rator))]
+      [(env-jit-intr-function builder)
+       (builder jit-builder rand-values)]
       [(env-racket-function type f)
        ;TODO
        (error "not implemented applicative")]

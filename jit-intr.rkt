@@ -1,113 +1,145 @@
 #lang racket
 (require ffi/unsafe)
-(require "libjit.rkt")
+(require "llvm/ffi/all.rkt")
 (require "jit-env.rkt")
 (require "jit-type.rkt")
 (provide register-jit-internals)
 
 (define (register-jit-internals env context)
-  ;; (register-specifics
-  ;;  (register-intrinsics
-  ;;   (register-internal-instructions env)))
-  env
-  )
-
-(define (get-c-native-call-compiler f racket-type jit-type)
-  (lambda (function rands)
-    (jit_insn_call_native function #f (cast f racket-type _pointer) jit-type rands 0)))
-
-;; (define (register-intrinsics env)
-;;   (define (register-native sym f type env)
-;;     (define typeprim (env-type-prim (create-type type env)))
-;;     (env-extend sym
-;;                 (env-jit-internal-function
-;;                  (get-c-native-call-compiler
-;;                   f (type-prim-racket typeprim) (type-prim-jit typeprim)))
-;;                 env))
-;;   (for/fold ([env env])
-;;             [(jitmn jit-memory-natives)]
-;;     (register-native (first jitmn) (second jitmn) (third jitmn) env)))
-
-(define jit-memory-natives
-  `((jit-malloc ,jit_malloc (uint -> void*))
-    (jit-calloc ,jit_calloc (uint uint -> void*))
-    (jit-realloc ,jit_realloc (void* uint -> void*))
-    (jit-free ,jit_free (void* -> void))
-    ))
+  (register-internal-instructions env))
 
 (define (register-internal-instructions env)
-  (define (get-binary-compiler f)
-    (lambda (function rands)
-      (f function (car rands) (cadr rands))))
-  (define (get-unary-compiler f)
-    (lambda (function rands)
-      (f function (car rands))))
+  (define (get-unary-compiler llvm-builder)
+    (lambda (jit-builder args [name "v"])
+      (llvm-builder jit-builder (first args) name)))
+  (define (get-binary-compiler llvm-builder)
+    (lambda (jit-builder args [name "v"])
+      (llvm-builder jit-builder (first args) (second args) name)))
   (define (register-internal intr reg env)
-    (env-extend (car intr) (env-jit-function (reg (cadr intr))) env))
+    (env-extend (car intr) (env-jit-intr-function (reg (cadr intr))) env))
+  (define (register-int-predicate env)
+    (for/fold [(env env)]
+              [(predicate '(LLVMIntEQ
+                            LLVMIntNE
+                            LLVMIntUGT
+                            LLVMIntUGE
+                            LLVMIntULT
+                            LLVMIntULE
+                            LLVMIntSGT
+                            LLVMIntSGE
+                            LLVMIntSLT
+                            LLVMIntSLE))
+               (pr '(jit-icmp-eq
+                     jit-icmp-ne
+                     jit-icmp-ugt
+                     jit-icmp-uge
+                     jit-icmp-ult
+                     jit-icmp-ule
+                     jit-icmp-sgt
+                     jit-icmp-sge
+                     jit-icmp-slt
+                     jit-icmp-sle))]
+      (env-extend pr
+                  (env-jit-intr-function
+                   (lambda (jit-builder args [name "ipred"])
+                     (LLVMBuildICmp jit-builder
+                                    predicate
+                                    (first args)
+                                    (second args)
+                                    name)))
+                  env)))
+  (define (register-real-predicate env)
+    (for/fold [(env env)]
+              [(predicate '(LLVMRealOEQ
+                            LLVMRealOGT
+                            LLVMRealOGE
+                            LLVMRealOLT
+                            LLVMRealOLE
+                            LLVMRealONE
+                            LLVMRealORD
+                            LLVMRealUNO
+                            LLVMRealUEQ
+                            LLVMRealUGT
+                            LLVMRealUGE
+                            LLVMRealULT
+                            LLVMRealULE
+                            LLVMRealUNE))
+               (pr '(jit-fcmp-oeq
+                     jit-fcmp-ogt
+                     jit-fcmp-oge
+                     jit-fcmp-olt
+                     jit-fcmp-ole
+                     jit-fcmp-one
+                     jit-fcmp-ord
+                     jit-fcmp-uno
+                     jit-fcmp-ueq
+                     jit-fcmp-ugt
+                     jit-fcmp-uge
+                     jit-fcmp-ult
+                     jit-fcmp-ule
+                     jit-fcmp-une))]
+      (env-extend pr
+                  (env-jit-intr-function
+                   (lambda (jit-builder args [name "fpred"])
+                     (LLVMBuildICmp jit-builder
+                                    predicate
+                                    (first args)
+                                    (second args)
+                                    name)))
+                  env)))
   (define (register-internals intrs reg env)
     (for/fold ([env env])
               ([intr intrs])
       (register-internal intr reg env)))
-  (register-internals unary-internals get-unary-compiler
-                      (register-internals binary-internals get-binary-compiler env)))
+  (register-real-predicate
+   (register-int-predicate
+    (register-internals
+     unary-internals get-unary-compiler
+     (register-internals
+      binary-internals get-binary-compiler
+      env)))))
 
 (define binary-internals
-  `((jit-null? ,jit_insn_check_null)
-    (jit-add ,jit_insn_add)
-    (jit-add-ovf ,jit_insn_add_ovf)
-    (jit-sub ,jit_insn_sub)
-    (jit-sub-ovf ,jit_insn_sub_ovf)
-    (jit-mul ,jit_insn_mul)
-    (jit-mul-ovf ,jit_insn_mul_ovf)
-    (jit-div ,jit_insn_div)
-    (jit-rem ,jit_insn_rem)
-    (jit-rem-ieee ,jit_insn_rem_ieee)
-    (jit-and ,jit_insn_and)
-    (jit-or ,jit_insn_or)
-    (jit-xor ,jit_insn_xor)
-    (jit-shl ,jit_insn_shl)
-    (jit-shr ,jit_insn_shr)
-    (jit-ushr ,jit_insn_ushr)
-    (jit-sshr ,jit_insn_sshr)
-    (jit-eq? ,jit_insn_eq)
-    (jit-ne? ,jit_insn_ne)
-    (jit-lt? ,jit_insn_lt)
-    (jit-le? ,jit_insn_le)
-    (jit-gt? ,jit_insn_gt)
-    (jit-ge? ,jit_insn_ge)
-    (jit-cmpl ,jit_insn_cmpl)
-    (jit-cmpg ,jit_insn_cmpg)))
+  `((jit-add ,LLVMBuildAdd)
+    (jit-nsw-add ,LLVMBuildNSWAdd)
+    (jit-nuw-add ,LLVMBuildNUWAdd)
+    (jit-fadd ,LLVMBuildFAdd)
+
+    (jit-sub ,LLVMBuildSub)
+    (jit-nsw-sub ,LLVMBuildNSWSub)
+    (jit-nuw-sub ,LLVMBuildNUWSub)
+    (jit-fsub ,LLVMBuildFSub)
+
+    (jit-mul ,LLVMBuildMul)
+    (jit-nsw-mul ,LLVMBuildNSWMul)
+    (jit-nuw-mul ,LLVMBuildNUWMul)
+    (jit-fmul ,LLVMBuildFMul)
+
+    (jit-udiv ,LLVMBuildUDiv)
+    (jit-sdiv ,LLVMBuildSDiv)
+    (jit-exact-sdiv ,LLVMBuildExactSDiv)
+    (jit-fdiv ,LLVMBuildFDiv)
+
+    (jit-urem ,LLVMBuildURem)
+    (jit-srem ,LLVMBuildSRem)
+    (jit-frem ,LLVMBuildFRem)
+
+    (jit-shl ,LLVMBuildShl)
+    (jit-lshr ,LLVMBuildLShr)
+    (jit-ashr ,LLVMBuildAShr)
+
+    (jit-or ,LLVMBuildOr)
+    (jit-xor ,LLVMBuildXor)
+    (jit-store! ,LLVMBuildStore)))
 
 (define unary-internals
-  `((jit-neg ,jit_insn_neg)
-    (jit-to-bool ,jit_insn_to_bool)
-    (jit-to-not-bool ,jit_insn_to_not_bool)
-    (jit-acos ,jit_insn_acos)
-    (jit-asin ,jit_insn_asin)
-    (jit-atan ,jit_insn_atan)
-    (jit-ceil ,jit_insn_ceil)
-    (jit-cos ,jit_insn_cos)
-    (jit-cosh ,jit_insn_cosh)
-    (jit-exp ,jit_insn_exp)
-    (jit-floor ,jit_insn_floor)
-    (jit-log ,jit_insn_log)
-    (jit-log10 ,jit_insn_log10)
-    (jit-rint ,jit_insn_rint)
-    (jit-round ,jit_insn_round)
-    (jit-sin ,jit_insn_sin)
-    (jit-sinh ,jit_insn_sinh)
-    (jit-sqrt ,jit_insn_sqrt)
-    (jit-tan ,jit_insn_tan)
-    (jit-tanh ,jit_insn_tanh)
-    (jit-trunc ,jit_insn_trunc)
-    (jit-is-nan ,jit_insn_is_nan)
-    (jit-is-inf ,jit_insn_is_inf)
-    (jit-is-finite ,jit_insn_is_finite)
-    (jit-abs ,jit_insn_abs)
-    (jit-sign ,jit_insn_sign)))
+  '((jit-neg ,LLVMBuildNeg)
+    (jit-nsw-neg ,LLVMBuildNSWNeg)
+    (jit-nuw-neg ,LLVMBuildNUWNeg)
+    (jit-fneg ,LLVMBuildFNeg)
 
-(define (register-specifics env)
-  env)
+    (jit-not ,LLVMBuildNot)
+    (jit-load ,LLVMBuildLoad)))
 
 (module+ test
   (display (register-internal-instructions (empty-env))))
