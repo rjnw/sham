@@ -9,6 +9,9 @@
       (cdr val)
       (error "key not found in env ~a" key)))
 
+(define (env-contains? key env)
+  (not (false? (assoc key env))))
+
 (define (empty-env)
   '())
 

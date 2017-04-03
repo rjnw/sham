@@ -56,27 +56,45 @@
 ;; TODO check for mcjit-engine in env
 (define (jit-compile-function f-sym mod)
   (define mcjit-engine (env-lookup '#%mcjit-engine mod))
-  (LLVMGetFunctionAddress mcjit-engine (symbol->string f-sym)))
+  (cast (LLVMGetFunctionAddress mcjit-engine (symbol->string f-sym)) _uint64 _pointer))
+
+(define (jit-get-function f-sym mod)
+  (define fptr (jit-compile-function f-sym mod))
+  (define fref (env-lookup f-sym mod))
+  (define f-type (type-prim-racket (env-type-prim (env-jit-function-type fref))))
+  (cast fptr _pointer f-type))
 
 (define (jit-optimize-function f-sym mod-env)
   (define jit-mod (env-lookup '#%jit-module mod-env))
-  (define fpm (LLVMCreateFunctionPassManagerForModule module))
+  (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (define fpmb (LLVMPassManagerBuilderCreate))
-  (LLVMPassManagerBuilderSetOptLevel fbpm 3)
-  (LLVMPassManagerBuilderSetDisableUnrollLoops fbpm #t)
-  (LLVMPassManagerBuilderPopulateFunctionPassManager fbpm fpmwithb)
-  (LLVMRunFunctionPassManager fpmwithb (env-lookup f-sym mod-env)))
+  (LLVMPassManagerBuilderSetOptLevel fpmb 3)
+  (LLVMPassManagerBuilderSetDisableUnrollLoops fpmb #t)
+  (LLVMPassManagerBuilderPopulateFunctionPassManager fpmb fpm)
+  (LLVMRunFunctionPassManager fpm (env-lookup f-sym mod-env)))
 
-(define (jit-optimize-all f-sym mod-env)
+(define (jit-optimize-all mod-env)
   (define jit-mod (env-lookup '#%jit-module mod-env))
-  (define fpm (LLVMCreateFunctionPassManagerForModule module))
+  (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (define fpmb (LLVMPassManagerBuilderCreate))
-  (LLVMPassManagerBuilderSetOptLevel fbpm 3)
-  (LLVMPassManagerBuilderSetDisableUnrollLoops fbpm #t)
-  (LLVMPassManagerBuilderPopulateFunctionPassManager fbmp fpm)
+  (LLVMPassManagerBuilderSetOptLevel fpmb 3)
+  (LLVMPassManagerBuilderSetDisableUnrollLoops fpmb #t)
+  (LLVMPassManagerBuilderPopulateFunctionPassManager fpmb fpm)
   (for [(m mod-env)]
     (when (env-jit-function? (cdr m))
-        (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m))))))
+      (printf "optimizing ~a\n" (car m))
+      (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m))))))
+
+(define (jit-run-basic-pass mod-env)
+  (define jit-mod (env-lookup '#%jit-module mod-env))
+  (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
+  (LLVMAddCFGSimplificationPass fpm)
+  ;; (LLVMAddGVNPass fpm)
+  (for [(m mod-env)]
+    (when (env-jit-function? (cdr m))
+      (printf "optimizing ~a\n" (car m))
+      (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
+  (LLVMDisposePassManager fpm))
 
 (define (jit-get-racket-type t)
   (type-prim-racket (env-type-prim t)))
@@ -137,26 +155,34 @@
 
        (LLVMPositionBuilderAtEnd jit-builder then-block)
        (define thn-env (build-statement thn env))
-       (LLVMBuildBr jit-builder end-block)
+       (define thn-return (env-contains? '#%return? thn-env))
+       (unless thn-return
+         (LLVMBuildBr jit-builder end-block))
 
        (LLVMPositionBuilderAtEnd jit-builder else-block)
        (define els-env (build-statement els env))
-       (LLVMBuildBr jit-builder end-block)
+       (define els-return (env-contains? '#%return? els-env))
+       (printf "els-return: ~a\n" els-return)
+       (unless els-return (LLVMBuildBr jit-builder end-block))
 
-       (LLVMPositionBuilderAtEnd jit-builder end-block)
-       (for/fold [(env env)]
-                 [(id (find-common-change thn-env els-env))]
-         (define id-phi
-           (LLVMBuildPhi jit-builder
-                         (type-prim-jit
-                          (env-type-prim
-                           (env-jit-value-type
-                            (env-lookup id thn-env))))
-                         (symbol->string id)))
-         (LLVMAddIncoming id-phi
-                          (list (env-lookup id thn-env) (env-lookup id els-env))
-                          (list then-block else-block))
-         (env-extend id id-phi env))]
+       (define both-return (and thn-return els-return))
+       (if both-return
+           env
+           (begin
+             (LLVMPositionBuilderAtEnd jit-builder end-block)
+             (for/fold [(env env)]
+                       [(id (find-common-change thn-env els-env))]
+               (define id-phi
+                 (LLVMBuildPhi jit-builder
+                               (type-prim-jit
+                                (env-type-prim
+                                 (env-jit-value-type
+                                  (env-lookup id thn-env))))
+                               (symbol->string id)))
+               (LLVMAddIncoming id-phi
+                                (list (env-lookup id thn-env) (env-lookup id els-env))
+                                (list then-block else-block))
+               (env-extend id id-phi env))))]
 
       [`(while ((,vars : ,var-types) ...) ,tst ,body)
        (define tst-value (build-expression tst env))
@@ -213,7 +239,7 @@
 
       [`(return ,v)
        (LLVMBuildRet jit-builder (build-expression v env))
-       env]
+       (env-extend '#%return? #t env)]
 
       [`(block ,stmts ...)
        (for/fold ([env env])

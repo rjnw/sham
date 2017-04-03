@@ -28,21 +28,36 @@
 (define tmp (LLVMBuildLoad builder tmpptr "tmp"))
 (define ret (LLVMBuildRet builder tmp))
 
+(define tb (LLVMAppendBasicBlock indx "end"))
+(LLVMBuildBr builder tb)
 (define verif (LLVMVerifyModule module 'LLVMPrintMessageAction #f))
+(LLVMDumpModule module)
+
+(define fpm (LLVMCreateFunctionPassManagerForModule module))
+;; (LLVMAddAggressiveDCEPass fpm)
+(LLVMAddGVNPass fpm)
+;; (LLVMAddIndVarSimplifyPass fpm)
+;; (LLVMAddLoopUnrollPass fpm)
+;; (LLVMAddLoopVectorizePass fpm)
+;; (LLVMAddBBVectorizePass fpm)
+;; (LLVMAddSLPVectorizePass fpm)
 
 
+(define change (LLVMRunFunctionPassManager fpm indx))
+(printf "change: ~a" change)
+(LLVMDumpModule module)
 
-(define args (list (LLVMCreateGenericValueOfPointer (list->cblock '(1 2 3 4 5) _int32))
-                  (LLVMCreateGenericValueOfInt (LLVMInt32Type) 3 #f)))
+;; (define args (list (LLVMCreateGenericValueOfPointer (list->cblock '(1 2 3 4 5) _int32))
+;;                   (LLVMCreateGenericValueOfInt (LLVMInt32Type) 3 #f)))
 
-(define-values (engine status err)
-  (LLVMCreateMCJITCompilerForModule module (LLVMInitializeMCJITCompilerOptions)))
+;; (define-values (engine status err)
+;;   (LLVMCreateMCJITCompilerForModule module (LLVMInitializeMCJITCompilerOptions)))
 
-(define fptr (LLVMGetFunctionAddress engine "indx"))
-(define fun (cast fptr _uint64 _pointer))
-(define f (cast (cast fptr _uint64 _pointer) _pointer (_fun _pointer _int32 -> _int32)))
-(printf "result: ~a\n" (f (list->cblock '( 1 2 3) _int32) 1))
+;; (define fptr (LLVMGetFunctionAddress engine "indx"))
+;; (define fun (cast fptr _uint64 _pointer))
+;; (define f (cast (cast fptr _uint64 _pointer) _pointer (_fun _pointer _int32 -> _int32)))
+;; (printf "result: ~a\n" (f (list->cblock '( 1 2 3) _int32) 1))
 
 
-(LLVMDisposeBuilder builder)
-(LLVMDisposeModule module)
+;; (LLVMDisposeBuilder builder)
+;; (LLVMDisposeModule module)
