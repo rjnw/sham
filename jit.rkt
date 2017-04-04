@@ -8,6 +8,9 @@
 (require "jit-intr.rkt")
 (require "jit-expand.rkt")
 
+(provide (all-defined-out)
+         env-lookup)
+
 ;; (provide compile-module
 ;;          create-jit-context
 ;;          create-initial-environment
@@ -24,6 +27,19 @@
 (LLVMInitializeX86TargetMC)
 (LLVMInitializeX86AsmParser)
 (LLVMInitializeX86AsmPrinter)
+(define gpr (LLVMGetGlobalPassRegistry))
+(LLVMInitializeCore gpr)
+(LLVMInitializeTransformUtils gpr)
+(LLVMInitializeScalarOpts gpr)
+(LLVMInitializeObjCARCOpts gpr)
+(LLVMInitializeVectorization gpr)
+(LLVMInitializeInstCombine gpr)
+(LLVMInitializeIPO gpr)
+(LLVMInitializeInstrumentation gpr)
+(LLVMInitializeAnalysis gpr)
+(LLVMInitializeIPA gpr)
+(LLVMInitializeCodeGen gpr)
+(LLVMInitializeTarget gpr)
 
 (define (create-jit-context)
   (LLVMContextCreate))
@@ -50,7 +66,7 @@
     (LLVMCreateMCJITCompilerForModule (env-lookup '#%jit-module mod)
                                       mcjit-options))
   (if status
-      (error "error initializing jit" status)
+      (error "error initializing jit" status err)
       (env-extend '#%mcjit-engine engine mod)))
 
 ;; TODO check for mcjit-engine in env
@@ -85,6 +101,18 @@
       (printf "optimizing ~a\n" (car m))
       (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m))))))
 
+(define (jit-optimize-module mod-env [level 1])
+  (define jit-mod (env-lookup '#%jit-module mod-env))
+  (define mpm (LLVMCreatePassManager))
+  (define pmb (LLVMPassManagerBuilderCreate))
+  (LLVMPassManagerBuilderSetOptLevel pmb level)
+  (LLVMPassManagerBuilderSetSizeLevel pmb 100)
+  (LLVMPassManagerBuilderPopulateModulePassManager pmb mpm)
+  (begin0
+      (LLVMRunPassManager mpm jit-mod)
+    (LLVMDisposePassManager mpm)
+    (LLVMPassManagerBuilderDispose pmb)))
+
 (define (jit-run-basic-pass mod-env)
   (define jit-mod (env-lookup '#%jit-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
@@ -106,11 +134,12 @@
 
 ;; returns new env  
 (define (compile-statement stmt function-ref env jit-module jit-builder)
+  (define jit-target-data (LLVMCreateTargetData (LLVMGetDataLayout jit-module)))
   (define (build-statement stmt env)
     (define (find-common-change env1 env2)
       (define env1-ids (list->set (map car env1)))
       (define env2-ids (list->set (map car env2)))
-      (for/list [(id (set-intersect env1-ids env2-ids))
+      (for/set [(id (set-intersect env1-ids env2-ids))
                  #:when (not (eq? (env-lookup id env1)
                                   (env-lookup id env2)))]
         id))
@@ -126,8 +155,9 @@
                    ([id-type id-types]
                     [id ids]
                     [val vals])
-           (define val-ref (build-expression val env))
-           (env-extend id (env-jit-value val-ref id-type) env)))
+           (env-extend id
+                       (env-jit-value (build-expression val env) id-type)
+                       env)))
        (build-statement st new-env)]
 
       [`(set! ,lhs ,v)
@@ -162,7 +192,6 @@
        (LLVMPositionBuilderAtEnd jit-builder else-block)
        (define els-env (build-statement els env))
        (define els-return (env-contains? '#%return? els-env))
-       (printf "els-return: ~a\n" els-return)
        (unless els-return (LLVMBuildBr jit-builder end-block))
 
        (define both-return (and thn-return els-return))
@@ -185,8 +214,11 @@
                (env-extend id id-phi env))))]
 
       [`(while ((,vars : ,var-types) ...) ,tst ,body)
-       (define tst-value (build-expression tst env))
+
        (define prev-block (LLVMGetInsertBlock jit-builder))
+       (define loop-entry
+         (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
+                                        function-ref "loop-entry"))
        (define loop-block
          (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
                                         function-ref "loop-block"))
@@ -194,37 +226,67 @@
          (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
                                         function-ref "afterloop-block"))
 
-       (LLVMBuildBr jit-builder loop-block)
+       (LLVMBuildBr jit-builder loop-entry)
 
-       (LLVMPositionBuilderAtEnd jit-builder loop-block)
-       (define loop-phis
+       (LLVMPositionBuilderAtEnd jit-builder loop-entry)
+       (define tst-loop-phis
          (for/list
              ([var vars]
               [type var-types])
            (LLVMBuildPhi jit-builder
                          (type-prim-jit (env-type-prim (env-lookup type env)))
                          (symbol->string var))))
-       (define new-env (for/fold
+       (define tst-env (for/fold
                            [(env env)]
                            [(var vars)
-                            (var-ref loop-phis)
+                            (var-ref tst-loop-phis)
                             (type var-types)]
                          (env-extend var
                                      (env-jit-value var-ref
                                                     (env-lookup type env))
                                      env)))
-       (define body-env (build-statement body new-env))
+       (define tst-value (build-expression tst tst-env))
+       (LLVMBuildCondBr jit-builder tst-value loop-block afterloop-block)
+
+       (LLVMPositionBuilderAtEnd jit-builder loop-block)
+
+       (define body-loop-phis
+         (for/list
+             ([var vars]
+              [type var-types])
+           (LLVMBuildPhi jit-builder
+                         (type-prim-jit (env-type-prim (env-lookup type env)))
+                         (symbol->string var))))
+       (define new-body-env
+         (for/fold
+             [(env env)]
+             [(var vars)
+              (var-ref body-loop-phis)
+              (type var-types)]
+           (env-extend var
+                       (env-jit-value var-ref
+                                      (env-lookup type env))
+                       env)))
+       
        (for ([var vars]
-             [phi loop-phis])
+             [phi body-loop-phis])
+         (LLVMAddIncoming phi
+                          (list (env-jit-value-ref (env-lookup var tst-env)))
+                          (list loop-entry)))
+       
+       (define body-env (build-statement body new-body-env))
+       (for ([var vars]
+             [phi tst-loop-phis])
          (LLVMAddIncoming phi
                           (list (env-jit-value-ref (env-lookup var env))
                                 (env-jit-value-ref (env-lookup var body-env)))
                           (list prev-block loop-block)))
-       (LLVMBuildCondBr jit-builder tst-value loop-block afterloop-block)
+       (LLVMBuildBr jit-builder loop-entry)
 
        (LLVMPositionBuilderAtEnd jit-builder afterloop-block)
+
        (for/fold ([env env])
-                 ([id (find-different env body-env)])
+                 ([id (find-common-change env body-env)])
          (define id-phi
            (LLVMBuildPhi jit-builder
                          (type-prim-jit
@@ -233,9 +295,13 @@
                             (env-lookup id body-env))))
                          (symbol->string id)))
          (LLVMAddIncoming id-phi
-                          (list (env-lookup id body-env))
-                          (list loop-block))
-         (env-extend id id-phi env))]
+                          (list (env-jit-value-ref (env-lookup id tst-env)))
+                          (list loop-entry))
+         (env-extend id
+                     (env-jit-value id-phi
+                                    (env-jit-value-type
+                                     (env-lookup id body-env)))
+                     env))]
 
       [`(return ,v)
        (LLVMBuildRet jit-builder (build-expression v env))
@@ -247,7 +313,8 @@
          (build-statement stmt env))]
 
       [`(#%exp ,e)
-       (build-expression e env)]
+       (build-expression e env)
+       env]
       [else (error "unknown statement or not implemented" stmt)]))
   
   (define (build-expression e env)
@@ -258,14 +325,18 @@
            (build-expression rand env)))
        (build-app rator rand-values env)] ;;higher order functions
       [`(#%value ,value ,type) (build-value value type env)]
-      ;; [`(#%load ,ptr) (LLVMBuildLoad jit-builder (build-expression ptr env) "ld")]
       [`(#%sizeof ,type)
        (define envtype (env-lookup type env))
-       (build-value (LLVMStoreSizeOfType (type-prim-jit (env-type-prim envtype)))
-                     'i32 env)]
-      [`(#%gep ,ptr ,indxs) 
+       (build-value (LLVMStoreSizeOfType jit-target-data
+                                         (type-prim-jit (env-type-prim envtype)))
+                    'i32 env)]
+      [`(#%type ,t)
+       (define envtype (env-lookup t env))
+       (type-prim-jit (env-type-prim envtype))]
+      [`(#%gep ,ptr ,indxs)
        (LLVMBuildGEP jit-builder (build-expression ptr env)
-                     (map (curryr build-expression indxs env))
+                     (map (curryr build-expression env)
+                          indxs)
                      "gep")]
       [(? symbol?) (env-jit-value-ref (env-lookup e env))]))
   
@@ -317,6 +388,7 @@
 
 (define (compile-module m [module-name "module"] [context global-jit-context])
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
+  (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu")
   (define jit-builder (LLVMCreateBuilderInContext context))
 
   (define (register-module-statement stmt env)
@@ -400,6 +472,30 @@
                             (#%app fact
                                    (#%app jit-sub x (#%value 1 int)))))))
 
+       (define-type int* (pointer int))
+       (define-function (factc (x : int) : int)
+         (let ((result* : int* (#%app jit-alloca (#%type int)))
+               (i* : int* (#%app jit-alloca (#%type int)))
+               (x* : int* (#%app jit-alloca (#%type int))))
+           (block
+            (#%exp (#%app jit-store! x x*))
+            (#%exp (#%app jit-store! (#%value 1 int) result*))
+            (#%exp (#%app jit-store! (#%value 1 int) i*))
+            (while () (#%app jit-icmp-ule
+                             (#%app jit-load i*)
+                             (#%app jit-load x*))
+                   (block
+                    (#%exp (#%app jit-store! 
+                                  (#%app jit-mul-nuw (#%app jit-load result*)
+                                         (#%app jit-load i*))
+                                  result*))
+                    (#%exp (#%app jit-store!
+                            (#%app jit-add-nuw (#%app jit-load i*)
+                                   (#%value 1 int))
+                            i*))))
+            (return (#%app jit-load result*)))))
+
+
        (define-function (factr (x : int) : int)
          (let ((result : int (#%value 1 int)))
            (let ((i : int (#%value 1 int)))
@@ -407,37 +503,33 @@
               (while ((result : int) (i : int))
                 (#%app jit-icmp-ule i x)
                 (block
-                 (set! result (#%app jit-mul result i))
-                 (set! i (#%app jit-add i (#%value 1 int)))))
+                 (set! result (#%app jit-mul-nuw result i))
+                 (set! i (#%app jit-add-nuw i (#%value 1 int)))))
               (return result)))))
 
-       ;; (define-function (malloc-test  : int)
-       ;;   (let ((ptr : void*))
-       ;;     (let ((x : int))
-       ;;       (block
-       ;;        (set! ptr (#%app jit-malloc (#%sizeof int)))
-       ;;        (set! (* ptr (#%value 0 int) : int) (#%value 8 int))
-       ;;        (set! x (* ptr (#%value 0 int) : int))
-       ;;        (#%exp (#%app jit-free ptr))
-       ;;        (return x)))))
-       ;; (define-type int* (pointer int))
 
-       ;; (define-function (sum-array (arr : int*) (size : int) : int)
-       ;;   (let ((i : int))
-       ;;     (let ((sum : int))
-       ;;       (block
-       ;;        (set! i (#%value 0 int))
-       ;;        (set! sum (#%value 0 int))
-       ;;        (while (#%app jit-lt? i size)
-       ;;          (block
-       ;;           (set! sum (#%app jit-add
-       ;;                            sum
-       ;;                            (* arr (#%app jit-mul i (#%sizeof int)) : int)))
-       ;;           (set! i (#%app jit-add i (#%value 1 int)))))
-       ;;        (return sum)))))
 
-       ;; (define-type ulong* (pointer ulong))
-       ;; (define-type uint* (pointer uint))
+       (define-function (malloc-test  : int)
+         (let ((ptr : void* (#%app jit-malloc (#%type int))))
+           (block
+            (#%exp (#%app jit-store! (#%value 42 int) ptr ))
+            (return (#%app jit-load ptr)))))
+
+
+       (define-function (sum-array (arr : int*) (size : int) : int)
+         (let ((i : int (#%value 0 int))
+               (sum : int (#%value 0 int)))
+           (block
+            (while ((sum : int) (i : int))
+              (#%app jit-icmp-ult i size)
+              (block
+               (let ((arri : int* (#%gep arr (i))))
+                 (set! sum (#%app jit-add
+                                  sum
+                                  (#%app jit-load arri))))
+               (set! i (#%app jit-add i (#%value 1 int)))))
+            (return sum))))
+
 
        ;; (define-function (dot-product (arr1 : uint*) (arr2 : uint*)
        ;;                               (size : uint) : uint)
@@ -463,36 +555,31 @@
        ;; (define-function (get-size (arr : array-real-p) : int)
        ;;   (return (* arr (#%offset array-real size) : int)))
        
-       ;; (define-function (test : int)
-       ;;   (let ((ap : array-real-p))
-       ;;     (block (set! ap (#%app jit-malloc (#%sizeof array-real)))
-       ;;            (set! (* ap (#%offset array-real size) : int) (#%value 42 int))
-       ;;            (return (#%app get-size ap)))))
        )))
 
   (jit-dump-module module-env)
   (define cenv (initialize-jit module-env))
-  ;; (define f (jit-compile-function 'fact cenv))
-  ;; (jit-dump-function (env-lookup 'fact module-env)
-  ;;                     "/tmp/jitdump" "fact")
-  ;; (pretty-print (f 21))
-  ;; (define even? (jit-get-function (env-lookup 'even? module-env)))
-  ;; (pretty-print (even? 42))
-  ;; (define meven? (jit-get-function (env-lookup 'meven? module-env)))
-  ;; (pretty-print (meven? 21))
 
-  ;; (define fact (jit-get-function (env-lookup 'fact module-env)))
-  ;; (pretty-print (fact 5))
-  ;; (define factr (jit-get-function (env-lookup 'factr module-env)))
-  ;; (pretty-print (factr 5))
-  ;; (define malloc-test (jit-get-function (env-lookup 'malloc-test module-env)))
-  ;; (malloc-test)
-  ;; (define sum-array (jit-get-function (env-lookup 'sum-array module-env)))
-  ;; (define biglist (stream->list (in-range 1000000)))
+  (define add (jit-get-function 'add cenv))
+  (define fact (jit-get-function 'fact cenv))
+  (define factr (jit-get-function 'factr cenv))
+  (define factc (jit-get-function 'factc cenv))
+  (define even? (jit-get-function 'even? cenv))
+  (define meven? (jit-get-function 'meven? cenv))
+
+  (check-eq? (add 3 5) 8)
+  (check-eq? (fact 5) 120)
+  (check-eq? (factr 5) 120)
+  (check-eq? (factc 5) 120)
+  (check-eq? (even? 42) 1)
+  (check-eq? (meven? 21) 0)
+
+  (define malloc-test (jit-get-function 'malloc-test cenv))
+  (check-eq? (malloc-test) 42)
+
+  (define sum-array (jit-get-function 'sum-array cenv))
+  (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6)
   
-  ;; (define bigvec (for/vector ([i (in-range 1000000)])
-  ;;                  i))
-  ;; ;; (sum-array bigarray (length biglist))
 
   ;; (define dot-product (jit-get-function (env-lookup 'dot-product module-env)))
   ;; (define bigarray (list->cblock biglist _ulong))

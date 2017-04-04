@@ -87,32 +87,39 @@
                                     (second args)
                                     name)))
                   env)))
+  (define (register-specials env)
+    (env-extend 'jit-store!
+                (env-jit-intr-function
+                 (lambda (jit-builder args [name "v"])
+                   (LLVMBuildStore jit-builder (first args) (second args))))
+                env))
   (define (register-internals intrs reg env)
     (for/fold ([env env])
               ([intr intrs])
       (register-internal intr reg env)))
   (register-real-predicate
    (register-int-predicate
-    (register-internals
-     unary-internals get-unary-compiler
+    (register-specials
      (register-internals
-      binary-internals get-binary-compiler
-      env)))))
+      unary-internals get-unary-compiler
+      (register-internals
+       binary-internals get-binary-compiler
+       env))))))
 
 (define binary-internals
   `((jit-add ,LLVMBuildAdd)
-    (jit-nsw-add ,LLVMBuildNSWAdd)
-    (jit-nuw-add ,LLVMBuildNUWAdd)
+    (jit-add-nsw ,LLVMBuildNSWAdd)
+    (jit-add-nuw ,LLVMBuildNUWAdd)
     (jit-fadd ,LLVMBuildFAdd)
 
     (jit-sub ,LLVMBuildSub)
-    (jit-nsw-sub ,LLVMBuildNSWSub)
-    (jit-nuw-sub ,LLVMBuildNUWSub)
+    (jit-sub-nsw ,LLVMBuildNSWSub)
+    (jit-sub-nuw ,LLVMBuildNUWSub)
     (jit-fsub ,LLVMBuildFSub)
 
     (jit-mul ,LLVMBuildMul)
-    (jit-nsw-mul ,LLVMBuildNSWMul)
-    (jit-nuw-mul ,LLVMBuildNUWMul)
+    (jit-mul-nsw ,LLVMBuildNSWMul)
+    (jit-mul-nuw ,LLVMBuildNUWMul)
     (jit-fmul ,LLVMBuildFMul)
 
     (jit-udiv ,LLVMBuildUDiv)
@@ -130,16 +137,23 @@
 
     (jit-or ,LLVMBuildOr)
     (jit-xor ,LLVMBuildXor)
-    (jit-store! ,LLVMBuildStore)))
+
+    (jit-arr-malloc ,LLVMBuildArrayMalloc)
+    (jit-arr-alloca ,LLVMBuildArrayAlloca)))
 
 (define unary-internals
-  '((jit-neg ,LLVMBuildNeg)
-    (jit-nsw-neg ,LLVMBuildNSWNeg)
-    (jit-nuw-neg ,LLVMBuildNUWNeg)
+  `((jit-neg ,LLVMBuildNeg)
+    (jit-neg-nsw ,LLVMBuildNSWNeg)
+    (jit-neg-nuw ,LLVMBuildNUWNeg)
     (jit-fneg ,LLVMBuildFNeg)
 
     (jit-not ,LLVMBuildNot)
-    (jit-load ,LLVMBuildLoad)))
+    (jit-load ,LLVMBuildLoad)
+    (jit-malloc ,LLVMBuildMalloc)
+
+    (jit-alloca ,LLVMBuildAlloca)
+
+    (jit-free ,LLVMBuildFree)))
 
 (module+ test
   (display (register-internal-instructions (empty-env))))
