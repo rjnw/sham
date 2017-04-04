@@ -139,7 +139,14 @@
     (jit-xor ,LLVMBuildXor)
 
     (jit-arr-malloc ,LLVMBuildArrayMalloc)
-    (jit-arr-alloca ,LLVMBuildArrayAlloca)))
+    (jit-arr-alloca ,LLVMBuildArrayAlloca)
+
+    ;;casts
+    (jit-fp->ui ,LLVMBuildFPToUI)
+    (jit-fp->si ,LLVMBuildFPToSI)
+    (jit-ui->fp ,LLVMBuildUIToFP)
+    (jit-si->fp ,LLVMBuildSIToFP)
+    ))
 
 (define unary-internals
   `((jit-neg ,LLVMBuildNeg)
