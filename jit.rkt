@@ -80,26 +80,31 @@
   (define f-type (type-prim-racket (env-type-prim (env-jit-function-type fref))))
   (cast fptr _pointer f-type))
 
-(define (jit-optimize-function f-sym mod-env)
+;;TODO
+(define (jit-run-function-pass passes f-sym mod-env)
   (define jit-mod (env-lookup '#%jit-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
-  (define fpmb (LLVMPassManagerBuilderCreate))
-  (LLVMPassManagerBuilderSetOptLevel fpmb 3)
-  (LLVMPassManagerBuilderSetDisableUnrollLoops fpmb #t)
-  (LLVMPassManagerBuilderPopulateFunctionPassManager fpmb fpm)
   (LLVMRunFunctionPassManager fpm (env-lookup f-sym mod-env)))
+;TODO
+(define (jit-run-module-pass passes mod-env)
+  (define jit-mod (env-lookup '#%jit-module mod-env))
+  (define mpm (LLVMCreatePassManager))
+  (LLVMAddLoopVectorizePass mpm)
+  (begin0
+      (LLVMRunPassManager mpm jit-mod)
+    (LLVMDisposePassManager mpm)))
 
-(define (jit-optimize-all mod-env)
+(define (jit-optimize-function mod-env [level 1])
   (define jit-mod (env-lookup '#%jit-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (define fpmb (LLVMPassManagerBuilderCreate))
-  (LLVMPassManagerBuilderSetOptLevel fpmb 3)
-  (LLVMPassManagerBuilderSetDisableUnrollLoops fpmb #t)
+  (LLVMPassManagerBuilderSetOptLevel fpmb level)
   (LLVMPassManagerBuilderPopulateFunctionPassManager fpmb fpm)
   (for [(m mod-env)]
     (when (env-jit-function? (cdr m))
-      (printf "optimizing ~a\n" (car m))
-      (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m))))))
+      (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
+  (LLVMDisposePassManager fpm)
+  (LLVMPassManagerBuilderDispose fpmb))
 
 (define (jit-optimize-module mod-env [level 1])
   (define jit-mod (env-lookup '#%jit-module mod-env))
@@ -325,6 +330,11 @@
            (build-expression rand env)))
        (build-app rator rand-values env)] ;;higher order functions
       [`(#%value ,value ,type) (build-value value type env)]
+      [`(#%fp-value ,value ,type)
+       (LLVMConstReal (build-expression type env)
+                      value)]
+      ;; [`(#%si-value ,value ,type) ]
+      ;; [`(#%ui-value ,value ,type) ]
       [`(#%sizeof ,type)
        (define envtype (env-lookup type env))
        (build-value (LLVMStoreSizeOfType jit-target-data
@@ -387,7 +397,11 @@
   (LLVMAddFunction jit-module (symbol->string function-name) function-type))
 
 (define (compile-module m [module-name "module"] [context global-jit-context])
+  (define (diag-handler dinfo voidp)
+    (printf "\tdiag: ~a\n" (LLVMGetDiagInfoDescription dinfo)))
+  (LLVMContextSetDiagnosticHandler context diag-handler #f)
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
+  (LLVMSetDataLayout jit-module "e-m:e-i64:64-f80:128-n8:16:32:64-S128")
   (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu")
   (define jit-builder (LLVMCreateBuilderInContext context))
 
