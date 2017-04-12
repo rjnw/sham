@@ -4,6 +4,7 @@
 (require "llvm/ffi/all.rkt")
 
 (require "jit-env.rkt")
+(require "jit-passes.rkt")
 (require "jit-type.rkt")
 (require "jit-intr.rkt")
 (require "jit-expand.rkt")
@@ -21,25 +22,27 @@
 ;;          env-lookup
 ;;          context)
 
-(LLVMLinkInMCJIT)
-(LLVMInitializeX86Target)
-(LLVMInitializeX86TargetInfo)
-(LLVMInitializeX86TargetMC)
-(LLVMInitializeX86AsmParser)
-(LLVMInitializeX86AsmPrinter)
-(define gpr (LLVMGetGlobalPassRegistry))
-(LLVMInitializeCore gpr)
-(LLVMInitializeTransformUtils gpr)
-(LLVMInitializeScalarOpts gpr)
-(LLVMInitializeObjCARCOpts gpr)
-(LLVMInitializeVectorization gpr)
-(LLVMInitializeInstCombine gpr)
-(LLVMInitializeIPO gpr)
-(LLVMInitializeInstrumentation gpr)
-(LLVMInitializeAnalysis gpr)
-(LLVMInitializeIPA gpr)
-(LLVMInitializeCodeGen gpr)
-(LLVMInitializeTarget gpr)
+(define (llvm-initialize)
+  (LLVMLinkInMCJIT)
+  (LLVMInitializeX86Target)
+  (LLVMInitializeX86TargetInfo)
+  (LLVMInitializeX86TargetMC)
+  (LLVMInitializeX86AsmParser)
+  (LLVMInitializeX86AsmPrinter)
+  (define gpr (LLVMGetGlobalPassRegistry))
+  (LLVMInitializeCore gpr)
+  (LLVMInitializeTransformUtils gpr)
+  (LLVMInitializeScalarOpts gpr)
+  (LLVMInitializeObjCARCOpts gpr)
+  (LLVMInitializeVectorization gpr)
+  (LLVMInitializeInstCombine gpr)
+  (LLVMInitializeIPO gpr)
+  (LLVMInitializeInstrumentation gpr)
+  (LLVMInitializeAnalysis gpr)
+  (LLVMInitializeIPA gpr)
+  (LLVMInitializeCodeGen gpr)
+  (LLVMInitializeTarget gpr))
+(llvm-initialize)
 
 (define (create-jit-context)
   (LLVMContextCreate))
@@ -79,23 +82,34 @@
   (define fref (env-lookup f-sym mod))
   (define f-type (type-prim-racket (env-type-prim (env-jit-function-type fref))))
   (cast fptr _pointer f-type))
+
 (define (jit-get-function-ptr f-sym mod)
   (define fptr (jit-compile-function f-sym mod))
   (define fref (env-lookup f-sym mod))
   (define f-type (type-prim-racket (env-type-prim (env-jit-function-type fref))))
   fptr)
 
-;;TODO
 (define (jit-run-function-pass passes f-sym mod-env)
   (define jit-mod (env-lookup '#%jit-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
-  (LLVMRunFunctionPassManager fpm (env-lookup f-sym mod-env)))
+  (for ([pass passes])
+    
+    (define function-pass (hash-ref jit-pass-map pass))
+    (printf "pass: ~a fn ~a\n" pass function-pass)
 
-;TODO
+    ;; (function-pass fpm)
+    )
+
+  (printf "running function pass")
+
+  (LLVMRunFunctionPassManager fpm (env-jit-function-ref (env-lookup f-sym mod-env))))
+
 (define (jit-run-module-pass passes mod-env)
   (define jit-mod (env-lookup '#%jit-module mod-env))
   (define mpm (LLVMCreatePassManager))
-  (LLVMAddLoopVectorizePass mpm)
+  (for ([pass passes])
+    (define module-pass (hash-ref jit-pass-map pass))
+    (module-pass mpm))
   (begin0
       (LLVMRunPassManager mpm jit-mod)
     (LLVMDisposePassManager mpm)))
@@ -592,6 +606,9 @@
        
        )))
 
+
+  (LLVMAddFunctionAttr (env-jit-function-ref (env-lookup 'add module-env)) 'LLVMAlwaysInlineAttribute)
+  (jit-run-module-pass '(AlwaysInliner) module-env)
   (jit-dump-module module-env)
   (jit-optimize-module module-env #:opt-level 3)
   (jit-dump-module module-env)
@@ -605,10 +622,10 @@
   (define fact (jit-get-function 'fact cenv))
   (define even? (jit-get-function 'even? cenv))
   (define meven? (jit-get-function 'meven? cenv))
-  (disassemble-ffi-function (jit-get-function-ptr 'factr cenv)
+  (disassemble-ffi-function (jit-get-function-ptr 'sum-array cenv)
                             #:size 200)
-  (disassemble-ffi-function (jit-get-function-ptr 'fact cenv)
-                            #:size 200)
+  ;; (disassemble-ffi-function (jit-get-function-ptr 'fact cenv)
+  ;;                           #:size 200)
 
   (check-eq? (add 3 5) 8)
   (check-eq? (fact 5) 120)
