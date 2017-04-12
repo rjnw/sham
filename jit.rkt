@@ -79,12 +79,18 @@
   (define fref (env-lookup f-sym mod))
   (define f-type (type-prim-racket (env-type-prim (env-jit-function-type fref))))
   (cast fptr _pointer f-type))
+(define (jit-get-function-ptr f-sym mod)
+  (define fptr (jit-compile-function f-sym mod))
+  (define fref (env-lookup f-sym mod))
+  (define f-type (type-prim-racket (env-type-prim (env-jit-function-type fref))))
+  fptr)
 
 ;;TODO
 (define (jit-run-function-pass passes f-sym mod-env)
   (define jit-mod (env-lookup '#%jit-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (LLVMRunFunctionPassManager fpm (env-lookup f-sym mod-env)))
+
 ;TODO
 (define (jit-run-module-pass passes mod-env)
   (define jit-mod (env-lookup '#%jit-module mod-env))
@@ -94,7 +100,11 @@
       (LLVMRunPassManager mpm jit-mod)
     (LLVMDisposePassManager mpm)))
 
-(define (jit-optimize-function mod-env [level 1])
+(define (jit-verify-module mod-env)
+  (define jit-mod (env-lookup '#%jit-module mod-env))
+  (LLVMVerifyModule jit-mod 'LLVMPrintMessageAction #f))
+
+(define (jit-optimize-function mod-env #:opt-level [level 1])
   (define jit-mod (env-lookup '#%jit-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (define fpmb (LLVMPassManagerBuilderCreate))
@@ -106,7 +116,7 @@
   (LLVMDisposePassManager fpm)
   (LLVMPassManagerBuilderDispose fpmb))
 
-(define (jit-optimize-module mod-env [level 1])
+(define (jit-optimize-module mod-env #:opt-level [level 1])
   (define jit-mod (env-lookup '#%jit-module mod-env))
   (define mpm (LLVMCreatePassManager))
   (define pmb (LLVMPassManagerBuilderCreate))
@@ -122,10 +132,8 @@
   (define jit-mod (env-lookup '#%jit-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (LLVMAddCFGSimplificationPass fpm)
-  ;; (LLVMAddGVNPass fpm)
   (for [(m mod-env)]
     (when (env-jit-function? (cdr m))
-      (printf "optimizing ~a\n" (car m))
       (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
   (LLVMDisposePassManager fpm))
 
@@ -183,26 +191,28 @@
        (define else-block
          (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
                                         function-ref "else"))
-       (define end-block
-         (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
-                                        function-ref "ifend"))
+       
        (LLVMBuildCondBr jit-builder tst-value then-block else-block)
 
        (LLVMPositionBuilderAtEnd jit-builder then-block)
        (define thn-env (build-statement thn env))
        (define thn-return (env-contains? '#%return? thn-env))
-       (unless thn-return
-         (LLVMBuildBr jit-builder end-block))
 
        (LLVMPositionBuilderAtEnd jit-builder else-block)
        (define els-env (build-statement els env))
        (define els-return (env-contains? '#%return? els-env))
-       (unless els-return (LLVMBuildBr jit-builder end-block))
 
-       (define both-return (and thn-return els-return))
-       (if both-return
+       (if (and thn-return els-return)
            env
-           (begin
+           (let ((end-block (LLVMAppendBasicBlockInContext
+                             (LLVMGetModuleContext jit-module)
+                             function-ref "ifend")))
+             (unless thn-return
+               (LLVMPositionBuilderAtEnd jit-builder then-block)
+               (LLVMBuildBr jit-builder end-block))
+             (unless els-return
+               (LLVMPositionBuilderAtEnd jit-builder else-block)
+               (LLVMBuildBr jit-builder end-block))
              (LLVMPositionBuilderAtEnd jit-builder end-block)
              (for/fold [(env env)]
                        [(id (find-common-change thn-env els-env))]
@@ -214,7 +224,8 @@
                                   (env-lookup id thn-env))))
                                (symbol->string id)))
                (LLVMAddIncoming id-phi
-                                (list (env-lookup id thn-env) (env-lookup id els-env))
+                                (list (env-lookup id thn-env)
+                                      (env-lookup id els-env))
                                 (list then-block else-block))
                (env-extend id id-phi env))))]
 
@@ -311,6 +322,9 @@
       [`(return ,v)
        (LLVMBuildRet jit-builder (build-expression v env))
        (env-extend '#%return? #t env)]
+      [`(return-void)
+       (LLVMBuildRetVoid jit-builder)
+       (env-extend '#%return? #t env)]
 
       [`(block ,stmts ...)
        (for/fold ([env env])
@@ -331,10 +345,14 @@
        (build-app rator rand-values env)] ;;higher order functions
       [`(#%value ,value ,type) (build-value value type env)]
       [`(#%fp-value ,value ,type)
-       (LLVMConstReal (build-expression type env)
+       (LLVMConstReal (type-prim-jit (env-type-prim (env-lookup type env)))
                       value)]
-      ;; [`(#%si-value ,value ,type) ]
-      ;; [`(#%ui-value ,value ,type) ]
+      [`(#%si-value ,value ,type)
+       (LLVMConstInt (type-prim-jit (env-type-prim (env-lookup type env)))
+                     value #t)]
+      [`(#%ui-value ,value ,type)
+       (LLVMConstInt (type-prim-jit (env-type-prim (env-lookup type env)))
+                     value #t)]
       [`(#%sizeof ,type)
        (define envtype (env-lookup type env))
        (build-value (LLVMStoreSizeOfType jit-target-data
@@ -446,6 +464,8 @@
 (module+ test
   (require racket/unsafe/ops)
   (require rackunit)
+  (require "../disassemble/disassemble/main.rkt")
+
   (define module-env
     (compile-module
      '(#%module
@@ -462,6 +482,7 @@
 
        (define-function (const1 : int)
          (return (#%value 1 int)))
+
        (define-function (even? (x : int) : int)
          (if (#%app jit-icmp-eq (#%app jit-urem x (#%value 2 int)) (#%value 0 int))
              (return (#%value 1 int))
@@ -538,7 +559,7 @@
               (#%app jit-icmp-ult i size)
               (block
                (let ((arri : int* (#%gep arr (i))))
-                 (set! sum (#%app jit-add
+                 (set! sum (#%app add
                                   sum
                                   (#%app jit-load arri))))
                (set! i (#%app jit-add i (#%value 1 int)))))
@@ -572,14 +593,22 @@
        )))
 
   (jit-dump-module module-env)
-  (define cenv (initialize-jit module-env))
+  (jit-optimize-module module-env #:opt-level 3)
+  (jit-dump-module module-env)
+  (jit-verify-module module-env)
+  (define cenv (initialize-jit module-env #:opt-level 3))
 
   (define add (jit-get-function 'add cenv))
-  (define fact (jit-get-function 'fact cenv))
+
   (define factr (jit-get-function 'factr cenv))
   (define factc (jit-get-function 'factc cenv))
+  (define fact (jit-get-function 'fact cenv))
   (define even? (jit-get-function 'even? cenv))
   (define meven? (jit-get-function 'meven? cenv))
+  (disassemble-ffi-function (jit-get-function-ptr 'factr cenv)
+                            #:size 200)
+  (disassemble-ffi-function (jit-get-function-ptr 'fact cenv)
+                            #:size 200)
 
   (check-eq? (add 3 5) 8)
   (check-eq? (fact 5) 120)
@@ -593,7 +622,7 @@
 
   (define sum-array (jit-get-function 'sum-array cenv))
   (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6)
-  
+
 
   ;; (define dot-product (jit-get-function (env-lookup 'dot-product module-env)))
   ;; (define bigarray (list->cblock biglist _ulong))
