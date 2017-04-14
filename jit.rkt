@@ -89,30 +89,33 @@
   (define f-type (type-prim-racket (env-type-prim (env-jit-function-type fref))))
   fptr)
 
-(define (jit-run-function-pass passes f-sym mod-env)
-  (define jit-mod (env-lookup '#%jit-module mod-env))
+(define (jit-get-module mod-env)
+  (env-lookup '#%jit-module mod-env))
+
+(define (jit-run-function-pass passes jit-mod f)
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (for ([pass passes])
-    
-    (define function-pass (hash-ref jit-pass-map pass))
-    (printf "pass: ~a fn ~a\n" pass function-pass)
+    ((jit-lookup-pass pass) fpm))
+  (begin0
+      (LLVMRunFunctionPassManager fpm (env-jit-function-ref f))
+    (LLVMDisposePassManager fpm)))
 
-    ;; (function-pass fpm)
-    )
+(define (jit-run-function-pass-env passes f-sym mod-env)
+  (define jit-mod (jit-get-module mod-env))
+  (jit-run-function-pass passes (env-lookup f-sym mod-env) jit-mod))
 
-  (printf "running function pass")
-
-  (LLVMRunFunctionPassManager fpm (env-jit-function-ref (env-lookup f-sym mod-env))))
-
-(define (jit-run-module-pass passes mod-env)
-  (define jit-mod (env-lookup '#%jit-module mod-env))
+(define (jit-run-module-pass passes jit-mod)
   (define mpm (LLVMCreatePassManager))
   (for ([pass passes])
-    (define module-pass (hash-ref jit-pass-map pass))
+    (define module-pass (jit-lookup-pass pass))
     (module-pass mpm))
   (begin0
       (LLVMRunPassManager mpm jit-mod)
     (LLVMDisposePassManager mpm)))
+
+(define (jit-run-module-pass-env passes mod-env)
+  (define jit-mod (jit-get-module mod-env))
+  (jit-run-module-pass passes jit-mod))
 
 (define (jit-verify-module mod-env)
   (define jit-mod (env-lookup '#%jit-module mod-env))
@@ -352,7 +355,7 @@
   
   (define (build-expression e env)
     (match e
-      [`(#%app ,rator ,rands ...);;rator needs to be symbol
+      [`(#%app ,rator ,rands ...);;TODO rator needs to be symbol
        (define rand-values
          (for/list ([rand rands])
            (build-expression rand env)))
@@ -366,7 +369,7 @@
                      value #t)]
       [`(#%ui-value ,value ,type)
        (LLVMConstInt (type-prim-jit (env-type-prim (env-lookup type env)))
-                     value #t)]
+                     value #f)]
       [`(#%sizeof ,type)
        (define envtype (env-lookup type env))
        (build-value (LLVMStoreSizeOfType jit-target-data
@@ -434,7 +437,7 @@
   (LLVMContextSetDiagnosticHandler context diag-handler #f)
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
   (LLVMSetDataLayout jit-module "e-m:e-i64:64-f80:128-n8:16:32:64-S128")
-  (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu")
+  (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu") ;TODO set target for machine
   (define jit-builder (LLVMCreateBuilderInContext context))
 
   (define (register-module-statement stmt env)
@@ -443,26 +446,38 @@
        (define type-decl (compile-type-declaration stmt env))
        (define type (compile-type-definition type-decl env))
        (env-extend type-name type env)]
-      [`(define-function (,function-name (,args : ,types) ... : ,ret-type) ,body)
+      [`(define-function
+          (#:pass ,p ...) ...
+          (#:attr ,a ...) ...
+          (,function-name (,args : ,types) ... : ,ret-type) ,body)
        (define type (create-type `(,@types -> ,ret-type) env))
        (define function-obj (compile-function-declaration type function-name jit-module))
        (env-extend function-name
         	   (env-jit-function function-obj type)
         	   env)]))
 
-  (define (compile-module-statement stmt env module-env) ;; TODO return values of name and obj
+  (define (compile-module-statement stmt env module-env)
+    ;; TODO return values of name and obj
     (match stmt
       [`(define-type ,type-name ,t)
        ;types are created in register phase; something for recursive struct types to be done
        ;; TODO for struct switch to creating empty struct type and then adding fields here
        (env-extend type-name (env-lookup type-name env) module-env)]
-      [`(define-function (,function-name (,args : ,types) ... : ,ret-type) ,body)
+      [`(define-function
+          (#:pass ,passes ...) ...
+          (#:attr ,attrs ...) ...
+          (,function-name (,args : ,types) ... : ,ret-type) ,body)
        (define f (compile-function-definition function-name args types ret-type
         				      body (env-lookup function-name env)
         				      env jit-module jit-builder))
+       (for ([attr (flatten attrs)])
+         (LLVMAddFunctionAttr (env-jit-function-ref f)
+                              (jit-lookup-attr attr)))
+       (jit-run-function-pass (flatten passes) jit-module f)
        (env-extend function-name f module-env)]))
   (match m
-    [`(#%module ,module-stmts ...)
+    [`(#%module (#:pass ,passes ...) ...
+                ,module-stmts ...)
      (define env
        (for/fold ([env (create-initial-environment context)])
                  ([stmt module-stmts])
@@ -471,6 +486,7 @@
        (for/fold ([module-env (empty-env)])
                 ([stmt module-stmts])
          (compile-module-statement stmt env module-env)))
+     (jit-run-module-pass (flatten passes) jit-module)
      (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
      (env-extend '#%jit-module jit-module module-env)]))
 
@@ -483,16 +499,16 @@
   (define module-env
     (compile-module
      '(#%module
+       (#:pass AlwaysInliner)
        (define-type int i32)
+       (define-type int* (pointer int))
+
        (define-type bc (struct (b : i32) (c : i32)))
        (define-type pbc (pointer bc))
        (define-type ui (struct (bc1 : pbc) (bc2 : pbc)))
 
        (define-function (id (x : int) : int)
          (return x))
-
-       (define-function (add (x : int) (y : int) : int)
-         (return (#%app jit-add x y)))
 
        (define-function (const1 : int)
          (return (#%value 1 int)))
@@ -521,7 +537,6 @@
                             (#%app fact
                                    (#%app jit-sub x (#%value 1 int)))))))
 
-       (define-type int* (pointer int))
        (define-function (factc (x : int) : int)
          (let ((result* : int* (#%app jit-alloca (#%type int)))
                (i* : int* (#%app jit-alloca (#%type int)))
@@ -544,7 +559,6 @@
                             i*))))
             (return (#%app jit-load result*)))))
 
-
        (define-function (factr (x : int) : int)
          (let ((result : int (#%value 1 int)))
            (let ((i : int (#%value 1 int)))
@@ -556,14 +570,14 @@
                  (set! i (#%app jit-add-nuw i (#%value 1 int)))))
               (return result)))))
 
-
-
        (define-function (malloc-test  : int)
          (let ((ptr : void* (#%app jit-malloc (#%type int))))
            (block
             (#%exp (#%app jit-store! (#%value 42 int) ptr ))
             (return (#%app jit-load ptr)))))
 
+       (define-function (#:attr AlwaysInline) (add (x : int) (y : int) : int)
+         (return (#%app jit-add x y)))
 
        (define-function (sum-array (arr : int*) (size : int) : int)
          (let ((i : int (#%value 0 int))
@@ -577,38 +591,8 @@
                                   sum
                                   (#%app jit-load arri))))
                (set! i (#%app jit-add i (#%value 1 int)))))
-            (return sum))))
+            (return sum)))))))
 
-
-       ;; (define-function (dot-product (arr1 : uint*) (arr2 : uint*)
-       ;;                               (size : uint) : uint)
-       ;;   (let ((sum : uint)
-       ;;         (i : uint))
-       ;;     (block
-       ;;      (set! i (#%value 0 uint))
-       ;;      (set! sum (#%value 0 uint))
-       ;;      (while (#%app jit-lt? i size)
-       ;;        (let ((ptr-pos : int))
-       ;;          (block
-       ;;           (set! ptr-pos (#%app jit-mul i (#%sizeof uint)))
-       ;;           (set! sum (#%app jit-add
-       ;;                            sum
-       ;;                            (#%app jit-mul
-       ;;                                   (* arr1 ptr-pos : uint)
-       ;;                                   (* arr2 ptr-pos : uint))))
-       ;;           (set! i (#%app jit-add i (#%value 1 uint))))))
-       ;;      (return sum))))
-       ;; (define-type float32-p (pointer float32))
-       ;; (define-type array-real (struct (size : int) (data : float32-p)))
-       ;; (define-type array-real-p (pointer array-real))
-       ;; (define-function (get-size (arr : array-real-p) : int)
-       ;;   (return (* arr (#%offset array-real size) : int)))
-       
-       )))
-
-
-  (LLVMAddFunctionAttr (env-jit-function-ref (env-lookup 'add module-env)) 'LLVMAlwaysInlineAttribute)
-  (jit-run-module-pass '(AlwaysInliner) module-env)
   (jit-dump-module module-env)
   (jit-optimize-module module-env #:opt-level 3)
   (jit-dump-module module-env)
@@ -623,9 +607,7 @@
   (define even? (jit-get-function 'even? cenv))
   (define meven? (jit-get-function 'meven? cenv))
   (disassemble-ffi-function (jit-get-function-ptr 'sum-array cenv)
-                            #:size 200)
-  ;; (disassemble-ffi-function (jit-get-function-ptr 'fact cenv)
-  ;;                           #:size 200)
+                            #:size 70)
 
   (check-eq? (add 3 5) 8)
   (check-eq? (fact 5) 120)
@@ -638,32 +620,4 @@
   (check-eq? (malloc-test) 42)
 
   (define sum-array (jit-get-function 'sum-array cenv))
-  (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6)
-
-
-  ;; (define dot-product (jit-get-function (env-lookup 'dot-product module-env)))
-  ;; (define bigarray (list->cblock biglist _ulong))
-  ;; (time (begin
-  ;;         (dot-product bigarray bigarray (length biglist))
-  ;;         (dot-product bigarray bigarray (length biglist))
-  ;;         (dot-product bigarray bigarray (length biglist))
-  ;;         (dot-product bigarray bigarray (length biglist))))
-  ;; (time
-  ;;  (begin(for/sum [(a1 (in-vector bigvec))
-  ;;             (a2 (in-vector bigvec))]
-  ;;          (unsafe-fx* a1 a2))
-  ;;        (for/sum [(a1 (in-vector bigvec))
-  ;;                  (a2 (in-vector bigvec))]
-  ;;          (unsafe-fx* a1 a2))
-  ;;        (for/sum [(a1 (in-vector bigvec))
-  ;;                  (a2 (in-vector bigvec))]
-  ;;          (unsafe-fx* a1 a2))
-  ;;        (for/sum [(a1 (in-vector bigvec))
-  ;;                  (a2 (in-vector bigvec))]
-  ;;          (unsafe-fx* a1 a2))))
-  ;; (define test (jit-get-function (env-lookup 'test module-env)))
-  ;; (pretty-print (test))
-
-  )
-
-
+  (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6))

@@ -4,8 +4,13 @@
 (require "jit-env.rkt")
 (require "jit-type.rkt")
 
-(provide jit-pass-map)
+(provide jit-lookup-pass
+         jit-lookup-attr)
 
+(define (jit-lookup-pass p)
+  (hash-ref jit-pass-map p))
+(define (jit-lookup-attr a)
+  (hash-ref jit-attr-map a))
 (define jit-pass-map
   (make-hash
      ;;Scaler transformations
@@ -68,3 +73,32 @@
      (Internalize                           . ,LLVMAddInternalizePass)
      (StripDeadPrototypes                   . ,LLVMAddStripDeadPrototypesPass)
      (StripSymbols                          . ,LLVMAddStripSymbolsPass))))
+
+(define jit-attr-map
+  (make-hash
+   `((ZExt            . LLVMZExtAttribute)
+     (SExt            . LLVMSExtAttribute)
+     (NoReturn        . LLVMNoReturnAttribute)
+     (InReg           . LLVMInRegAttribute)
+     (StructRet       . LLVMStructRetAttribute)
+     (NoUnwind        . LLVMNoUnwindAttribute)
+     (NoAlias         . LLVMNoAliasAttribute)
+     (ByVal           . LLVMByValAttribute)
+     (Nest            . LLVMNestAttribute)
+     (ReadNone        . LLVMReadNoneAttribute)
+     (ReadOnly        . LLVMReadOnlyAttribute)
+     (NoInline        . LLVMNoInlineAttribute)
+     (AlwaysInline    . LLVMAlwaysInlineAttribute)
+     (OptimizeForSize . LLVMOptimizeForSizeAttribute)
+     (StackProtect    . LLVMStackProtectAttribute)
+     (StackProtectReq . LLVMStackProtectReqAttribute)
+     (Alignment       . LLVMAlignment)
+     (NoCapture       . LLVMNoCaptureAttribute)
+     (NoRedZone       . LLVMNoRedZoneAttribute)
+     (NoImplicitFloat . LLVMNoImplicitFloatAttribute)
+     (Naked           . LLVMNakedAttribute)
+     (InlineHint      . LLVMInlineHintAttribute)
+     (StackAlignment  . LLVMStackAlignment)
+     (ReturnsTwice    . LLVMReturnsTwice)
+     (UWTable         . LLVMUWTable)
+     (NonLazyBind     . LLVMNonLazyBind))))
