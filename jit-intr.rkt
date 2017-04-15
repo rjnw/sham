@@ -137,6 +137,7 @@
 
     (jit-or ,LLVMBuildOr)
     (jit-xor ,LLVMBuildXor)
+    (jit-and ,LLVMBuildAnd)
 
     (jit-arr-malloc ,LLVMBuildArrayMalloc)
     (jit-arr-alloca ,LLVMBuildArrayAlloca)

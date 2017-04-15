@@ -8,7 +8,7 @@
 (require "jit-type.rkt")
 (require "jit-intr.rkt")
 (require "jit-expand.rkt")
-
+(require "jit-utils.rkt")
 (provide (all-defined-out)
          env-lookup)
 
@@ -204,47 +204,51 @@
        (define tst-value (build-expression tst env))
        (define then-block
          (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
-                                        function-ref "then"))
+                                        function-ref (symbol->string (gensym^ 'then))))
        (define else-block
          (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
-                                        function-ref "else"))
+                                        function-ref (symbol->string (gensym^ 'else))))
        
        (LLVMBuildCondBr jit-builder tst-value then-block else-block)
 
        (LLVMPositionBuilderAtEnd jit-builder then-block)
        (define thn-env (build-statement thn env))
+       (define thn-end-blk (LLVMGetInsertBlock jit-builder))
        (define thn-return (env-contains? '#%return? thn-env))
 
        (LLVMPositionBuilderAtEnd jit-builder else-block)
        (define els-env (build-statement els env))
+       (define els-end-blk (LLVMGetInsertBlock jit-builder))
        (define els-return (env-contains? '#%return? els-env))
 
        (if (and thn-return els-return)
            env
            (let ((end-block (LLVMAppendBasicBlockInContext
                              (LLVMGetModuleContext jit-module)
-                             function-ref "ifend")))
+                             function-ref (symbol->string (gensym^ 'ifend)))))
              (unless thn-return
-               (LLVMPositionBuilderAtEnd jit-builder then-block)
+               (LLVMPositionBuilderAtEnd jit-builder thn-end-blk)
                (LLVMBuildBr jit-builder end-block))
              (unless els-return
-               (LLVMPositionBuilderAtEnd jit-builder else-block)
+               (LLVMPositionBuilderAtEnd jit-builder els-end-blk)
                (LLVMBuildBr jit-builder end-block))
              (LLVMPositionBuilderAtEnd jit-builder end-block)
              (for/fold [(env env)]
                        [(id (find-common-change thn-env els-env))]
+               (define id-thn (env-lookup id thn-env))
+               (define id-els (env-lookup id els-env))
                (define id-phi
                  (LLVMBuildPhi jit-builder
                                (type-prim-jit
                                 (env-type-prim
                                  (env-jit-value-type
-                                  (env-lookup id thn-env))))
+                                  id-thn)))
                                (symbol->string id)))
                (LLVMAddIncoming id-phi
-                                (list (env-lookup id thn-env)
-                                      (env-lookup id els-env))
-                                (list then-block else-block))
-               (env-extend id id-phi env))))]
+                                (list (env-jit-value-ref id-thn)
+                                      (env-jit-value-ref id-els))
+                                (list thn-end-blk els-end-blk))
+               (env-extend id (env-jit-value id-phi (env-jit-value-type id-thn)) env))))]
 
       [`(while ((,vars : ,var-types) ...) ,tst ,body)
 
@@ -308,12 +312,13 @@
                           (list loop-entry)))
        
        (define body-env (build-statement body new-body-env))
+       (define body-end-blk (LLVMGetInsertBlock jit-builder))
        (for ([var vars]
              [phi tst-loop-phis])
          (LLVMAddIncoming phi
                           (list (env-jit-value-ref (env-lookup var env))
                                 (env-jit-value-ref (env-lookup var body-env)))
-                          (list prev-block loop-block)))
+                          (list prev-block body-end-blk)))
        (LLVMBuildBr jit-builder loop-entry)
 
        (LLVMPositionBuilderAtEnd jit-builder afterloop-block)
@@ -361,7 +366,7 @@
            (build-expression rand env)))
        (build-app rator rand-values env)] ;;higher order functions
       [`(#%value ,value ,type) (build-value value type env)]
-      [`(#%fp-value ,value ,type)
+      [`(#%fl-value ,value ,type)
        (LLVMConstReal (type-prim-jit (env-type-prim (env-lookup type env)))
                       value)]
       [`(#%si-value ,value ,type)
