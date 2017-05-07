@@ -2,47 +2,74 @@
 
 (define-compiler ll-jit
   (terminals
-    (variable (x))
-    (float (f))
-    (number (n))
-    (basetype (tb)))
+    (variable  (x))
+    (float     (f))
+    (number    (n))
+    (basetype  (tb))
+
+    (llvm-contextref (lcr))
+    (llvm-moduleref  (lmr))
+    (llvm-typeref    (ltr))
+    (llvm-valueref   (lvr)))
+  #;(environment
+     (type
+      [,x -> ,t])
+     (scope
+      [,x -> ,t]))
   (expressions
    (type (t)
+         [name         : ,x
+                       #;(@ x type)]
          [base         : ,tb]
          [struct       : (struct (,x : ,t) ...)]
          [pointer      : (pointer ,t)]
          [function     : (,x ... -> ,x)])
    (expr (e)
+         [var          : ,x
+                       #;(@ x scope)]
          [float        : (fl-value ,d ,t)]
          [signed-int   : (si-value ,n ,t)]
          [unsigned-int : (ui-value ,n ,t)]
-         [sizeof       : (sizeof ,t)]
-         [type         : (type ,t)]
+         [type         : (type ,t)
+                       #;(@ t type)]
+         [sizeof       : (sizeof ,expr-type)]
          [gep          : (gep ,e (,e ...))]
          [app          : (,e ,e ...)])
-   (phis (p)
-         [phis         : ([,x : ,t] ...)])
+   (phi  (p)
+         [phis         : ([,x : ,t] ...)
+                       #;(@ t type)])
    (stmt (s)
          [expr         : (expr ,e)]
          [if-phi       : (if ,phis ,e ,s ,s)]
          [if           : (if ,e ,s ,s)]
-         [let          : (let ([,x : ,x ,e] ...) ,s)]
+         [let          : (let ([,x : ,t ,e] ...) ,s)
+           #;(s:scope (+ (x -> t)))]
          [while-phi    : (while ,phis ,e ,s)]
          [while        : (while ,e ,s)]
          [return       : (return ,e)]
          [return-void  : (return-void)]
-         [set          : (set! ,x ,e)]
-         [store        : (store! ,x ,e)])
+         [set          : (set! ,x ,e)
+                       #;(@ x scope)]
+         [store        : (store! ,x ,e)
+                       #;(@ x scope)])
+   #;(se  (se) #:reuse (stmt-while stmt-store expr-*))
    (def (d)
-         [type         : (define-type ,x ,t)]
-         [function     : (define-function ,x ((,x : ,t) ...) : ,t ,s)])
+         [type         : (define-type ,x ,t)
+                       #;(type! (x t))]
+         [function     : (define-function ,x-f ((,x-a : ,t-a) ...) : ,t-r ,s)
+                       #;(s:scope (+ (x-a -> t-a)
+                                     (x-f -> (type-function (t-a ... -> t-r)))))
+                       #;(scope! (x-f -> (type-function (t-a ... -> t-r))))])
    (mod (m)
-        [module        : (module ,d ...)]))
+        [module        : (module ,d ...)
+                       #;(pass-environment * d)]))
 
   (languages
-   (LLC0 mod
-         (- (stmt (if while))))
-   (LLVM )))
+   (LLC1 mod
+         (- (stmt if-phi while-phi)))
+   (LLC0 #:extends LLC1
+         mod
+         (- (stmt (if while))))))
 #|
   Compiler architecture
    for the whole compiler we define terminals, expressions, languages
@@ -69,7 +96,9 @@
 
 
 
- future connect compilers with the input and output of passes of different compiler languages.
+ future 
+  add environments for reusing ast forms and storing scope and other information
+  connect compilers with the input and output of passes of different compiler languages.
 |#
 
 ;; (parse-language C-LL0 '(...))
