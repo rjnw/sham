@@ -2,7 +2,9 @@
 
 (require ffi/unsafe)
 (require "llvm/ffi/all.rkt")
-(require "jit-env.rkt")
+
+(require "env.rkt")
+
 (provide (all-defined-out))
 
 (struct type-prim (racket jit) #:prefab)

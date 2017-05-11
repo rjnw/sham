@@ -1,8 +1,8 @@
 #lang racket
 (require ffi/unsafe)
 (require "llvm/ffi/all.rkt")
-(require "jit-env.rkt")
-(require "jit-type.rkt")
+(require "env.rkt")
+(require "types.rkt")
 (provide register-jit-internals)
 
 (define (register-jit-internals env context)

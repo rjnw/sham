@@ -1,14 +1,13 @@
 #lang racket
 (require ffi/unsafe)
 
-(require "llvm/ffi/all.rkt")
+(require "private/llvm/ffi/all.rkt")
+(require "private/llvm/pass-table.rkt")
+(require "private/env.rkt")
+(require "private/types.rkt")
+(require "private/internals.rkt")
+(require "private/utils.rkt")
 
-(require "jit-env.rkt")
-(require "jit-passes.rkt")
-(require "jit-type.rkt")
-(require "jit-intr.rkt")
-(require "jit-expand.rkt")
-(require "jit-utils.rkt")
 (provide (all-defined-out)
          env-lookup)
 
@@ -177,7 +176,7 @@
       (define env1-ids (list->set (map car env1)))
       (define env2-ids (list->set (map car env2)))
       (set-subtract env2-ids env1-ids))
-    (match (statement-expander stmt)
+    (match stmt
       [`(let ((,ids : ,types ,vals) ...) ,st)
        (define id-types (map (curryr env-lookup env) types))
        (define new-env
