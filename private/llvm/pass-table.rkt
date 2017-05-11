@@ -1,17 +1,15 @@
 #lang racket
 (require ffi/unsafe)
-(require "llvm/ffi/all.rkt")
-(require "jit-env.rkt")
-(require "jit-type.rkt")
+(require "ffi/all.rkt")
 
 (provide jit-lookup-pass
          jit-lookup-attr)
 
 (define (jit-lookup-pass p)
-  (hash-ref jit-pass-map p))
+  (hash-ref jit-pass-table p))
 (define (jit-lookup-attr a)
-  (hash-ref jit-attr-map a))
-(define jit-pass-map
+  (hash-ref jit-attr-table a))
+(define jit-pass-table
   (make-hash
      ;;Scaler transformations
    `((AggressiveDCE                         . ,LLVMAddAggressiveDCEPass)
@@ -74,7 +72,7 @@
      (StripDeadPrototypes                   . ,LLVMAddStripDeadPrototypesPass)
      (StripSymbols                          . ,LLVMAddStripSymbolsPass))))
 
-(define jit-attr-map
+(define jit-attr-table
   (make-hash
    `((ZExt            . LLVMZExtAttribute)
      (SExt            . LLVMSExtAttribute)
