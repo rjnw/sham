@@ -30,6 +30,71 @@
 (define-struct ast-exp-var        (v))
 
 
+(define (print-ast ast)
+  (define as ast->sexp)
+  (match ast
+    [(ast-function-def id passes attrs arg-ids arg-types ret-type body)
+     `(define-function (#:pass ,@passes) (#:attr ,@attrs)
+        (,id ,@(for/list ([i arg-ids]
+                          [t arg-types])
+                 `(,i : ,t)) : ,ret-type)
+        ,(as body))]
+    [(ast-type-def id type)
+     `(define-type ,id ,(as type))]
+
+    [(ast-type-ref to)
+     to]
+    [(ast-type-struct fields types)
+     `(struct ,@(for/list ([i fields] [t types]) `(,i : ,t)))]
+    [(ast-type-function args ret)
+     `(,@args -> ,ret)]
+    [(ast-type-pointer to)
+     `(pointer ,to)]
+
+    [(ast-stmt-let ids id-types id-vals body)
+     `(let ,(for/list ([i ids]
+                       [t id-types]
+                       [v id-vals])
+              `(,i ,t ,(as v)))
+        ,(as body))]
+    [(ast-stmt-set! lhs val)
+     `(set! ,lhs ,(as val))]
+    [(ast-stmt-store! lhs val)
+     `(store! ,lhs ,(as val))]
+    [(ast-stmt-if tst thn els)
+      `(if ,(as tst) ,(as thn) ,(as els))]
+    [(ast-stmt-while phi-vars phi-types test body)
+     `(while (phi ,@(for/list ([p phi-vars]
+                               [t phi-types])
+                      `(,p : ,t)))
+        ,(as test) ,(as body))]
+    [(ast-stmt-ret val)
+     `(return ,(as val))]
+    [(ast-stmt-ret-void)
+     `(return-void)]
+    [(ast-stmt-blocks bodys)
+     `(begin ,@(map as bodys))]
+    [(ast-stmt-exp val)
+     (as val)]
+
+    [(ast-exp-app rator rands)
+     `(,(as rator) ,@(map as rands))]
+    [(ast-exp-fl-value v t)
+     `(float ,(as v) ,(as t))]
+    [(ast-exp-si-value v t)
+     `(sint ,(as v) ,(as t))]
+    [(ast-exp-ui-value v t)
+     `(uint ,(as v) ,(as t))]
+    [(ast-exp-sizeof t)
+     `(sizeof ,(as t))]
+    [(ast-exp-type t)
+     `(type ,t)]
+    [(ast-exp-gep ptr indxs)
+     `(gep ,(as ptr) ,(map as indxs))]
+    [(ast-exp-var v)
+     v]
+    [else ast]))
+
 (define (ast->sexp ast)
   (define as ast->sexp)
   (match ast
