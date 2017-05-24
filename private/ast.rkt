@@ -10,14 +10,14 @@
 (define-struct ast-type-function  (args ret))
 (define-struct ast-type-pointer   (to))
 
-(define-struct ast-stmt-let       (ids id-types id-vals body))
+(define-struct ast-stmt-let       (id id-type id-val body))
 (define-struct ast-stmt-set!      (lhs val))
 (define-struct ast-stmt-store!    (lhs val))
 (define-struct ast-stmt-if        (test then else))
 (define-struct ast-stmt-while     (phi-vars phi-types test body))
 (define-struct ast-stmt-ret       (val))
 (define-struct ast-stmt-ret-void  ())
-(define-struct ast-stmt-blocks    (bodys))
+(define-struct ast-stmt-block    (bodys))
 (define-struct ast-stmt-exp       (val))
 
 (define-struct ast-exp-app        (rator rands))
@@ -51,11 +51,8 @@
     [(ast-type-pointer to)
      `(pointer ,to)]
 
-    [(ast-stmt-let ids id-types id-vals body)
-     `(let ,(for/list ([i ids]
-                       [t id-types]
-                       [v id-vals])
-              `(,i ,t ,(as v)))
+    [(ast-stmt-let id id-type id-val body)
+     `(let ((,i : ,t ,(as v)))
         ,(as body))]
     [(ast-stmt-set! lhs val)
      `(set! ,lhs ,(as val))]
@@ -72,7 +69,7 @@
      `(return ,(as val))]
     [(ast-stmt-ret-void)
      `(return-void)]
-    [(ast-stmt-blocks bodys)
+    [(ast-stmt-block bodys)
      `(begin ,@(map as bodys))]
     [(ast-stmt-exp val)
      (as val)]
@@ -137,7 +134,7 @@
      `(return ,(as val))]
     [(ast-stmt-ret-void)
      `(return-void)]
-    [(ast-stmt-blocks bodys)
+    [(ast-stmt-block bodys)
      `(begin ,@(map as bodys))]
     [(ast-stmt-exp val)
      `(#%exp ,(as val))]
@@ -190,7 +187,7 @@
     [`(return-void)
      (ast-stmt-ret-void)]
     [`(block ,stmts ...)
-     (ast-stmt-blocks (map sa stmts))]
+     (ast-stmt-block (map sa stmts))]
     [`(#%exp ,e)
      (ast-stmt-exp (sa e))]
     [`(#%app ,rator ,rands ...)
@@ -224,7 +221,7 @@
     [(ast-stmt-while phi-vars phi-types test body)]
     [(ast-stmt-ret val)]
     [(ast-stmt-ret-void)]
-    [(ast-stmt-blocks bodys)]
+    [(ast-stmt-block bodys)]
     [(ast-stmt-exp val)]
     [(ast-exp-app rator rands)]
     [(ast-exp-fl-value v t)]
