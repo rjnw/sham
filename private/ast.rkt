@@ -2,6 +2,7 @@
 
 (provide (all-defined-out))
 
+(define-struct ast-module (defs))
 (define-struct ast-function-def  (id passes attrs arg-ids arg-types ret-type body))
 (define-struct ast-type-def      (id type))
 
@@ -17,7 +18,7 @@
 (define-struct ast-stmt-while     (phi-vars phi-types test body))
 (define-struct ast-stmt-ret       (val))
 (define-struct ast-stmt-ret-void  ())
-(define-struct ast-stmt-block    (bodys))
+(define-struct ast-stmt-block     (bodys))
 (define-struct ast-stmt-exp       (val))
 
 (define-struct ast-exp-app        (rator rands))
@@ -31,13 +32,16 @@
 
 
 (define (print-ast ast)
-  (define as ast->sexp)
+  (define as print-ast)
   (match ast
+    [(ast-module defs)
+     `(#%module
+       ,@(map as defs))]
     [(ast-function-def id passes attrs arg-ids arg-types ret-type body)
      `(define-function (#:pass ,@passes) (#:attr ,@attrs)
         (,id ,@(for/list ([i arg-ids]
                           [t arg-types])
-                 `(,i : ,t)) : ,ret-type)
+                 `(,(as i) : ,t)) : ,ret-type)
         ,(as body))]
     [(ast-type-def id type)
      `(define-type ,id ,(as type))]
@@ -52,18 +56,18 @@
      `(pointer ,to)]
 
     [(ast-stmt-let id id-type id-val body)
-     `(let ((,i : ,t ,(as v)))
+     `(let ((,(as id) : ,id-type ,(as id-val)))
         ,(as body))]
     [(ast-stmt-set! lhs val)
-     `(set! ,lhs ,(as val))]
+     `(set! ,(as lhs) ,(as val))]
     [(ast-stmt-store! lhs val)
-     `(store! ,lhs ,(as val))]
+     `(store! ,(as lhs) ,(as val))]
     [(ast-stmt-if tst thn els)
       `(if ,(as tst) ,(as thn) ,(as els))]
     [(ast-stmt-while phi-vars phi-types test body)
      `(while (phi ,@(for/list ([p phi-vars]
                                [t phi-types])
-                      `(,p : ,t)))
+                      `(,(as p) : ,t)))
         ,(as test) ,(as body))]
     [(ast-stmt-ret val)
      `(return ,(as val))]
@@ -95,11 +99,14 @@
 (define (ast->sexp ast)
   (define as ast->sexp)
   (match ast
+    [(ast-module defs)
+     `(#%module
+       ,@(map as defs))]
     [(ast-function-def id passes attrs arg-ids arg-types ret-type body)
      `(define-function (#:pass ,@passes) (#:attr ,@attrs)
         (,id ,@(for/list ([i arg-ids]
                           [t arg-types])
-                 `(,i : ,t)) : ,ret-type)
+                 `(,(as i) : ,t)) : ,ret-type)
         ,(as body))]
     [(ast-type-def id type)
      `(define-type ,id ,(as type))]
@@ -113,29 +120,26 @@
     [(ast-type-pointer to)
      `(pointer ,to)]
 
-    [(ast-stmt-let ids id-types id-vals body)
-     `(let ,(for/list ([i ids]
-                       [t id-types]
-                       [v id-vals])
-              `(,i : ,t ,(as v)))
+    [(ast-stmt-let id id-type id-val body)
+     `(let ((,(as id) : ,id-type ,(as id-val)))
         ,(as body))]
     [(ast-stmt-set! lhs val)
-     `(set! ,lhs ,(as val))]
+     `(set! ,(as lhs) ,(as val))]
     [(ast-stmt-store! lhs val)
-     `(store! ,lhs ,(as val))]
+     `(store! ,(as lhs) ,(as val))]
     [(ast-stmt-if tst thn els)
       `(if ,(as tst) ,(as thn) ,(as els))]
     [(ast-stmt-while phi-vars phi-types test body)
      `(while ,(for/list ([p phi-vars]
                          [t phi-types])
-                `(,p : ,t))
+                `(,(as p) : ,t))
         ,(as test) ,(as body))]
     [(ast-stmt-ret val)
      `(return ,(as val))]
     [(ast-stmt-ret-void)
      `(return-void)]
     [(ast-stmt-block bodys)
-     `(begin ,@(map as bodys))]
+     `(block ,@(map as bodys))]
     [(ast-stmt-exp val)
      `(#%exp ,(as val))]
 

@@ -399,18 +399,21 @@
            (LLVMConstReal prim-type value)]
           [else (error "value type not supported yet!" value type)]))
   (define (build-app rator rand-values env)
-    (match (env-lookup rator env)
-      [(env-jit-function ref type)
-       (LLVMBuildCall jit-builder ref rand-values (symbol->string rator))]
-      [(env-jit-intr-function builder)
-       (builder jit-builder rand-values)]
-      [(env-racket-function type f)
-       ;TODO
-       (error "not implemented applicative")]
-      [(env-racket-ffi-function type f)
-       ;TODO
-       (error "not implemented applicative")]
-      [else (error "rator ~a\n" (env-lookup rator env))]))
+    (match rator
+      [`(#%jit-intr ,str-id ,ret-type)
+       (define s (symbol->string str-id))
+       (define fn-type
+         (LLVMFunctionType (get-env-jit-type ret-type env)
+                           (map LLVMTypeOf rand-values) #f))
+       (define ref (LLVMAddFunction jit-module s fn-type))
+       (LLVMBuildCall jit-builder ref rand-values s)]
+      [else
+       (match (env-lookup rator env)
+         [(env-jit-function ref type)
+          (LLVMBuildCall jit-builder ref rand-values (symbol->string rator))]
+         [(env-jit-intr-function builder)
+          (builder jit-builder rand-values)]
+         [else (error "cannot figure out how to apply: ~a" rator)])]))
   (build-statement stmt env))
 
 (define (compile-function-definition name args types ret-type
