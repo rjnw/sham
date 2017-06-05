@@ -23,8 +23,8 @@
 ;;call sites and invocations
 (define-llvm LLVMSetInstructionCallConv (_fun LLVMValueRef _uint -> _void))
 (define-llvm LLVMGetInstructionCallConv (_fun LLVMValueRef -> unsigned))
-(define-llvm LLVMAddInstrAttribute (_fun LLVMValueRef _uint LLVMAttribute -> _void))
-(define-llvm LLVMRemoveInstrAttribute (_fun LLVMValueRef _uint LLVMAttribute -> _void))
+;; (define-llvm LLVMAddInstrAttribute (_fun LLVMValueRef _uint LLVMAttribute -> _void))
+;; (define-llvm LLVMRemoveInstrAttribute (_fun LLVMValueRef _uint LLVMAttribute -> _void))
 (define-llvm LLVMSetInstrParamAlignment (_fun LLVMValueRef _uint _uint -> _void))
 (define-llvm LLVMIsTailCall (_fun LLVMValueRef -> LLVMBool))
 (define-llvm LLVMSetTailCall (_fun LLVMValueRef LLVMBool -> _void))
