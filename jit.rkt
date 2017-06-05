@@ -382,6 +382,7 @@
       [`(#%type ,t)
        (define envtype (env-lookup t env))
        (type-prim-jit (env-type-prim envtype))]
+      ['#%void (void)]
       [`(#%gep ,ptr ,indxs)
        (LLVMBuildGEP jit-builder (build-expression ptr env)
                      (map (curryr build-expression env)
@@ -406,11 +407,11 @@
          (LLVMFunctionType (get-env-jit-type ret-type env)
                            (map LLVMTypeOf rand-values) #f))
        (define ref (LLVMAddFunction jit-module s fn-type))
-       (LLVMBuildCall jit-builder ref rand-values s)]
+       (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
       [else
        (match (env-lookup rator env)
          [(env-jit-function ref type)
-          (LLVMBuildCall jit-builder ref rand-values (symbol->string rator))]
+          (LLVMBuildCall jit-builder ref rand-values (substring (symbol->string rator) 0 3))]
          [(env-jit-intr-function builder)
           (builder jit-builder rand-values)]
          [else (error "cannot figure out how to apply: ~a" rator)])]))
@@ -477,9 +478,9 @@
        (define f (compile-function-definition function-name args types ret-type
         				      body (env-lookup function-name env)
         				      env jit-module jit-builder))
-       (for ([attr (flatten attrs)])
-         (LLVMAddFunctionAttr (env-jit-function-ref f)
-                              (jit-lookup-attr attr)))
+       ;; (for ([attr (flatten attrs)])
+       ;;   (LLVMAddFunctionAttr (env-jit-function-ref f)
+       ;;                        (jit-lookup-attr attr)))
        (jit-run-function-pass (flatten passes) jit-module f)
        (env-extend function-name f module-env)]))
   (match m
@@ -501,7 +502,7 @@
 (module+ test
   (require racket/unsafe/ops)
   (require rackunit)
-  (require "../disassemble/disassemble/main.rkt")
+  ;; (require "../disassemble/disassemble/main.rkt")
 
   (define module-env
     (compile-module
@@ -613,8 +614,8 @@
   (define fact (jit-get-function 'fact cenv))
   (define even? (jit-get-function 'even? cenv))
   (define meven? (jit-get-function 'meven? cenv))
-  (disassemble-ffi-function (jit-get-function-ptr 'sum-array cenv)
-                            #:size 70)
+  ;; (disassemble-ffi-function (jit-get-function-ptr 'sum-array cenv)
+  ;;                           #:size 70)
 
   (check-eq? (add 3 5) 8)
   (check-eq? (fact 5) 120)
