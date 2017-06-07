@@ -64,6 +64,7 @@
   LLVMPassRegistryRef  ;;llvm::PassRegistry
   LLVMUseRef           ;;Used to get the users and usees of a Value.
   LLVMDiagnosticInfoRef;;llvm::DiagnosticInfo
+  LLVMAttributeRef     ;;Used to represent an attributes.
 
   ;; LLVMTargetDataRef
   ;; LLVMExecutionEngineRef

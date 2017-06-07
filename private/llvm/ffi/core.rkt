@@ -81,3 +81,31 @@
 (define-llvm LLVMGetDiagInfoDescription (_fun LLVMDiagnosticInfoRef -> _string))
 (define-llvm LLVMGetDiagInfoSeverity (_fun LLVMDiagnosticInfoRef -> LLVMDiagnosticSeverity))
 (define-llvm LLVMGetMDKindIDInContext (_fun LLVMContextRef _string _uint -> unsigned))
+
+
+;;attributes
+#|
+ Return an unique id given the name of a enum attribute,
+ or 0 if no attribute by that name exists.
+
+ See http://llvm.org/docs/LangRef.html#parameter-attributes
+ and http://llvm.org/docs/LangRef.html#function-attributes
+ for the list of available attributes.
+|#
+(define-llvm LLVMGetEnumAttributeKindForName (_fun _string _size -> _uint))
+(define-llvm LLVMGetLastEnumAttributeKind (_fun -> _void))
+
+;; Create an enum attribute
+(define-llvm LLVMCreateEnumAttribute (_fun LLVMContextRef _uint _uint64 -> LLVMAttributeRef))
+
+;; Get the unique id corresponding to the enum attribute  passed as argument.
+(define-llvm LLVMGetEnumAttributeKind (_fun LLVMAttributeRef -> _uint))
+;; Get the enum attribute's value. 0 is returned if none exists.
+(define-llvm LLVMGetEnumAttributeValue (_fun LLVMAttributeRef -> _uint64))
+
+(define-llvm LLVMCreateStringAttribute (_fun LLVMContextRef _string _uint _string _uint))
+(define-llvm LLVMGetStringAttributeKind (_fun LLVMAttributeRef _uint -> _string))
+(define-llvm LLVMGetStringAttributeValue (_fun LLVMAttributeRef _uint -> _string))
+
+(define-llvm LLVMIsEnumAttribute (_fun LLVMAttributeRef -> LLVMBool))
+(define-llvm LLVMIsStringAttribute (_fun LLVMAttributeRef -> LLVMBool))
