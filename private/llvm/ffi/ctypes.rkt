@@ -35,7 +35,6 @@
   LLVMGenericValueRef
   LLVMExecutionEngineRef
   LLVMTargetDataRef
-  LLVMTargetMachineRef
   LLVMTargetLibraryInfoRef
   LLVMMCJITMemoryManagerRef)
 
@@ -67,15 +66,6 @@
      LLVMReturnsTwice             = ,(arithmetic-shift 1  29)
      LLVMUWTable                  = ,(arithmetic-shift 1  30)
      LLVMNonLazyBind              = ,(arithmetic-shift 1  31))))
-
-(define LLVMCodeModel
-  (_enum
-   '(LLVMCodeModelDefault 	
-     LLVMCodeModelJITDefault 	
-     LLVMCodeModelSmall 	
-     LLVMCodeModelKernel 	
-     LLVMCodeModelMedium 	
-     LLVMCodeModelLarge)))
 
 (define (pointer-to p) _pointer)
 (define unsigned _uint)

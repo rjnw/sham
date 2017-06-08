@@ -2,7 +2,8 @@
 
 (require
   "define.rkt"
-  "ctypes.rkt")
+  "ctypes.rkt"
+  "target-machine.rkt")
 
 (require ffi/unsafe)
 
@@ -15,8 +16,11 @@
 (define-llvm LLVMInitializeX86AsmPrinter (_fun -> _void))
 (define-llvm LLVMInitializeX86AsmParser (_fun -> _void))
 (define-llvm LLVMInitializeX86Disassembler (_fun -> _void))
+
+(define-llvm LLVMGetModuleDataLayout (_fun LLVMModuleRef -> LLVMTargetDataRef))
+(define-llvm LLVMSetModuleDataLayout (_fun LLVMModuleRef LLVMTargetDataRef -> _void))
 (define-llvm LLVMCreateTargetData (_fun _string -> LLVMTargetDataRef))
-;; (define-llvm LLVMAddTargetData (_fun LLVMTargetDataRef LLVMPassManagerRef -> _void))
+(define-llvm LLVMDisposeTargetData (_fun LLVMTargetDataRef -> _void))
 (define-llvm LLVMAddTargetLibraryInfo (_fun LLVMTargetLibraryInfoRef LLVMPassManagerRef -> _void))
 (define-llvm LLVMCopyStringRepOfTargetData (_fun LLVMTargetDataRef -> _string))
 (define-llvm LLVMByteOrder (_fun LLVMTargetDataRef -> LLVMByteOrdering))
@@ -35,4 +39,3 @@
 (define-llvm LLVMPreferredAlignmentOfGlobal (_fun LLVMTargetDataRef LLVMValueRef -> _uint))
 (define-llvm LLVMElementAtOffset (_fun LLVMTargetDataRef LLVMTypeRef _ullong -> _uint))
 (define-llvm LLVMOffsetOfElement (_fun LLVMTargetDataRef LLVMTypeRef _uint -> _ullong))
-(define-llvm LLVMDisposeTargetData (_fun LLVMTargetDataRef -> _void))

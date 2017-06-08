@@ -8,9 +8,8 @@
 
 (provide (all-defined-out))
 
+;; LLVMCAnalysis
 
-; LLVMCAnalysis
-; http://llvm.org/docs/doxygen/html/group__LLVMCAnalysis.html
 
 (define LLVMVerifierFailureAction
   (_enum '(LLVMAbortProcessAction LLVMPrintMessageAction LLVMReturnStatusAction)))

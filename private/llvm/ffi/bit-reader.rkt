@@ -14,5 +14,6 @@
 (define-llvm LLVMParseBitcodeInContext2 (_fun LLVMContextRef LLVMMemoryBufferRef (pointer-to LLVMModuleRef) -> LLVMBool))
 (define-llvm LLVMGetBitcodeModuleInContext (_fun LLVMContextRef LLVMMemoryBufferRef (pointer-to LLVMModuleRef) _string -> LLVMBool))
 (define-llvm LLVMGetBitcodeModuleInContext2 (_fun LLVMContextRef LLVMMemoryBufferRef (pointer-to LLVMModuleRef) -> LLVMBool))
+;; Deprecated
 (define-llvm LLVMGetBitcodeModule (_fun LLVMMemoryBufferRef (pointer-to LLVMModuleRef) _string -> LLVMBool))
 (define-llvm LLVMGetBitcodeModule2 (_fun LLVMMemoryBufferRef (pointer-to LLVMModuleRef) -> LLVMBool))
