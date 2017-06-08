@@ -6,40 +6,6 @@
 (require "define.rkt")
 
 (provide (all-defined-out))
-;; (provide
-;;  define-llvm-types
-;;  LLVMBool
-;;  LLVMMemoryBufferRef
-;;  LLVMContextRef
-;;  LLVMModuleRef
-;;  LLVMTypeRef
-;;  LLVMValueRef
-;;  LLVMBasicBlockRef
-;;  LLVMBuilderRef
-;;  LLVMModuleProviderRef
-;;  LLVMPassManagerRef
-;;  LLVMPassRegistryRef
-;;  LLVMUseRef
-;;  LLVMDiagnosticInfoRef
-
-;;  LLVMAttribute
-;;  LLVMOpcode
-;;  LLVMTypeKind
-;;  LLVMLinkage
-;;  LLVMVisibility
-;;  LLVMDLLStorageClass
-;;  LLVMCallConv
-;;  LLVMIntPredicate
-;;  LLVMRealPredicate
-;;  LLVMLandingPadClauseTy
-;;  LLVMThreadLocalMode
-;;  LLVMAtomicOrdering
-;;  LLVMAtomicRMWBinOp
-;;  LLVMDiagnosticSeverity
-
-;;  pointer-to
-;;  unsigned)
-
 (define LLVMBool _bool)
 
 (define-syntax (define-llvm-types stx)
@@ -71,10 +37,8 @@
   LLVMTargetDataRef
   LLVMTargetMachineRef
   LLVMTargetLibraryInfoRef
-  LLVMMCJITMemoryManagerRef
- )
+  LLVMMCJITMemoryManagerRef)
 
-;;enumeration
 (define LLVMAttribute
   (_bitmask
    `(LLVMZExtAttribute            = ,(arithmetic-shift 1  0)

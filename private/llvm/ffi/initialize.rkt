@@ -3,8 +3,7 @@
          "ctypes.rkt")
 (require ffi/unsafe)
 (provide (all-defined-out))
-(define-llvm LLVMInitializeCore (_fun LLVMPassRegistryRef -> _void))
-(define-llvm LLVMShutdown (_fun -> _void))
+
 (define-llvm LLVMInitializeTransformUtils (_fun LLVMPassRegistryRef -> _void))
 (define-llvm LLVMInitializeScalarOpts (_fun LLVMPassRegistryRef -> _void))
 (define-llvm LLVMInitializeObjCARCOpts (_fun LLVMPassRegistryRef -> _void))
