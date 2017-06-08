@@ -440,9 +440,9 @@
   (LLVMAddFunction jit-module (symbol->string function-name) function-type))
 
 (define (compile-module m [module-name "module"] [context global-jit-context])
-  (define (diag-handler dinfo voidp)
-    (printf "\tdiag: ~a\n" (LLVMGetDiagInfoDescription dinfo)))
-  (LLVMContextSetDiagnosticHandler context diag-handler #f)
+  ;; (define (diag-handler dinfo voidp)
+  ;;   (printf "\tdiag: ~a\n" (LLVMGetDiagInfoDescription dinfo)))
+  ;; (LLVMContextSetDiagnosticHandler context diag-handler #f)
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
   (LLVMSetDataLayout jit-module "e-m:e-i64:64-f80:128-n8:16:32:64-S128")
   (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu") ;TODO set target for machine
@@ -495,7 +495,7 @@
                 ([stmt module-stmts])
          (compile-module-statement stmt env module-env)))
      (jit-run-module-pass (flatten passes) jit-module)
-     (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
+     ;; (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
      (env-extend '#%jit-module jit-module module-env)]))
 
 
