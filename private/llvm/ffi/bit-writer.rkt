@@ -2,9 +2,8 @@
 
 (require
   "define.rkt"
-  "ctypes.rkt")
-
-(require ffi/unsafe)
+  "ctypes.rkt"
+  ffi/unsafe)
 
 (provide (all-defined-out))
 

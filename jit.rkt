@@ -11,16 +11,6 @@
 (provide (all-defined-out)
          env-lookup)
 
-;; (provide compile-module
-;;          create-jit-context
-;;          create-initial-environment
-;;          jit-get-function
-;;          jit-dump-function
-;;          jit-dump-module
-;;          jit-get-racket-type
-;;          env-lookup
-;;          context)
-
 (define (llvm-initialize)
   (LLVMLinkInMCJIT)
   (LLVMInitializeX86Target)
@@ -411,7 +401,8 @@
       [else
        (match (env-lookup rator env)
          [(env-jit-function ref type)
-          (LLVMBuildCall jit-builder ref rand-values (substring (symbol->string rator) 0 3))]
+          (LLVMBuildCall jit-builder ref rand-values
+                         (substring (symbol->string rator) 0 3))]
          [(env-jit-intr-function builder)
           (builder jit-builder rand-values)]
          [else (error "cannot figure out how to apply: ~a" rator)])]))
@@ -478,9 +469,12 @@
        (define f (compile-function-definition function-name args types ret-type
         				      body (env-lookup function-name env)
         				      env jit-module jit-builder))
-       ;; (for ([attr (flatten attrs)])
-       ;;   (LLVMAddFunctionAttr (env-jit-function-ref f)
-       ;;                        (jit-lookup-attr attr)))
+
+       (for ([attr (flatten attrs)])
+         (LLVMAddAttributeAtIndex
+          (env-jit-function-ref f)
+          (cast -1 _int _uint)
+          (jit-lookup-attr attr context)))
        (jit-run-function-pass (flatten passes) jit-module f)
        (env-extend function-name f module-env)]))
   (match m
@@ -604,6 +598,7 @@
   (jit-dump-module module-env)
   (jit-optimize-module module-env #:opt-level 3)
   (jit-dump-module module-env)
+  (error 'stop)
   (jit-verify-module module-env)
   (define cenv (initialize-jit module-env #:opt-level 3))
 

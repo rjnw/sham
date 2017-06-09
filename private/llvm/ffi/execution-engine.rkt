@@ -1,7 +1,9 @@
 #lang racket
 (require "define.rkt"
-         "ctypes.rkt")
-(require ffi/unsafe)
+         "ctypes.rkt"
+         "target-machine.rkt")
+(require ffi/unsafe
+         ffi/unsafe/define)
 (provide (all-defined-out))
 
 ;; LLVMCExecutionEngine

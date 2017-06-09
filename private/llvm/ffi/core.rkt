@@ -292,11 +292,13 @@
  and http://llvm.org/docs/LangRef.html#function-attributes
  for the list of available attributes.
 |#
-(define-llvm LLVMGetEnumAttributeKindForName (_fun _string _size -> _uint))
+(define-llvm LLVMGetEnumAttributeKindForName
+  (_fun (name : _string) (_size = (string-length name)) -> _uint))
 (define-llvm LLVMGetLastEnumAttributeKind (_fun -> _void))
 
 ;; Create an enum attribute
-(define-llvm LLVMCreateEnumAttribute (_fun LLVMContextRef _uint _uint64 -> LLVMAttributeRef))
+(define-llvm LLVMCreateEnumAttribute
+  (_fun LLVMContextRef (kindid : _uint) (value : _uint64) -> LLVMAttributeRef))
 
 ;; Get the unique id corresponding to the enum attribute  passed as argument.
 (define-llvm LLVMGetEnumAttributeKind (_fun LLVMAttributeRef -> _uint))
@@ -696,6 +698,7 @@
 (define-llvm LLVMSetFunctionCallConv (_fun LLVMValueRef _uint -> _void))
 (define-llvm LLVMGetGC (_fun LLVMValueRef -> _string))
 (define-llvm LLVMSetGC (_fun LLVMValueRef _string -> _void))
+
 (define-llvm LLVMAddAttributeAtIndex (_fun LLVMValueRef LLVMAttributeIndex LLVMAttributeRef -> _void))
 (define-llvm LLVMGetAttributeCountAtIndex (_fun LLVMValueRef LLVMAttributeIndex -> unsigned))
 (define-llvm LLVMGetAttributesAtIndex (_fun LLVMValueRef LLVMAttributeIndex (pointer-to LLVMAttributeRef ) -> _void))

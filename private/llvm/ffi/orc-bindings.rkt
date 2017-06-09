@@ -1,6 +1,7 @@
 #lang racket
 (require "define.rkt"
          "ctypes.rkt"
+         "target-machine.rkt"
          ffi/unsafe)
 
 (provide (all-defined-out))
