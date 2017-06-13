@@ -53,8 +53,7 @@
 )
 (define-llvm LLVMCreateTargetMachine
   (_fun LLVMTargetRef _string _string _string LLVMCodeGenOptLevel LLVMRelocMode LLVMCodeModel
-        -> LLVMTargetMachineRef)
-)
+        -> LLVMTargetMachineRef))
 
 (define-llvm LLVMGetTargetMachineTarget (_fun LLVMTargetMachineRef -> LLVMTargetRef))
 (define-llvm LLVMGetTargetMachineTriple (_fun LLVMTargetMachineRef -> _string))

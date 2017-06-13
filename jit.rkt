@@ -50,6 +50,8 @@
                        (LLVMPrintTypeToString (type-prim-jit (env-type-prim v))))))
             ([env-jit-function? v]
              (LLVMDumpValue (env-jit-function-ref v)))))))
+(define (jit-dump-function mod sym)
+  (LLVMDumpValue (env-jit-function-ref (env-lookup sym mod))))
 
 (define (initialize-jit mod #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
