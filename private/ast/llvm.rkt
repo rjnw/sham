@@ -2,15 +2,16 @@
 
 (provide (all-defined-out))
 
-(define-struct llvm:module (name layout target defns))
+(define-struct llvm:module (name layout target passes defns))
 
-(define-struct llvm:defn:function (name arg-syms arg-types ret-type attrs stmt))
+(define-struct llvm:defn:function
+  (name arg-syms arg-types ret-type attrs pass stmt))
 (define-struct llvm:defn:type (name type))
 
 (define-struct llvm:type:label (sym))
-(define-struct llvm:type:internal (sym))
-(define-struct llvm:type:struct (types))
-(define-struct llvm:type:pointer (type))
+(define-struct llvm:type:struct (fields))
+(define-struct llvm:type:function (args ret))
+(define-struct llvm:type:pointer (to))
 
 (define-struct llvm:stmt:block (label stmts))
 (define-struct llvm:stmt:set! (sym expr))
