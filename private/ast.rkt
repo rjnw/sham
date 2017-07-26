@@ -25,6 +25,7 @@
 (define-struct ast-exp-fl-value   (v t))
 (define-struct ast-exp-si-value   (v t))
 (define-struct ast-exp-ui-value   (v t))
+(define-struct ast-exp-void-value ())
 (define-struct ast-exp-sizeof     (t))
 (define-struct ast-exp-type       (t))
 (define-struct ast-exp-gep        (ptr indxs))
@@ -56,8 +57,10 @@
      `(pointer ,to)]
 
     [(ast-stmt-let id id-type id-val body)
-     `(let ((,(as id) : ,id-type ,(as id-val)))
-        ,(as body))]
+     ;; `(let ((,(as id) : ,id-type ,(as id-val)))
+     ;;    ,(as body))
+     `(,(as id) ,@(as body))
+     ]
     [(ast-stmt-set! lhs val)
      `(set! ,(as lhs) ,(as val))]
     [(ast-stmt-store! lhs val)
@@ -74,7 +77,7 @@
     [(ast-stmt-ret-void)
      `(return-void)]
     [(ast-stmt-block bodys)
-     `(begin ,@(map as bodys))]
+     (map as bodys)]
     [(ast-stmt-exp val)
      (as val)]
 
@@ -86,6 +89,8 @@
      `(sint ,(as v) ,(as t))]
     [(ast-exp-ui-value v t)
      `(uint ,(as v) ,(as t))]
+    [(ast-exp-void-value)
+     '<void>]
     [(ast-exp-sizeof t)
      `(sizeof ,(as t))]
     [(ast-exp-type t)
@@ -151,6 +156,8 @@
      `(#%si-value ,(as v) ,(as t))]
     [(ast-exp-ui-value v t)
      `(#%ui-value ,(as v) ,(as t))]
+    [(ast-exp-void-value)
+     '#%void]
     [(ast-exp-sizeof t)
      `(#%sizeof ,(as t))]
     [(ast-exp-type t)

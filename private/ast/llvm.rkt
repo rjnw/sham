@@ -5,7 +5,7 @@
 (define-struct llvm:module (name layout target passes defns))
 
 (define-struct llvm:defn:function
-  (name arg-syms arg-types ret-type attrs pass stmt))
+  (name arg-syms arg-types ret-type attrs passes stmt))
 (define-struct llvm:defn:type (name type))
 
 (define-struct llvm:type:label (sym))

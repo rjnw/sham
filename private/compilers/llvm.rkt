@@ -2,15 +2,20 @@
 
 (require "../ast/llvm.rkt")
 (require "../llvm/ffi/all.rkt")
+
 (define (empty-env)
   (make-immutable-hash))
 (define (env-extend key val env)
   (hash-set env key val))
 (define (env-lookup key env)
   (hash-ref env key))
+(define (get-module env)
+  (env-lookup '#%module env))
 (define (dump-env env)
-  (LLVMDumpModule (env-lookup '#%module env))
+  (LLVMDumpModule (get-module env))
   (pretty-display env))
+(define (llvm-verify-module env)
+  (LLVMVerifyModule (get-module env) 'LLVMPrintMessageAction #f))
 
 (define (run-module-passes passes llvm-module)
   (void))
@@ -25,12 +30,22 @@
      (LLVMSetDataLayout llvm-module layout)
      (LLVMSetTarget llvm-module target)
      (define builder (LLVMCreateBuilderInContext llvm-context))
-     (define (compile-type-declaration t)
-       (void))
+     (define (compile-type-declaration t env)
+       (match t
+         ([llvm:type:label sym]
+          (env-lookup sym env))
+         ([llvm:type:struct fields]
+          (LLVMStructType (map (curryr compile-type-declaration env) fields) 0))
+         ([llvm:type:function args ret]
+          (LLVMFunctionType (compile-type-declaration ret env)
+                            (map (curryr compile-type-declaration env) args)
+                             #f))
+         ([llvm:type:pointer to]
+          (LLVMPointerType (compile-type-declaration to env) 0))))
      (define (compile-function-type arg-types ret-type env)
-       (void))
+       (compile-type-declaration (llvm:type:function arg-types ret-type) env))
      (define (compile-function-declaration ftype name)
-       (void))
+       (LLVMAddFunction llvm-module name ftype))
 
      (define decl-env
        (for/fold [(env (init-type-env llvm-context))]
@@ -40,25 +55,37 @@
             (define ftype (compile-function-type arg-types ret-type env))
             (env-extend name (compile-function-declaration ftype name) env))
            ([llvm:defn:type name t]
-            (env-extend name (compile-type-declaration t) env)))))
+            (env-extend name (compile-type-declaration t env) env)))))
 
+     (define (compile-type t name)
+       ; TODO: do recursive struct types here
+       (env-lookup name decl-env))
 
-     (define (compile-type t)
-       (match t
-         ([llvm:type:label sym]
-          (env-lookup sym decl-env))
-         ([llvm:type:struct fields]
-          (LLVMStructType (map compile-type fields) 0))
-         ([llvm:type:function args ret]
-          (LLVMFunctionType (map compile-type args) (compile-type ret) #f))
-         ([llvm:type:pointer to]
-          (LLVMPointerType (compile-type to) 0))))
      (define (compile-function fun)
-       (void))
+       (match-define (llvm:defn:function name arg-syms arg-types ret-tyep attrs passes stmt) fun)
+       (define fref (env-lookup name decl-env))
+       (define (compile-statement stmt env)
+         (match stmt
+           [(llvm:stmt:block label stmts)
+            (LLVMAppendBasicBlockInContext llvm-context fref label)
+            (for/fold ([env env])
+                      ([stmt stmts])
+              (compile-statement stmt env))
+            env]
+           [(llvm:stmt:return-void)
+            (LLVMBuildRetVoid builder)
+            env]
+           [else env]))
+       (define new-env (for/fold ([env decl-env])
+                                 ([arg arg-syms]
+                                  [i (in-range (length arg-syms))])
+                         (env-extend arg (LLVMGetParam fref i) env)))
+       (compile-statement stmt new-env)
+       fref)
      (define (compile-module-defn defn env)
        (match defn
          [(llvm:defn:type name t)
-          (env-extend name (compile-type t) env)]
+          (env-extend name (compile-type t name) env)]
          [(? llvm:defn:function?)
           (env-extend (llvm:defn:function-name defn) (compile-function defn) env)]))
      (define defn-env
@@ -66,7 +93,6 @@
                  [(defn defns)]
          (compile-module-defn defn env)))
      (run-module-passes passes llvm-module)
-     (LLVMVerifyModule llvm-module 'LLVMPrintMessageAction #f)
      (env-extend '#%module llvm-module defn-env)]))
 
 
@@ -96,4 +122,20 @@
                    (llvm:defn:type 'void*
                                    (llvm:type:pointer (llvm:type:label 'void)))))
      llvm-global-context))
-  (dump-env env0))
+  (llvm-verify-module env0)
+  (dump-env env0)
+
+  (define env1
+    (compile-llvm-ast
+     (llvm:module "env1"
+                  "e-m:e-i64:64-f80:128-n8:16:32:64-S128"
+                  "x86_64-unknown-linux-gnu"
+                  `()
+                  (list
+                   (llvm:defn:function "empty" '() '() (llvm:type:label 'void)
+                                       '() '()
+                                       (llvm:stmt:block "entry"
+                                                        (list (llvm:stmt:return-void))))))
+     llvm-global-context))
+  (llvm-verify-module env1)
+  (dump-env env1))
