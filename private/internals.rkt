@@ -29,16 +29,16 @@
                             LLVMIntSGE
                             LLVMIntSLT
                             LLVMIntSLE))
-               (pr '(jit-icmp-eq
-                     jit-icmp-ne
-                     jit-icmp-ugt
-                     jit-icmp-uge
-                     jit-icmp-ult
-                     jit-icmp-ule
-                     jit-icmp-sgt
-                     jit-icmp-sge
-                     jit-icmp-slt
-                     jit-icmp-sle))]
+               (pr '(icmp-eq
+                     icmp-ne
+                     icmp-ugt
+                     icmp-uge
+                     icmp-ult
+                     icmp-ule
+                     icmp-sgt
+                     icmp-sge
+                     icmp-slt
+                     icmp-sle))]
       (env-extend pr
                   (env-jit-intr-function
                    (lambda (jit-builder args [name "ipred"])
@@ -64,20 +64,20 @@
                             LLVMRealULT
                             LLVMRealULE
                             LLVMRealUNE))
-               (pr '(jit-fcmp-oeq
-                     jit-fcmp-ogt
-                     jit-fcmp-oge
-                     jit-fcmp-olt
-                     jit-fcmp-ole
-                     jit-fcmp-one
-                     jit-fcmp-ord
-                     jit-fcmp-uno
-                     jit-fcmp-ueq
-                     jit-fcmp-ugt
-                     jit-fcmp-uge
-                     jit-fcmp-ult
-                     jit-fcmp-ule
-                     jit-fcmp-une))]
+               (pr '(fcmp-oeq
+                     fcmp-ogt
+                     fcmp-oge
+                     fcmp-olt
+                     fcmp-ole
+                     fcmp-one
+                     fcmp-ord
+                     fcmp-uno
+                     fcmp-ueq
+                     fcmp-ugt
+                     fcmp-uge
+                     fcmp-ult
+                     fcmp-ule
+                     fcmp-une))]
       (env-extend pr
                   (env-jit-intr-function
                    (lambda (jit-builder args [name "fpred"])
@@ -107,61 +107,61 @@
        env))))))
 
 (define binary-internals
-  `((jit-add ,LLVMBuildAdd)
-    (jit-add-nsw ,LLVMBuildNSWAdd)
-    (jit-add-nuw ,LLVMBuildNUWAdd)
-    (jit-fadd ,LLVMBuildFAdd)
+  `((add ,LLVMBuildAdd)
+    (add-nsw ,LLVMBuildNSWAdd)
+    (add-nuw ,LLVMBuildNUWAdd)
+    (fadd ,LLVMBuildFAdd)
 
-    (jit-sub ,LLVMBuildSub)
-    (jit-sub-nsw ,LLVMBuildNSWSub)
-    (jit-sub-nuw ,LLVMBuildNUWSub)
-    (jit-fsub ,LLVMBuildFSub)
+    (sub ,LLVMBuildSub)
+    (sub-nsw ,LLVMBuildNSWSub)
+    (sub-nuw ,LLVMBuildNUWSub)
+    (fsub ,LLVMBuildFSub)
 
-    (jit-mul ,LLVMBuildMul)
-    (jit-mul-nsw ,LLVMBuildNSWMul)
-    (jit-mul-nuw ,LLVMBuildNUWMul)
-    (jit-fmul ,LLVMBuildFMul)
+    (mul ,LLVMBuildMul)
+    (mul-nsw ,LLVMBuildNSWMul)
+    (mul-nuw ,LLVMBuildNUWMul)
+    (fmul ,LLVMBuildFMul)
 
-    (jit-udiv ,LLVMBuildUDiv)
-    (jit-sdiv ,LLVMBuildSDiv)
-    (jit-exact-sdiv ,LLVMBuildExactSDiv)
-    (jit-fdiv ,LLVMBuildFDiv)
+    (udiv ,LLVMBuildUDiv)
+    (sdiv ,LLVMBuildSDiv)
+    (exact-sdiv ,LLVMBuildExactSDiv)
+    (fdiv ,LLVMBuildFDiv)
 
-    (jit-urem ,LLVMBuildURem)
-    (jit-srem ,LLVMBuildSRem)
-    (jit-frem ,LLVMBuildFRem)
+    (urem ,LLVMBuildURem)
+    (srem ,LLVMBuildSRem)
+    (frem ,LLVMBuildFRem)
 
-    (jit-shl ,LLVMBuildShl)
-    (jit-lshr ,LLVMBuildLShr)
-    (jit-ashr ,LLVMBuildAShr)
+    (shl ,LLVMBuildShl)
+    (lshr ,LLVMBuildLShr)
+    (ashr ,LLVMBuildAShr)
 
-    (jit-or ,LLVMBuildOr)
-    (jit-xor ,LLVMBuildXor)
-    (jit-and ,LLVMBuildAnd)
+    (or ,LLVMBuildOr)
+    (xor ,LLVMBuildXor)
+    (and ,LLVMBuildAnd)
 
-    (jit-arr-malloc ,LLVMBuildArrayMalloc)
-    (jit-arr-alloca ,LLVMBuildArrayAlloca)
+    (arr-malloc ,LLVMBuildArrayMalloc)
+    (arr-alloca ,LLVMBuildArrayAlloca)
 
     ;;casts
-    (jit-fp->ui ,LLVMBuildFPToUI)
-    (jit-fp->si ,LLVMBuildFPToSI)
-    (jit-ui->fp ,LLVMBuildUIToFP)
-    (jit-si->fp ,LLVMBuildSIToFP)
+    (fp->ui ,LLVMBuildFPToUI)
+    (fp->si ,LLVMBuildFPToSI)
+    (ui->fp ,LLVMBuildUIToFP)
+    (si->fp ,LLVMBuildSIToFP)
     ))
 
 (define unary-internals
-  `((jit-neg ,LLVMBuildNeg)
-    (jit-neg-nsw ,LLVMBuildNSWNeg)
-    (jit-neg-nuw ,LLVMBuildNUWNeg)
-    (jit-fneg ,LLVMBuildFNeg)
+  `((neg ,LLVMBuildNeg)
+    (neg-nsw ,LLVMBuildNSWNeg)
+    (neg-nuw ,LLVMBuildNUWNeg)
+    (fneg ,LLVMBuildFNeg)
 
-    (jit-not ,LLVMBuildNot)
-    (jit-load ,LLVMBuildLoad)
-    (jit-malloc ,LLVMBuildMalloc)
+    (not ,LLVMBuildNot)
+    (load ,LLVMBuildLoad)
+    (malloc ,LLVMBuildMalloc)
 
-    (jit-alloca ,LLVMBuildAlloca)
+    (alloca ,LLVMBuildAlloca)
 
-    (jit-free ,LLVMBuildFree)))
+    (free ,LLVMBuildFree)))
 
 (module+ test
   (display (register-internal-instructions (empty-env))))
