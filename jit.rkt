@@ -174,7 +174,7 @@
            (define val-p (LLVMBuildAlloca jit-builder val-type
                                       (symbol->string id)))
            (unless (sham:exp:void-value? val)
-             (LLVMBuildStore jit-builder val-p (build-expression val env)))
+             (LLVMBuildStore jit-builder (build-expression val env) val-p))
            (env-extend id (env-jit-value val-p (env-type val-type id-type)) env)))
        (build-statement st new-env)]
 
@@ -242,8 +242,7 @@
                                           (internal-type-jit (env-type-prim envtype)))
                      #f)]
       [(sham:exp:type t)
-       (define envtype (env-lookup t env))
-       (internal-type-jit (env-type-prim envtype))]
+       (build-llvm-type t env)]
       [(sham:exp:void-value) (void)]
       [(sham:exp:gep ptr indxs)
        (LLVMBuildGEP jit-builder
@@ -253,7 +252,9 @@
       [(sham:exp:var sym)
        (LLVMBuildLoad jit-builder
                       (env-jit-value-ref (env-lookup sym env))
-                      (symbol->string sym))]))
+                      (symbol->string sym))]
+      [else (printf "~a\n" e)
+            (error "no matching clause for build-expression")]))
   
   (define (build-app rator rand-values env)
     (match rator
@@ -423,62 +424,59 @@
                                            (v 'result) (v 'i)))
                 (sham:stmt:set! (v 'i)
                                 (build-app (rs 'add-nuw) (v 'i) (ui32 1))))))
-             (ret (v 'result)))))))
+             (ret (v 'result))))))
+        
 
 
-
-
-
-       ;; (define-function (malloc-test  : int)
-       ;;   (let ((ptr : void* (#%app jit-malloc (#%type int))))
-       ;;     (block
-       ;;      (#%exp (#%app jit-store! (#%value 42 int) ptr ))
-       ;;      (return (#%app jit-load ptr)))))
-
-       ;; (define-function (#:attr AlwaysInline) (add (x : int) (y : int) : int)
-       ;;   (return (#%app jit-add x y)))
-
-       ;; (define-function (sum-array (arr : int*) (size : int) : int)
-       ;;   (let ((i : int (#%value 0 int))
-       ;;         (sum : int (#%value 0 int)))
-       ;;     (block
-       ;;      (while ((sum : int) (i : int))
-       ;;        (#%app jit-icmp-ult i size)
-       ;;        (block
-       ;;         (let ((arri : int* (#%gep arr (i))))
-       ;;           (set! sum (#%app add
-       ;;                            sum
-       ;;                            (#%app jit-load arri))))
-       ;;         (set! i (#%app jit-add i (#%value 1 int)))))
-       ;;      (return sum))))
-       )))
+        (defn 'sum-array '(arr size) (list (sham:type:ref 'int*) i32) i32
+          (sham:stmt:let
+           '(i sum) (list i32 i32) (list (ui32 0) (ui32 0))
+           (sham:stmt:block
+            (list
+             (sham:stmt:while
+              (build-app (rs 'icmp-ult) (v 'i) (v 'size))
+              (sham:stmt:block
+               (list
+                (sham:stmt:let '(arri) (list (sham:type:ref 'int*)) (list (sham:exp:gep (v 'arr)
+                                                                                        (list (v 'i))))
+                               (sham:stmt:set! (v 'sum)
+                                               (build-app (rs 'add)
+                                                          (v 'sum)
+                                                          (build-app (rs 'load) (v 'arri)))))
+                (sham:stmt:set! (v 'i) (build-app (rs 'add) (v 'i) (ui32 1))))))
+             (ret (v 'sum))))))
+        (defn 'malloc-test '() '() i32
+          (sham:stmt:let '(ptr)
+                         (list (sham:type:ref 'int*))
+                         (list (build-app (rs 'malloc) (sham:exp:type (sham:type:ref 'int))))
+                         (sham:stmt:block
+                          (list
+                           (sham:stmt:exp (build-app (rs 'store!) (ui32 42) (v 'ptr)))
+                           (ret (build-app (rs 'load) (v 'ptr)))))
+                         ))))))
 
   (jit-dump-module module-env)
   (jit-optimize-module module-env #:opt-level 3)
   (jit-dump-module module-env)
   (jit-verify-module module-env)
-  ;; (define cenv (initialize-jit module-env #:opt-level 3))
+  (define cenv (initialize-jit module-env #:opt-level 3))
 
-  ;; (define add (jit-get-function 'add cenv))
+  (define factr (jit-get-function 'factr cenv))
+  (define fact (jit-get-function 'fact cenv))
+  (define even? (jit-get-function 'even? cenv))
+  (define meven? (jit-get-function 'meven? cenv))
+  (define malloc-test (jit-get-function 'malloc-test cenv))
+  (define sum-array (jit-get-function 'sum-array cenv))
+  ;; (disassemble-ffi-function (jit-get-function-ptr 'sum-array cenv)
+  ;;                           #:size 70)
 
-  ;; (define factr (jit-get-function 'factr cenv))
-  ;; (define factc (jit-get-function 'factc cenv))
-  ;; (define fact (jit-get-function 'fact cenv))
-  ;; (define even? (jit-get-function 'even? cenv))
-  ;; (define meven? (jit-get-function 'meven? cenv))
-  ;; ;; (disassemble-ffi-function (jit-get-function-ptr 'sum-array cenv)
-  ;; ;;                           #:size 70)
+  (check-eq? (fact 5) 120)
+  (check-eq? (factr 5) 120)
+  (check-eq? (even? 42) 1)
+  (check-eq? (meven? 21) 0)
 
-  ;; (check-eq? (add 3 5) 8)
-  ;; (check-eq? (fact 5) 120)
-  ;; (check-eq? (factr 5) 120)
-  ;; (check-eq? (factc 5) 120)
-  ;; (check-eq? (even? 42) 1)
-  ;; (check-eq? (meven? 21) 0)
 
-  ;; (define malloc-test (jit-get-function 'malloc-test cenv))
-  ;; (check-eq? (malloc-test) 42)
+  (check-eq? (malloc-test) 42)
 
-  ;; (define sum-array (jit-get-function 'sum-array cenv))
-  ;; (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6)
-  )
+
+  (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6))

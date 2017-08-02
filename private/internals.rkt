@@ -88,7 +88,7 @@
                                     name)))
                   env)))
   (define (register-specials env)
-    (env-extend 'jit-store!
+    (env-extend 'store!
                 (env-jit-intr-function
                  (lambda (jit-builder args [name "v"])
                    (LLVMBuildStore jit-builder (first args) (second args))))
