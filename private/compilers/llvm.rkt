@@ -62,15 +62,66 @@
        (env-lookup name decl-env))
 
      (define (compile-function fun)
-       (match-define (llvm:defn:function name arg-syms arg-types ret-tyep attrs passes stmt) fun)
+       (match-define (llvm:defn:function name arg-syms arg-types ret-tyep attrs passes blocks) fun)
        (define fref (env-lookup name decl-env))
+       (define (compile-blocks blocks env)
+         (define new-env
+           (for/fold ([env env])
+                     ([block blocks])
+             (match-define (llvm:block label _) block)
+             (env-extend label (LLVMAppendBasicBlockInContext llvm-context fref label) env)))
+         (for/fold
+             ([env new-env])
+             ([block blocks])
+           (match block
+             [(llvm:block label stmts)
+              (define block (env-lookup label env))
+              (LLVMPositionBuilderAtEnd builder block)
+              (for/fold ([env env])
+                        ([stmt stmts])
+                (compile-statement stmt env))])))
+       (define (compile-expression expr env)
+         (match expr
+           [(llvm:expr:type sym)
+            (env-lookup sym env)]
+           ;; [(llvm:expr:calli sym exprs)
+           ;;  ]
+           [(llvm:expr:call sym exprs)
+            (LLVMBuildCall builder (env-lookup sym env)
+                           (map (curryr compile-expression env) exprs) "app")]
+           [(llvm:expr:ui-value v type)
+            (LLVMConstInt (compile-type-declaration type env) v #f)]
+           [(llvm:expr:si-value v type)
+            (LLVMConstInt (compile-type-declaration type env) v #t)]
+           [(llvm:expr:fl-value v type)
+            (LLVMConstReal (compile-type-declaration type env) v)]
+           [(llvm:expr:sizeof type)
+            (LLVMConstInt (env-lookup 'i32 env)
+                          (LLVMStoreSizeOfType target (compile-type-declaration type env))
+                          #f)]
+           [(llvm:expr:gep expr indxs)
+            (LLVMBuildGEP builder (compile-expression expr env)
+                          (map (curryr compile-expression env) indxs)
+                          "gep")]))
        (define (compile-statement stmt env)
          (match stmt
-           [(llvm:stmt:block label stmts)
-            (LLVMAppendBasicBlockInContext llvm-context fref label)
-            (for/fold ([env env])
-                      ([stmt stmts])
-              (compile-statement stmt env))
+           [(llvm:stmt:set! sym expr)
+            (env-extend sym (compile-expression expr env) env)]
+           [(llvm:stmt:store! expr-t expr-v)
+            (LLVMBuildStore builder
+                            (compile-expression expr-t env)
+                            (compile-expression expr-v env))
+            env]
+           [(llvm:stmt:cond-branch expr label-t label-e)
+            (LLVMBuildCondBr builder (compile-expression expr env)
+                             (env-lookup label-t env)
+                             (env-lookup label-e env))
+            env]
+           [(llvm:stmt:branch label)
+            (LLVMBuildBr builder (env-lookup label env))
+            env]
+           [(llvm:stmt:return expr)
+            (LLVMBuildRet builder (compile-expression expr env))
             env]
            [(llvm:stmt:return-void)
             (LLVMBuildRetVoid builder)
@@ -80,7 +131,7 @@
                                  ([arg arg-syms]
                                   [i (in-range (length arg-syms))])
                          (env-extend arg (LLVMGetParam fref i) env)))
-       (compile-statement stmt new-env)
+       (compile-blocks blocks new-env)
        fref)
      (define (compile-module-defn defn env)
        (match defn
@@ -132,10 +183,11 @@
                   "x86_64-unknown-linux-gnu"
                   `()
                   (list
-                   (llvm:defn:function "empty" '() '() (llvm:type:label 'void)
+                   (llvm:defn:function "voidf" '() '() (llvm:type:label 'void)
                                        '() '()
-                                       (llvm:stmt:block "entry"
-                                                        (list (llvm:stmt:return-void))))))
+                                       (list
+                                        (llvm:block "entry"
+                                                    (list (llvm:stmt:return-void)))))))
      llvm-global-context))
   (llvm-verify-module env1)
   (dump-env env1))
