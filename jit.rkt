@@ -164,25 +164,24 @@
   (define (build-statement stmt env)
     (match stmt
       [(sham:stmt:let ids types vals st)
-       (define id-types (map (curryr env-lookup env) types))
+
        (define new-env
          (for/fold ([env env])
-                   ([id-type id-types]
+                   ([id-type types]
                     [id ids]
                     [val vals])
-           (define p (LLVMBuildAlloca jit-builder (build-llvm-type id-type env)
+           (define val-type (build-llvm-type id-type env))
+           (define val-p (LLVMBuildAlloca jit-builder val-type
                                       (symbol->string id)))
-           (env-extend id p env)
            (unless (sham:exp:void-value? val)
-             (LLVMBuildStore jit-builder p (build-expression val)))))
+             (LLVMBuildStore jit-builder val-p (build-expression val env)))
+           (env-extend id (env-jit-value val-p (env-type val-type id-type)) env)))
        (build-statement st new-env)]
 
-      [(sham:stmt:set! lhs v)
+      [(sham:stmt:set! lhs v) ;;TODO: right now lhs can only be a var
        (define v-ref (build-expression v env))
-       (define lhs-v (env-lookup lhs env))
-       (LLVMBuildStore jit-builder
-                       (env-jit-value v-ref (env-jit-value-type lhs-v))
-                       lhs-v)]
+       (define lhs-v (env-jit-value-ref (env-lookup (sham:exp:var-v lhs) env)))
+       (LLVMBuildStore jit-builder v-ref lhs-v)]
 
       [(sham:stmt:if tst thn els)
        (define tst-value (build-expression tst env))
@@ -351,6 +350,16 @@
   ;; (require "../disassemble/disassemble/main.rkt")
 
   (define i32 (sham:type:ref 'i32))
+  (define icmp-eq (sham:rator:symbol 'icmp-eq))
+  (define urem (sham:rator:symbol 'urem))
+  (define (build-app rator . rands)
+    (sham:exp:app rator rands))
+  (define (ui32 v)
+    (sham:exp:ui-value v i32))
+  (define ret sham:stmt:return)
+  (define v sham:exp:var)
+  (define rs sham:rator:symbol)
+  (define (defn n args types ret-type stmt) (sham:def:function n '() '() args types ret-type stmt))
   (define module-env
     (compile-module
      (sham:module
@@ -368,65 +377,57 @@
         (sham:def:function 'const1 '() '() '() '() i32
                            (sham:stmt:return (sham:exp:ui-value 1 i32)))
         (sham:def:function 'id '() '() '(x) (list i32) i32
-                           (sham:stmt:return (sham:exp:var 'x)))
-        )
+                           (ret (v 'x)))
+        
 
-       ;; (define-function (even? (x : int) : int)
-       ;;   (if (#%app jit-icmp-eq (#%app jit-urem x (#%value 2 int)) (#%value 0 int))
-       ;;       (return (#%value 1 int))
-       ;;       (return (#%value 0 int))))
+        (defn
+         'even? '(x) (list i32) i32
+         (sham:stmt:if (build-app icmp-eq (build-app urem (sham:exp:var 'x) (ui32 2))
+                                  (ui32 0))
+                       (ret (ui32 1))
+                       (ret (ui32 0))))
 
-       ;; (define-function (meven? (x : int) : int)
-       ;;   (if (#%app jit-icmp-eq x (#%value 0 int))
-       ;;       (return (#%value 1 int))
-       ;;       (return (#%app modd? (#%app jit-sub x (#%value 1 int))))))
+        (defn
+         'meven? '(x) (list i32) i32
+         (sham:stmt:if (build-app icmp-eq (v 'x) (ui32 0))
+                       (ret (ui32 1))
+                       (ret (build-app (rs 'modd?)
+                                       (build-app (rs 'sub) (v 'x) (ui32 1))))))
+        (defn
+         'modd?  '(x) (list i32) i32
+         (sham:stmt:if (build-app icmp-eq (v 'x) (ui32 0))
+                       (ret (ui32 0))
+                       (ret (build-app (rs 'meven?)
+                                       (build-app (rs 'sub) (v 'x) (ui32 1))))))
 
-       ;; (define-function (modd? (x : int) : int)
-       ;;   (if (#%app jit-icmp-eq x (#%value 0 int))
-       ;;       (return (#%value 0 int))
-       ;;       (return (#%app meven?
-       ;;                      (#%app jit-sub x (#%value 1 int))))))
+        (defn 'fact '(x) (list i32) i32
+          (sham:stmt:if (build-app icmp-eq (v 'x) (ui32 0))
+                        (ret (ui32 1))
+                        (ret (build-app (rs 'mul)
+                                        (v 'x)
+                                        (build-app (rs 'fact)
+                                                   (build-app (rs 'sub)
+                                                              (v 'x) (ui32 1)))))))
 
-       ;; (define-function (fact (x : int) : int)
-       ;;   (if (#%app jit-icmp-eq x (#%value 0 int))
-       ;;       (return (#%value 1 int))
-       ;;       (return (#%app jit-mul
-       ;;                      x
-       ;;                      (#%app fact
-       ;;                             (#%app jit-sub x (#%value 1 int)))))))
+        (defn 'factr '(x) (list i32) i32
+          (sham:stmt:let
+           '(result i) (list i32 i32) (list (ui32 1) (ui32 1))
+           (sham:stmt:block
+            (list
+             (sham:stmt:while
+              (build-app (rs 'icmp-ule) (v 'i) (v 'x))
+              (sham:stmt:block
+               (list
+                (sham:stmt:set! (v 'result)
+                                (build-app (rs 'mul-nuw)
+                                           (v 'result) (v 'i)))
+                (sham:stmt:set! (v 'i)
+                                (build-app (rs 'add-nuw) (v 'i) (ui32 1))))))
+             (ret (v 'result)))))))
 
-       ;; (define-function (factc (x : int) : int)
-       ;;   (let ((result* : int* (#%app jit-alloca (#%type int)))
-       ;;         (i* : int* (#%app jit-alloca (#%type int)))
-       ;;         (x* : int* (#%app jit-alloca (#%type int))))
-       ;;     (block
-       ;;      (#%exp (#%app jit-store! x x*))
-       ;;      (#%exp (#%app jit-store! (#%value 1 int) result*))
-       ;;      (#%exp (#%app jit-store! (#%value 1 int) i*))
-       ;;      (while () (#%app jit-icmp-ule
-       ;;                       (#%app jit-load i*)
-       ;;                       (#%app jit-load x*))
-       ;;             (block
-       ;;              (#%exp (#%app jit-store! 
-       ;;                            (#%app jit-mul-nuw (#%app jit-load result*)
-       ;;                                   (#%app jit-load i*))
-       ;;                            result*))
-       ;;              (#%exp (#%app jit-store!
-       ;;                      (#%app jit-add-nuw (#%app jit-load i*)
-       ;;                             (#%value 1 int))
-       ;;                      i*))))
-       ;;      (return (#%app jit-load result*)))))
 
-       ;; (define-function (factr (x : int) : int)
-       ;;   (let ((result : int (#%value 1 int)))
-       ;;     (let ((i : int (#%value 1 int)))
-       ;;       (block
-       ;;        (while ((result : int) (i : int))
-       ;;          (#%app jit-icmp-ule i x)
-       ;;          (block
-       ;;           (set! result (#%app jit-mul-nuw result i))
-       ;;           (set! i (#%app jit-add-nuw i (#%value 1 int)))))
-       ;;        (return result)))))
+
+
 
        ;; (define-function (malloc-test  : int)
        ;;   (let ((ptr : void* (#%app jit-malloc (#%type int))))
