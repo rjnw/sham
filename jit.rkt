@@ -5,6 +5,7 @@
 (require "private/llvm/pass-table.rkt")
 (require "private/env.rkt")
 (require "private/types.rkt")
+(require "private/ast.rkt")
 (require "private/internals.rkt")
 (require "private/utils.rkt")
 
@@ -52,6 +53,9 @@
              (LLVMDumpValue (env-jit-function-ref v)))))))
 (define (jit-dump-function mod sym)
   (LLVMDumpValue (env-jit-function-ref (env-lookup sym mod))))
+
+(define (jit-write-bitcode mod fname)
+  (LLVMWriteBitcodeToFile (env-lookup '#%jit-module mod) fname))
 
 (define (initialize-jit mod #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
@@ -169,7 +173,7 @@
       (define env2-ids (list->set (map car env2)))
       (set-subtract env2-ids env1-ids))
     (match stmt
-      [`(let ((,ids : ,types ,vals) ...) ,st)
+      [(sham:stmt:let ids types vals st)
        (define id-types (map (curryr env-lookup env) types))
        (define new-env
          (for/fold ([env env])
@@ -181,17 +185,17 @@
                        env)))
        (build-statement st new-env)]
 
-      [`(set! ,lhs ,v)
+      [(sham:stmt:set! lhs v)
        (define v-ref (build-expression v env))
        (define lhs-v (env-lookup lhs env))
        (env-extend lhs (env-jit-value v-ref (env-jit-value-type lhs-v)) env)]
 
-      [`(store! ,lhs ,v)
+      [(sham:stmt:store! lhs v)
        (LLVMBuildStore jit-builder
                        (env-jit-value-ref (env-lookup lhs env))
                        (build-expression v env))]
 
-      [`(if ,tst ,thn ,els)
+      [(sham:stmt:if tst thn els)
        (define tst-value (build-expression tst env))
        (define then-block
          (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
@@ -241,7 +245,7 @@
                                 (list thn-end-blk els-end-blk))
                (env-extend id (env-jit-value id-phi (env-jit-value-type id-thn)) env))))]
 
-      [`(while ((,vars : ,var-types) ...) ,tst ,body)
+      [(sham:stmt:while tst body)
 
        (define prev-block (LLVMGetInsertBlock jit-builder))
        (define loop-entry
@@ -332,55 +336,55 @@
                                      (env-lookup id body-env)))
                      env))]
 
-      [`(return ,v)
+      [(sham:stmt:return v)
        (LLVMBuildRet jit-builder (build-expression v env))
        (env-extend '#%return? #t env)]
-      [`(return-void)
+      [(sham:stmt:return-void)
        (LLVMBuildRetVoid jit-builder)
        (env-extend '#%return? #t env)]
 
-      [`(block ,stmts ...)
+      [(sham:stmt:block stmts)
        (for/fold ([env env])
                  ([stmt stmts])
          (build-statement stmt env))]
 
-      [`(#%exp ,e)
+      [(sham:stmt:exp e)
        (build-expression e env)
        env]
       [else (error "unknown statement or not implemented" stmt)]))
   
   (define (build-expression e env)
     (match e
-      [`(#%app ,rator ,rands ...);;TODO rator needs to be symbol
+      [(sham:exp:app rator rands)
        (define rand-values
          (for/list ([rand rands])
            (build-expression rand env)))
-       (build-app rator rand-values env)] ;;higher order functions
-      [`(#%value ,value ,type) (build-value value type env)]
-      [`(#%fl-value ,value ,type)
+       (build-app rator rand-values env)]
+      [(sham:exp:fl-value value type)
        (LLVMConstReal (type-prim-jit (env-type-prim (env-lookup type env)))
                       value)]
-      [`(#%si-value ,value ,type)
+      [(sham:exp:si-value value type)
        (LLVMConstInt (type-prim-jit (env-type-prim (env-lookup type env)))
                      value #t)]
-      [`(#%ui-value ,value ,type)
+      [(sham:exp:ui-value value type)
        (LLVMConstInt (type-prim-jit (env-type-prim (env-lookup type env)))
                      value #f)]
-      [`(#%sizeof ,type)
+      [(sham:exp:sizeof type)
        (define envtype (env-lookup type env))
-       (build-value (LLVMStoreSizeOfType jit-target-data
-                                         (type-prim-jit (env-type-prim envtype)))
-                    'i32 env)]
-      [`(#%type ,t)
+       (LLVMConstInt (type-prim-jit (env-type-prim (env-lookup 'i32 env)))
+                     (LLVMStoreSizeOfType jit-target-data
+                                          (type-prim-jit (env-type-prim envtype)))
+                     #f)]
+      [(sham:exp:type t)
        (define envtype (env-lookup t env))
        (type-prim-jit (env-type-prim envtype))]
-      ['#%void (void)]
-      [`(#%gep ,ptr ,indxs)
+      [(sham:exp:void-value) (void)]
+      [(sham:exp:gep ptr indxs)
        (LLVMBuildGEP jit-builder (build-expression ptr env)
                      (map (curryr build-expression env)
                           indxs)
                      "gep")]
-      [(? symbol?) (env-jit-value-ref (env-lookup e env))]))
+      [(sham:exp:var sym) (env-jit-value-ref (env-lookup sym env))]))
   
   (define (build-value value type env)
     (define envtype (env-lookup type env))
@@ -393,18 +397,18 @@
           [else (error "value type not supported yet!" value type)]))
   (define (build-app rator rand-values env)
     (match rator
-      [`(#%jit-intr ,str-id ,ret-type)
+      [(sham:rator:intrinsic str-id ret-type)
        (define s (symbol->string str-id))
        (define fn-type
          (LLVMFunctionType (get-env-jit-type ret-type env)
                            (map LLVMTypeOf rand-values) #f))
        (define ref (LLVMAddFunction jit-module s fn-type))
        (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
-      [else
-       (match (env-lookup rator env)
+      [(sham:rator:symbol sym)
+       (match (env-lookup sym env)
          [(env-jit-function ref type)
           (LLVMBuildCall jit-builder ref rand-values
-                         (substring (symbol->string rator) 0 3))]
+                         (substring (symbol->string sym) 0 3))]
          [(env-jit-intr-function builder)
           (builder jit-builder rand-values)]
          [else (error "cannot figure out how to apply: ~a" rator)])]))
@@ -434,7 +438,7 @@
 
 (define (compile-module m [module-name "module"] [context global-jit-context])
   ;; (define (diag-handler dinfo voidp)
-  ;;   (printf "\tdiag: ~a\n" (LLVMGetDiagInfoDescription dinfo)))
+  ;;   (printf "\tllvm-diag: ~a\n" (LLVMGetDiagInfoDescription dinfo)))
   ;; (LLVMContextSetDiagnosticHandler context diag-handler #f)
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
   (LLVMSetDataLayout jit-module "e-m:e-i64:64-f80:128-n8:16:32:64-S128")
@@ -443,14 +447,11 @@
 
   (define (register-module-statement stmt env)
     (match stmt
-      [`(define-type ,type-name ,t)
+      [(sham:def:type type-name t)
        (define type-decl (compile-type-declaration stmt env))
        (define type (compile-type-definition type-decl env))
        (env-extend type-name type env)]
-      [`(define-function
-          (#:pass ,p ...) ...
-          (#:attr ,a ...) ...
-          (,function-name (,args : ,types) ... : ,ret-type) ,body)
+      [(sham:def:function function-name _ _ args types ret-type body)
        (define type (create-type `(,@types -> ,ret-type) env))
        (define function-obj (compile-function-declaration type function-name jit-module))
        (env-extend function-name
@@ -460,38 +461,34 @@
   (define (compile-module-statement stmt env module-env)
     ;; TODO return values of name and obj
     (match stmt
-      [`(define-type ,type-name ,t)
+      [(sham:def:type type-name t)
        ;types are created in register phase; something for recursive struct types to be done
        ;; TODO for struct switch to creating empty struct type and then adding fields here
        (env-extend type-name (env-lookup type-name env) module-env)]
-      [`(define-function
-          (#:pass ,passes ...) ...
-          (#:attr ,attrs ...) ...
-          (,function-name (,args : ,types) ... : ,ret-type) ,body)
+      [(sham:def:function function-name passes attrs args types ret-type body)
        (define f (compile-function-definition function-name args types ret-type
         				      body (env-lookup function-name env)
         				      env jit-module jit-builder))
 
-       (for ([attr (flatten attrs)])
+       (for ([attr attrs])
          (LLVMAddAttributeAtIndex
           (env-jit-function-ref f)
           (cast -1 _int _uint)
           (jit-lookup-attr attr context)))
-       (jit-run-function-pass (flatten passes) jit-module f)
+       (jit-run-function-pass passes jit-module f)
        (env-extend function-name f module-env)]))
   (match m
-    [`(#%module (#:pass ,passes ...) ...
-                ,module-stmts ...)
+    [(sham:module passes defs)
      (define env
        (for/fold ([env (create-initial-environment context)])
-                 ([stmt module-stmts])
+                 ([stmt defs])
          (register-module-statement stmt env)))
      (define module-env
        (for/fold ([module-env (empty-env)])
                 ([stmt module-stmts])
          (compile-module-statement stmt env module-env)))
-     (jit-run-module-pass (flatten passes) jit-module)
-     ;; (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
+     (jit-run-module-pass passes jit-module)
+     (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
      (env-extend '#%jit-module jit-module module-env)]))
 
 
