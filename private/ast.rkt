@@ -220,4 +220,3 @@
 ;;      (ast-exp-gep (sa ptr) (map sa indxs))]
 ;;     [(? symbol?)
 ;;      (ast-exp-var s)]))
-

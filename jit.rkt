@@ -153,7 +153,7 @@
   (internal-type-racket (env-type-prim t)))
 
 (define (compile-function-definition name args types ret-type
-				     body env-function env jit-module jit-builder)
+                                     body env-function env jit-module jit-builder)
   (define fref (env-jit-function-ref env-function))
   (define ftype (env-jit-function-type env-function))
   (define jit-target-data (LLVMCreateTargetData (LLVMGetDataLayout jit-module)))
@@ -187,7 +187,7 @@
        (define tst-value (build-expression tst env))
        (define then-block (new-block 'then))
        (define else-block (new-block 'else))
-       
+
        (LLVMBuildCondBr jit-builder tst-value then-block else-block)
 
        (LLVMPositionBuilderAtEnd jit-builder then-block)
@@ -226,7 +226,7 @@
       [(sham:stmt:exp e)
        (build-expression e env)]
       [else (error "unknown statement" stmt)]))
-  
+
   (define (build-expression e env)
     (match e
       [(sham:exp:app rator rands)
@@ -255,7 +255,7 @@
                       (symbol->string sym))]
       [else (printf "~a\n" e)
             (error "no matching clause for build-expression")]))
-  
+
   (define (build-app rator rand-values env)
     (match rator
       [(sham:rator:intrinsic str-id ret-type)
@@ -306,9 +306,7 @@
       [(sham:def:function function-name _ _ args types ret-type body)
        (define type (build-env-type (sham:type:function types ret-type) env))
        (define function-obj (compile-function-declaration type function-name jit-module))
-       (env-extend function-name
-        	   (env-jit-function function-obj type)
-        	   env)]))
+       (env-extend function-name (env-jit-function function-obj type) env)]))
 
   (define (compile-module-statement stmt env module-env)
     ;; TODO return values of name and obj
@@ -320,8 +318,7 @@
       [(sham:def:function function-name passes attrs args types ret-type body)
        (printf "compiling-function ~a\n" function-name)
        (define f (compile-function-definition function-name args types ret-type
-        				      body (env-lookup function-name env)
-        				      env jit-module jit-builder))
+                                              env jit-module jit-builder))
 
        (for ([attr attrs])
          (LLVMAddAttributeAtIndex
@@ -368,7 +365,6 @@
        (list
         (sham:def:type 'int i32)
         (sham:def:type 'int* (sham:type:pointer i32))
-        
         (sham:def:type 'bc (sham:type:struct '(b c) (list i32 i32)))
         (sham:def:type 'pbc (sham:type:pointer (sham:type:ref 'bc)))
         (sham:def:type 'ui (sham:type:struct '(bc1 bc2) (list (sham:type:ref 'pbc)
@@ -379,7 +375,6 @@
                            (sham:stmt:return (sham:exp:ui-value 1 i32)))
         (sham:def:function 'id '() '() '(x) (list i32) i32
                            (ret (v 'x)))
-        
 
         (defn
          'even? '(x) (list i32) i32
@@ -425,8 +420,6 @@
                 (sham:stmt:set! (v 'i)
                                 (build-app (rs 'add-nuw) (v 'i) (ui32 1))))))
              (ret (v 'result))))))
-        
-
 
         (defn 'sum-array '(arr size) (list (sham:type:ref 'int*) i32) i32
           (sham:stmt:let
@@ -452,8 +445,7 @@
                          (sham:stmt:block
                           (list
                            (sham:stmt:exp (build-app (rs 'store!) (ui32 42) (v 'ptr)))
-                           (ret (build-app (rs 'load) (v 'ptr)))))
-                         ))))))
+                           (ret (build-app (rs 'load) (v 'ptr)))))))))))
 
   (jit-dump-module module-env)
   (jit-optimize-module module-env #:opt-level 3)
