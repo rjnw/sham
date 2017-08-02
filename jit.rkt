@@ -48,7 +48,7 @@
       (cond ([env-type? v]
              (begin
                (printf "type ~a: ~a\n" s
-                       (LLVMPrintTypeToString (type-prim-jit (env-type-prim v))))))
+                       (LLVMPrintTypeToString (internal-type-jit (env-type-prim v))))))
             ([env-jit-function? v]
              (LLVMDumpValue (env-jit-function-ref v)))))))
 (define (jit-dump-function mod sym)
@@ -75,13 +75,13 @@
 (define (jit-get-function f-sym mod)
   (define fptr (jit-compile-function f-sym mod))
   (define fref (env-lookup f-sym mod))
-  (define f-type (type-prim-racket (env-type-prim (env-jit-function-type fref))))
+  (define f-type (internal-type-racket (env-type-prim (env-jit-function-type fref))))
   (cast fptr _pointer f-type))
 
 (define (jit-get-function-ptr f-sym mod)
   (define fptr (jit-compile-function f-sym mod))
   (define fref (env-lookup f-sym mod))
-  (define f-type (type-prim-racket (env-type-prim (env-jit-function-type fref))))
+  (define f-type (internal-type-racket (env-type-prim (env-jit-function-type fref))))
   fptr)
 
 (define (jit-get-module mod-env)
@@ -150,28 +150,19 @@
   (LLVMDisposePassManager fpm))
 
 (define (jit-get-racket-type t)
-  (type-prim-racket (env-type-prim t)))
+  (internal-type-racket (env-type-prim t)))
 
 (define (get-env-jit-type t env)
-  (type-prim-jit
+  (internal-type-jit
    (env-type-prim
     (env-lookup t env))))
 
 ;; returns new env  
 (define (compile-statement stmt function-ref env jit-module jit-builder)
   (define jit-target-data (LLVMCreateTargetData (LLVMGetDataLayout jit-module)))
+  (define (llvm-type t env)
+    (internal-type-jit (compile-type t env)))
   (define (build-statement stmt env)
-    (define (find-common-change env1 env2)
-      (define env1-ids (list->set (map car env1)))
-      (define env2-ids (list->set (map car env2)))
-      (for/set [(id (set-intersect env1-ids env2-ids))
-                 #:when (not (eq? (env-lookup id env1)
-                                  (env-lookup id env2)))]
-        id))
-    (define (find-different env1 env2)
-      (define env1-ids (list->set (map car env1)))
-      (define env2-ids (list->set (map car env2)))
-      (set-subtract env2-ids env1-ids))
     (match stmt
       [(sham:stmt:let ids types vals st)
        (define id-types (map (curryr env-lookup env) types))
@@ -180,20 +171,19 @@
                    ([id-type id-types]
                     [id ids]
                     [val vals])
-           (env-extend id
-                       (env-jit-value (build-expression val env) id-type)
-                       env)))
+           (define p (LLVMBuildAlloca jit-builder (llvm-type id-type env)
+                                      (symbol->string id)))
+           (env-extend id p env)
+           (unless (sham:exp:void-value? val)
+             (LLVMBuildStore jit-builder p (build-expression val)))))
        (build-statement st new-env)]
 
       [(sham:stmt:set! lhs v)
        (define v-ref (build-expression v env))
        (define lhs-v (env-lookup lhs env))
-       (env-extend lhs (env-jit-value v-ref (env-jit-value-type lhs-v)) env)]
-
-      [(sham:stmt:store! lhs v)
        (LLVMBuildStore jit-builder
-                       (env-jit-value-ref (env-lookup lhs env))
-                       (build-expression v env))]
+                       (env-jit-value v-ref (env-jit-value-type lhs-v))
+                       lhs-v)]
 
       [(sham:stmt:if tst thn els)
        (define tst-value (build-expression tst env))
@@ -207,43 +197,10 @@
        (LLVMBuildCondBr jit-builder tst-value then-block else-block)
 
        (LLVMPositionBuilderAtEnd jit-builder then-block)
-       (define thn-env (build-statement thn env))
-       (define thn-end-blk (LLVMGetInsertBlock jit-builder))
-       (define thn-return (env-contains? '#%return? thn-env))
+       (build-statement thn env)
 
        (LLVMPositionBuilderAtEnd jit-builder else-block)
-       (define els-env (build-statement els env))
-       (define els-end-blk (LLVMGetInsertBlock jit-builder))
-       (define els-return (env-contains? '#%return? els-env))
-
-       (if (and thn-return els-return)
-           env
-           (let ((end-block (LLVMAppendBasicBlockInContext
-                             (LLVMGetModuleContext jit-module)
-                             function-ref (symbol->string (gensym^ 'ifend)))))
-             (unless thn-return
-               (LLVMPositionBuilderAtEnd jit-builder thn-end-blk)
-               (LLVMBuildBr jit-builder end-block))
-             (unless els-return
-               (LLVMPositionBuilderAtEnd jit-builder els-end-blk)
-               (LLVMBuildBr jit-builder end-block))
-             (LLVMPositionBuilderAtEnd jit-builder end-block)
-             (for/fold [(env env)]
-                       [(id (find-common-change thn-env els-env))]
-               (define id-thn (env-lookup id thn-env))
-               (define id-els (env-lookup id els-env))
-               (define id-phi
-                 (LLVMBuildPhi jit-builder
-                               (type-prim-jit
-                                (env-type-prim
-                                 (env-jit-value-type
-                                  id-thn)))
-                               (symbol->string id)))
-               (LLVMAddIncoming id-phi
-                                (list (env-jit-value-ref id-thn)
-                                      (env-jit-value-ref id-els))
-                                (list thn-end-blk els-end-blk))
-               (env-extend id (env-jit-value id-phi (env-jit-value-type id-thn)) env))))]
+       (build-statement els env)]
 
       [(sham:stmt:while tst body)
 
@@ -261,140 +218,65 @@
        (LLVMBuildBr jit-builder loop-entry)
 
        (LLVMPositionBuilderAtEnd jit-builder loop-entry)
-       (define tst-loop-phis
-         (for/list
-             ([var vars]
-              [type var-types])
-           (LLVMBuildPhi jit-builder
-                         (type-prim-jit (env-type-prim (env-lookup type env)))
-                         (symbol->string var))))
-       (define tst-env (for/fold
-                           [(env env)]
-                           [(var vars)
-                            (var-ref tst-loop-phis)
-                            (type var-types)]
-                         (env-extend var
-                                     (env-jit-value var-ref
-                                                    (env-lookup type env))
-                                     env)))
-       (define tst-value (build-expression tst tst-env))
+       (define tst-value (build-expression tst env))
        (LLVMBuildCondBr jit-builder tst-value loop-block afterloop-block)
 
        (LLVMPositionBuilderAtEnd jit-builder loop-block)
 
-       (define body-loop-phis
-         (for/list
-             ([var vars]
-              [type var-types])
-           (LLVMBuildPhi jit-builder
-                         (type-prim-jit (env-type-prim (env-lookup type env)))
-                         (symbol->string var))))
-       (define new-body-env
-         (for/fold
-             [(env env)]
-             [(var vars)
-              (var-ref body-loop-phis)
-              (type var-types)]
-           (env-extend var
-                       (env-jit-value var-ref
-                                      (env-lookup type env))
-                       env)))
-       
-       (for ([var vars]
-             [phi body-loop-phis])
-         (LLVMAddIncoming phi
-                          (list (env-jit-value-ref (env-lookup var tst-env)))
-                          (list loop-entry)))
-       
-       (define body-env (build-statement body new-body-env))
+       (build-statement body env)
        (define body-end-blk (LLVMGetInsertBlock jit-builder))
-       (for ([var vars]
-             [phi tst-loop-phis])
-         (LLVMAddIncoming phi
-                          (list (env-jit-value-ref (env-lookup var env))
-                                (env-jit-value-ref (env-lookup var body-env)))
-                          (list prev-block body-end-blk)))
        (LLVMBuildBr jit-builder loop-entry)
 
-       (LLVMPositionBuilderAtEnd jit-builder afterloop-block)
-
-       (for/fold ([env env])
-                 ([id (find-common-change env body-env)])
-         (define id-phi
-           (LLVMBuildPhi jit-builder
-                         (type-prim-jit
-                          (env-type-prim
-                           (env-jit-value-type
-                            (env-lookup id body-env))))
-                         (symbol->string id)))
-         (LLVMAddIncoming id-phi
-                          (list (env-jit-value-ref (env-lookup id tst-env)))
-                          (list loop-entry))
-         (env-extend id
-                     (env-jit-value id-phi
-                                    (env-jit-value-type
-                                     (env-lookup id body-env)))
-                     env))]
+       (LLVMPositionBuilderAtEnd jit-builder afterloop-block)]
 
       [(sham:stmt:return v)
-       (LLVMBuildRet jit-builder (build-expression v env))
-       (env-extend '#%return? #t env)]
+       (LLVMBuildRet jit-builder (build-expression v env))]
       [(sham:stmt:return-void)
-       (LLVMBuildRetVoid jit-builder)
-       (env-extend '#%return? #t env)]
+       (LLVMBuildRetVoid jit-builder)]
 
       [(sham:stmt:block stmts)
-       (for/fold ([env env])
-                 ([stmt stmts])
+       (for ([stmt stmts])
          (build-statement stmt env))]
 
       [(sham:stmt:exp e)
-       (build-expression e env)
-       env]
+       (build-expression e env)]
       [else (error "unknown statement or not implemented" stmt)]))
   
   (define (build-expression e env)
+
     (match e
       [(sham:exp:app rator rands)
        (define rand-values
          (for/list ([rand rands])
            (build-expression rand env)))
        (build-app rator rand-values env)]
-      [(sham:exp:fl-value value type)
-       (LLVMConstReal (type-prim-jit (env-type-prim (env-lookup type env)))
+      [(sham:exp:fl-value value t)
+       (LLVMConstReal (llvm-type t env)
                       value)]
-      [(sham:exp:si-value value type)
-       (LLVMConstInt (type-prim-jit (env-type-prim (env-lookup type env)))
+      [(sham:exp:si-value value t)
+       (LLVMConstInt (llvm-type t env)
                      value #t)]
-      [(sham:exp:ui-value value type)
-       (LLVMConstInt (type-prim-jit (env-type-prim (env-lookup type env)))
+      [(sham:exp:ui-value value t)
+       (LLVMConstInt (llvm-type t env)
                      value #f)]
       [(sham:exp:sizeof type)
        (define envtype (env-lookup type env))
-       (LLVMConstInt (type-prim-jit (env-type-prim (env-lookup 'i32 env)))
+       (LLVMConstInt (internal-type-jit (env-type-prim (env-lookup 'i32 env)))
                      (LLVMStoreSizeOfType jit-target-data
-                                          (type-prim-jit (env-type-prim envtype)))
+                                          (internal-type-jit (env-type-prim envtype)))
                      #f)]
       [(sham:exp:type t)
        (define envtype (env-lookup t env))
-       (type-prim-jit (env-type-prim envtype))]
+       (internal-type-jit (env-type-prim envtype))]
       [(sham:exp:void-value) (void)]
       [(sham:exp:gep ptr indxs)
        (LLVMBuildGEP jit-builder (build-expression ptr env)
                      (map (curryr build-expression env)
                           indxs)
                      "gep")]
-      [(sham:exp:var sym) (env-jit-value-ref (env-lookup sym env))]))
+      [(sham:exp:var sym) (LLVMBuildLoad jit-builder (env-jit-value-ref (env-lookup sym env))
+                                         (symbol->string sym))]))
   
-  (define (build-value value type env)
-    (define envtype (env-lookup type env))
-    (define prim-type (type-prim-jit (env-type-prim envtype)))
-    (cond [(or (type-native-int? envtype)
-               (type-pointer? (env-type-skel envtype)))
-           (LLVMConstInt prim-type value #f)] ;;add signed
-          [(type-float32? envtype)
-           (LLVMConstReal prim-type value)]
-          [else (error "value type not supported yet!" value type)]))
   (define (build-app rator rand-values env)
     (match rator
       [(sham:rator:intrinsic str-id ret-type)
@@ -414,32 +296,38 @@
          [else (error "cannot figure out how to apply: ~a" rator)])]))
   (build-statement stmt env))
 
+(define lfet (compose internal-type-jit env-type-prim))
 (define (compile-function-definition name args types ret-type
 				     body env-function env jit-module jit-builder)
   (define fref (env-jit-function-ref env-function))
   (define ftype (env-jit-function-type env-function))
+  (define entry-block (LLVMAppendBasicBlockInContext
+                       (LLVMGetModuleContext jit-module) fref "entry"))
+  (LLVMPositionBuilderAtEnd jit-builder entry-block)
   (define new-env
     (for/fold ([env env])
              ([arg args]
               [type types]
               [i (in-range (length args))])
+      (define l-type (build-env-type type env))
+      (define p-arg (LLVMBuildAlloca jit-builder (lfet l-type) (symbol->string arg)))
+      (LLVMBuildStore jit-builder (LLVMGetParam fref i) p-arg)
       (env-extend arg
-		  (env-jit-value (LLVMGetParam fref i) type)
+		  (env-jit-value p-arg l-type)
 		  env)))
-  (define entry-block (LLVMAppendBasicBlockInContext
-                       (LLVMGetModuleContext jit-module) fref "entry"))
-  (LLVMPositionBuilderAtEnd jit-builder entry-block)
+
+
   (compile-statement body fref new-env jit-module jit-builder)
   env-function)
 
 (define (compile-function-declaration env-function-type function-name jit-module)
-  (define function-type (type-prim-jit (env-type-prim env-function-type)))
+  (define function-type (internal-type-jit (env-type-prim env-function-type)))
   (LLVMAddFunction jit-module (symbol->string function-name) function-type))
 
 (define (compile-module m [module-name "module"] [context global-jit-context])
-  ;; (define (diag-handler dinfo voidp)
-  ;;   (printf "\tllvm-diag: ~a\n" (LLVMGetDiagInfoDescription dinfo)))
-  ;; (LLVMContextSetDiagnosticHandler context diag-handler #f)
+  (define (diag-handler dinfo voidp)
+    (printf "\tllvm-diag: ~a\n" (LLVMGetDiagInfoDescription dinfo)))
+  (LLVMContextSetDiagnosticHandler context diag-handler #f)
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
   (LLVMSetDataLayout jit-module "e-m:e-i64:64-f80:128-n8:16:32:64-S128")
   (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu") ;TODO set target for machine
@@ -448,11 +336,9 @@
   (define (register-module-statement stmt env)
     (match stmt
       [(sham:def:type type-name t)
-       (define type-decl (compile-type-declaration stmt env))
-       (define type (compile-type-definition type-decl env))
-       (env-extend type-name type env)]
+       (env-extend type-name (build-env-type t env) env)]
       [(sham:def:function function-name _ _ args types ret-type body)
-       (define type (create-type `(,@types -> ,ret-type) env))
+       (define type (build-env-type (sham:type:function types ret-type) env))
        (define function-obj (compile-function-declaration type function-name jit-module))
        (env-extend function-name
         	   (env-jit-function function-obj type)
@@ -466,6 +352,7 @@
        ;; TODO for struct switch to creating empty struct type and then adding fields here
        (env-extend type-name (env-lookup type-name env) module-env)]
       [(sham:def:function function-name passes attrs args types ret-type body)
+       (printf "compiling-function ~a\n" function-name)
        (define f (compile-function-definition function-name args types ret-type
         				      body (env-lookup function-name env)
         				      env jit-module jit-builder))
@@ -485,7 +372,7 @@
          (register-module-statement stmt env)))
      (define module-env
        (for/fold ([module-env (empty-env)])
-                ([stmt module-stmts])
+                ([stmt defs])
          (compile-module-statement stmt env module-env)))
      (jit-run-module-pass passes jit-module)
      (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
@@ -497,129 +384,134 @@
   (require rackunit)
   ;; (require "../disassemble/disassemble/main.rkt")
 
+  (define i32 (sham:type:ref 'i32))
   (define module-env
     (compile-module
-     '(#%module
-       (#:pass AlwaysInliner)
-       (define-type int i32)
-       (define-type int* (pointer int))
+     (sham:module
+       '(AlwaysInliner)
+       (list
+        (sham:def:type 'int i32)
+        (sham:def:type 'int* (sham:type:pointer i32))
+        
+        (sham:def:type 'bc (sham:type:struct '(b c) (list i32 i32)))
+        (sham:def:type 'pbc (sham:type:pointer (sham:type:ref 'bc)))
+        (sham:def:type 'ui (sham:type:struct '(bc1 bc2) (list (sham:type:ref 'pbc)
+                                                              (sham:type:ref 'pbc))))
 
-       (define-type bc (struct (b : i32) (c : i32)))
-       (define-type pbc (pointer bc))
-       (define-type ui (struct (bc1 : pbc) (bc2 : pbc)))
 
-       (define-function (id (x : int) : int)
-         (return x))
+        (sham:def:function 'const1 '() '() '() '() i32
+                           (sham:stmt:return (sham:exp:ui-value 1 i32)))
+        (sham:def:function 'id '() '() '(x) (list i32) i32
+                           (sham:stmt:return (sham:exp:var 'x)))
+        )
 
-       (define-function (const1 : int)
-         (return (#%value 1 int)))
+       ;; (define-function (even? (x : int) : int)
+       ;;   (if (#%app jit-icmp-eq (#%app jit-urem x (#%value 2 int)) (#%value 0 int))
+       ;;       (return (#%value 1 int))
+       ;;       (return (#%value 0 int))))
 
-       (define-function (even? (x : int) : int)
-         (if (#%app jit-icmp-eq (#%app jit-urem x (#%value 2 int)) (#%value 0 int))
-             (return (#%value 1 int))
-             (return (#%value 0 int))))
+       ;; (define-function (meven? (x : int) : int)
+       ;;   (if (#%app jit-icmp-eq x (#%value 0 int))
+       ;;       (return (#%value 1 int))
+       ;;       (return (#%app modd? (#%app jit-sub x (#%value 1 int))))))
 
-       (define-function (meven? (x : int) : int)
-         (if (#%app jit-icmp-eq x (#%value 0 int))
-             (return (#%value 1 int))
-             (return (#%app modd? (#%app jit-sub x (#%value 1 int))))))
+       ;; (define-function (modd? (x : int) : int)
+       ;;   (if (#%app jit-icmp-eq x (#%value 0 int))
+       ;;       (return (#%value 0 int))
+       ;;       (return (#%app meven?
+       ;;                      (#%app jit-sub x (#%value 1 int))))))
 
-       (define-function (modd? (x : int) : int)
-         (if (#%app jit-icmp-eq x (#%value 0 int))
-             (return (#%value 0 int))
-             (return (#%app meven?
-                            (#%app jit-sub x (#%value 1 int))))))
+       ;; (define-function (fact (x : int) : int)
+       ;;   (if (#%app jit-icmp-eq x (#%value 0 int))
+       ;;       (return (#%value 1 int))
+       ;;       (return (#%app jit-mul
+       ;;                      x
+       ;;                      (#%app fact
+       ;;                             (#%app jit-sub x (#%value 1 int)))))))
 
-       (define-function (fact (x : int) : int)
-         (if (#%app jit-icmp-eq x (#%value 0 int))
-             (return (#%value 1 int))
-             (return (#%app jit-mul
-                            x
-                            (#%app fact
-                                   (#%app jit-sub x (#%value 1 int)))))))
+       ;; (define-function (factc (x : int) : int)
+       ;;   (let ((result* : int* (#%app jit-alloca (#%type int)))
+       ;;         (i* : int* (#%app jit-alloca (#%type int)))
+       ;;         (x* : int* (#%app jit-alloca (#%type int))))
+       ;;     (block
+       ;;      (#%exp (#%app jit-store! x x*))
+       ;;      (#%exp (#%app jit-store! (#%value 1 int) result*))
+       ;;      (#%exp (#%app jit-store! (#%value 1 int) i*))
+       ;;      (while () (#%app jit-icmp-ule
+       ;;                       (#%app jit-load i*)
+       ;;                       (#%app jit-load x*))
+       ;;             (block
+       ;;              (#%exp (#%app jit-store! 
+       ;;                            (#%app jit-mul-nuw (#%app jit-load result*)
+       ;;                                   (#%app jit-load i*))
+       ;;                            result*))
+       ;;              (#%exp (#%app jit-store!
+       ;;                      (#%app jit-add-nuw (#%app jit-load i*)
+       ;;                             (#%value 1 int))
+       ;;                      i*))))
+       ;;      (return (#%app jit-load result*)))))
 
-       (define-function (factc (x : int) : int)
-         (let ((result* : int* (#%app jit-alloca (#%type int)))
-               (i* : int* (#%app jit-alloca (#%type int)))
-               (x* : int* (#%app jit-alloca (#%type int))))
-           (block
-            (#%exp (#%app jit-store! x x*))
-            (#%exp (#%app jit-store! (#%value 1 int) result*))
-            (#%exp (#%app jit-store! (#%value 1 int) i*))
-            (while () (#%app jit-icmp-ule
-                             (#%app jit-load i*)
-                             (#%app jit-load x*))
-                   (block
-                    (#%exp (#%app jit-store! 
-                                  (#%app jit-mul-nuw (#%app jit-load result*)
-                                         (#%app jit-load i*))
-                                  result*))
-                    (#%exp (#%app jit-store!
-                            (#%app jit-add-nuw (#%app jit-load i*)
-                                   (#%value 1 int))
-                            i*))))
-            (return (#%app jit-load result*)))))
+       ;; (define-function (factr (x : int) : int)
+       ;;   (let ((result : int (#%value 1 int)))
+       ;;     (let ((i : int (#%value 1 int)))
+       ;;       (block
+       ;;        (while ((result : int) (i : int))
+       ;;          (#%app jit-icmp-ule i x)
+       ;;          (block
+       ;;           (set! result (#%app jit-mul-nuw result i))
+       ;;           (set! i (#%app jit-add-nuw i (#%value 1 int)))))
+       ;;        (return result)))))
 
-       (define-function (factr (x : int) : int)
-         (let ((result : int (#%value 1 int)))
-           (let ((i : int (#%value 1 int)))
-             (block
-              (while ((result : int) (i : int))
-                (#%app jit-icmp-ule i x)
-                (block
-                 (set! result (#%app jit-mul-nuw result i))
-                 (set! i (#%app jit-add-nuw i (#%value 1 int)))))
-              (return result)))))
+       ;; (define-function (malloc-test  : int)
+       ;;   (let ((ptr : void* (#%app jit-malloc (#%type int))))
+       ;;     (block
+       ;;      (#%exp (#%app jit-store! (#%value 42 int) ptr ))
+       ;;      (return (#%app jit-load ptr)))))
 
-       (define-function (malloc-test  : int)
-         (let ((ptr : void* (#%app jit-malloc (#%type int))))
-           (block
-            (#%exp (#%app jit-store! (#%value 42 int) ptr ))
-            (return (#%app jit-load ptr)))))
+       ;; (define-function (#:attr AlwaysInline) (add (x : int) (y : int) : int)
+       ;;   (return (#%app jit-add x y)))
 
-       (define-function (#:attr AlwaysInline) (add (x : int) (y : int) : int)
-         (return (#%app jit-add x y)))
-
-       (define-function (sum-array (arr : int*) (size : int) : int)
-         (let ((i : int (#%value 0 int))
-               (sum : int (#%value 0 int)))
-           (block
-            (while ((sum : int) (i : int))
-              (#%app jit-icmp-ult i size)
-              (block
-               (let ((arri : int* (#%gep arr (i))))
-                 (set! sum (#%app add
-                                  sum
-                                  (#%app jit-load arri))))
-               (set! i (#%app jit-add i (#%value 1 int)))))
-            (return sum)))))))
+       ;; (define-function (sum-array (arr : int*) (size : int) : int)
+       ;;   (let ((i : int (#%value 0 int))
+       ;;         (sum : int (#%value 0 int)))
+       ;;     (block
+       ;;      (while ((sum : int) (i : int))
+       ;;        (#%app jit-icmp-ult i size)
+       ;;        (block
+       ;;         (let ((arri : int* (#%gep arr (i))))
+       ;;           (set! sum (#%app add
+       ;;                            sum
+       ;;                            (#%app jit-load arri))))
+       ;;         (set! i (#%app jit-add i (#%value 1 int)))))
+       ;;      (return sum))))
+       )))
 
   (jit-dump-module module-env)
   (jit-optimize-module module-env #:opt-level 3)
   (jit-dump-module module-env)
-  (error 'stop)
   (jit-verify-module module-env)
-  (define cenv (initialize-jit module-env #:opt-level 3))
+  ;; (define cenv (initialize-jit module-env #:opt-level 3))
 
-  (define add (jit-get-function 'add cenv))
+  ;; (define add (jit-get-function 'add cenv))
 
-  (define factr (jit-get-function 'factr cenv))
-  (define factc (jit-get-function 'factc cenv))
-  (define fact (jit-get-function 'fact cenv))
-  (define even? (jit-get-function 'even? cenv))
-  (define meven? (jit-get-function 'meven? cenv))
-  ;; (disassemble-ffi-function (jit-get-function-ptr 'sum-array cenv)
-  ;;                           #:size 70)
+  ;; (define factr (jit-get-function 'factr cenv))
+  ;; (define factc (jit-get-function 'factc cenv))
+  ;; (define fact (jit-get-function 'fact cenv))
+  ;; (define even? (jit-get-function 'even? cenv))
+  ;; (define meven? (jit-get-function 'meven? cenv))
+  ;; ;; (disassemble-ffi-function (jit-get-function-ptr 'sum-array cenv)
+  ;; ;;                           #:size 70)
 
-  (check-eq? (add 3 5) 8)
-  (check-eq? (fact 5) 120)
-  (check-eq? (factr 5) 120)
-  (check-eq? (factc 5) 120)
-  (check-eq? (even? 42) 1)
-  (check-eq? (meven? 21) 0)
+  ;; (check-eq? (add 3 5) 8)
+  ;; (check-eq? (fact 5) 120)
+  ;; (check-eq? (factr 5) 120)
+  ;; (check-eq? (factc 5) 120)
+  ;; (check-eq? (even? 42) 1)
+  ;; (check-eq? (meven? 21) 0)
 
-  (define malloc-test (jit-get-function 'malloc-test cenv))
-  (check-eq? (malloc-test) 42)
+  ;; (define malloc-test (jit-get-function 'malloc-test cenv))
+  ;; (check-eq? (malloc-test) 42)
 
-  (define sum-array (jit-get-function 'sum-array cenv))
-  (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6))
+  ;; (define sum-array (jit-get-function 'sum-array cenv))
+  ;; (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6)
+  )

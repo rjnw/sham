@@ -7,6 +7,7 @@
 (define-struct sham:def:function      (id passes attrs arg-ids arg-types ret-type body))
 (define-struct sham:def:type          (id type))
 
+(define-struct sham:type:internal     ())
 (define-struct sham:type:ref          (to))
 (define-struct sham:type:struct       (fields types))
 (define-struct sham:type:function     (args ret))
@@ -14,7 +15,6 @@
 
 (define-struct sham:stmt:let          (ids id-types id-vals stmt))
 (define-struct sham:stmt:set!         (lhs val))
-(define-struct sham:stmt:store!       (lhs val))
 (define-struct sham:stmt:if           (tst thn els))
 (define-struct sham:stmt:while        (tst body))
 (define-struct sham:stmt:return       (val))

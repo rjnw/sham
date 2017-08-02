@@ -5,7 +5,9 @@
 (require "ast.rkt")
 (require "env.rkt")
 
-(provide build-env-type
+(provide compile-type
+         build-env-type
+         register-initial-types
          internal-type-racket
          internal-type-jit)
 
@@ -121,7 +123,7 @@
                                (build-env-type (sham:type:struct '(size data) (list i32 i32)) env2)
                                env2))
   (pretty-print new-env1)
-  (pretty-display (create-type (sham:type:pointer i32) env0))
+  (pretty-display (build-env-type (sham:type:pointer i32) env0))
   (pretty-display (build-env-type (sham:type:function (list i32) i32) env0))
   (define new-env (env-extend 'intref (build-env-type (sham:type:ref 'i32) env0) env0))
   (pretty-display (type-native-int? (env-lookup 'i32 new-env)))
