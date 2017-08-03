@@ -9,7 +9,7 @@
 (require "private/internals.rkt")
 (require "private/utils.rkt")
 
-(provide (all-defined-out)
+(provide compile-module
          env-lookup)
 
 (define (llvm-initialize)
@@ -430,8 +430,9 @@
               (build-app (rs 'icmp-ult) (v 'i) (v 'size))
               (sham:stmt:block
                (list
-                (sham:stmt:let '(arri) (list (sham:type:ref 'int*)) (list (sham:exp:gep (v 'arr)
-                                                                                        (list (v 'i))))
+                (sham:stmt:let '(arri) (list (sham:type:ref 'int*))
+                               (list (sham:exp:gep (v 'arr)
+                                                   (list (v 'i))))
                                (sham:stmt:set! (v 'sum)
                                                (build-app (rs 'add)
                                                           (v 'sum)
@@ -466,9 +467,5 @@
   (check-eq? (factr 5) 120)
   (check-eq? (even? 42) 1)
   (check-eq? (meven? 21) 0)
-
-
   (check-eq? (malloc-test) 42)
-
-
   (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6))
