@@ -9,8 +9,13 @@
 (require "private/internals.rkt")
 (require "private/utils.rkt")
 
-(provide compile-module
-         env-lookup)
+(provide
+ initialize-jit
+ jit-dump-module
+ jit-get-racket-type
+ jit-get-function
+ compile-module
+ env-lookup)
 
 (define (llvm-initialize)
   (LLVMLinkInMCJIT)
@@ -153,7 +158,8 @@
   (internal-type-racket (env-type-prim t)))
 
 (define (compile-function-definition name args types ret-type
-                                     body env-function env jit-module jit-builder)
+                                     body env jit-module jit-builder)
+  (define env-function (env-lookup name env))
   (define fref (env-jit-function-ref env-function))
   (define ftype (env-jit-function-type env-function))
   (define jit-target-data (LLVMCreateTargetData (LLVMGetDataLayout jit-module)))
@@ -317,7 +323,7 @@
        (env-extend type-name (env-lookup type-name env) module-env)]
       [(sham:def:function function-name passes attrs args types ret-type body)
        (printf "compiling-function ~a\n" function-name)
-       (define f (compile-function-definition function-name args types ret-type
+       (define f (compile-function-definition function-name args types ret-type body
                                               env jit-module jit-builder))
 
        (for ([attr attrs])
