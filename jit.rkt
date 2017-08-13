@@ -14,6 +14,7 @@
  jit-dump-module
  jit-get-racket-type
  jit-get-function
+ jit-optimize-module
  compile-module
  env-lookup)
 
