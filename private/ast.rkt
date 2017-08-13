@@ -2,53 +2,53 @@
 
 (provide (all-defined-out))
 
-(define-struct sham:module            (passes defs))
+(struct sham:module            (passes defs))
 
 
-(define-struct sham:def ())
+(struct sham:def ())
 
-(define-struct (sham:def:function sham:def)      (id passes attrs arg-ids arg-types ret-type body))
-(define-struct (sham:def:type sham:def)          (id type))
-
-
-(define-struct sham:type ())
-
-(define-struct (sham:type:internal sham:type)     ())
-(define-struct (sham:type:ref sham:type)          (to))
-(define-struct (sham:type:struct sham:type)       (fields types))
-(define-struct (sham:type:function sham:type)     (args ret))
-(define-struct (sham:type:pointer sham:type)      (to))
+(struct sham:def:function  sham:def     (id passes attrs arg-ids arg-types ret-type body))
+(struct sham:def:type      sham:def     (id type))
 
 
-(define-struct sham:stmt ())
+(struct sham:type ())
 
-(define-struct sham:stmt:let          (ids id-types id-vals stmt))
-(define-struct sham:stmt:set!         (lhs val))
-(define-struct sham:stmt:if           (tst thn els))
-(define-struct sham:stmt:while        (tst body))
-(define-struct sham:stmt:return       (val))
-(define-struct sham:stmt:return-void  ())
-(define-struct sham:stmt:block        (stmts))
-(define-struct sham:stmt:exp          (e))
+(struct sham:type:internal sham:type    ())
+(struct sham:type:ref      sham:type    (to))
+(struct sham:type:struct   sham:type    (fields types))
+(struct sham:type:function sham:type    (args ret))
+(struct sham:type:pointer  sham:type    (to))
 
 
-(define-struct sham:exp ())
+(struct sham:stmt ())
 
-(define-struct sham:exp:app           (rator rands))
-(define-struct sham:exp:fl-value      (v t))
-(define-struct sham:exp:si-value      (v t))
-(define-struct sham:exp:ui-value      (v t))
-(define-struct sham:exp:void-value    ())
-(define-struct sham:exp:sizeof        (t))
-(define-struct sham:exp:type          (t))
-(define-struct sham:exp:gep           (ptr indxs))
-(define-struct sham:exp:var           (v))
+(struct sham:stmt:let          (ids id-types id-vals stmt))
+(struct sham:stmt:set!         (lhs val))
+(struct sham:stmt:if           (tst thn els))
+(struct sham:stmt:while        (tst body))
+(struct sham:stmt:return       (val))
+(struct sham:stmt:return-void  ())
+(struct sham:stmt:block        (stmts))
+(struct sham:stmt:exp          (e))
 
 
-(define-struct sham:rator ())
+(struct sham:exp ())
 
-(define-struct sham:rator:intrinsic   (str-id ret-type))
-(define-struct sham:rator:symbol      (sym))
+(struct sham:exp:app           (rator rands))
+(struct sham:exp:fl-value      (v t))
+(struct sham:exp:si-value      (v t))
+(struct sham:exp:ui-value      (v t))
+(struct sham:exp:void-value    ())
+(struct sham:exp:sizeof        (t))
+(struct sham:exp:type          (t))
+(struct sham:exp:gep           (ptr indxs))
+(struct sham:exp:var           (v))
+
+
+(struct sham:rator ())
+
+(struct sham:rator:intrinsic   (str-id ret-type))
+(struct sham:rator:symbol      (sym))
 
 ;;TODO add debug parameters to printer
 (define (print-sham-type t)
@@ -121,123 +121,166 @@
      `(module
        ,@(map print-sham-def defs))]))
 
-;; (define (ast->sexp ast)
-;;   (define as ast->sexp)
-;;   (match ast
-;;     [(ast-module defs)
-;;      `(#%module
-;;        ,@(map as defs))]
-;;     [(ast-function-def id passes attrs arg-ids arg-types ret-type body)
-;;      `(define-function (#:pass ,@passes) (#:attr ,@attrs)
-;;         (,id ,@(for/list ([i arg-ids]
-;;                           [t arg-types])
-;;                  `(,(as i) : ,t)) : ,ret-type)
-;;         ,(as body))]
-;;     [(ast-type-def id type)
-;;      `(define-type ,id ,(as type))]
+(define (sham-type->sexp t)
+  (match t
+    [(sham:type:internal)
+     '_]
+    [(sham:type:ref to)
+     to]
+    [(sham:type:struct fields types)
+     `(struct ,(for/list [(f fields) (t types)] `(,f : ,(sham-type->sexp t))))]
+    [(sham:type:function args ret)
+     `(,@(map sham-type->sexp args) -> ,(sham-type->sexp ret))]
+    [(sham:type:pointer to)
+     `(* ,(sham-type->sexp to))]))
 
-;;     [(ast-type-ref to)
-;;      to]
-;;     [(ast-type-struct fields types)
-;;      `(struct ,@(for/list ([i fields] [t types]) `(,i : ,t)))]
-;;     [(ast-type-function args ret)
-;;      `(,@args -> ,ret)]
-;;     [(ast-type-pointer to)
-;;      `(pointer ,to)]
+(define (sham-stmt->sexp stmt)
+  (match stmt
+    [(sham:stmt:let ids ts vs st)
+     `(let ,(for/list [(i ids) (t ts) (v vs)]
+              `(,i : ,(sham-type->sexp t) ,(sham-expr->sexp v)))
+        ,(sham-stmt->sexp st))]
+    [(sham:stmt:set! lhs val)
+     `(set! ,(sham-expr->sexp lhs) ,(sham-expr->sexp val))]
+    [(sham:stmt:if tst thn els)
+     `(if ,(sham-expr->sexp tst) ,(sham-stmt->sexp thn) ,(sham-stmt->sexp els))]
+    [(sham:stmt:while tst body)
+     `(while ,(sham-expr->sexp tst) ,(sham-stmt->sexp body))]
+    [(sham:stmt:return val)
+     `(return ,(sham-expr->sexp val))]
+    [(sham:stmt:return-void)
+     `(return-void)]
+    [(sham:stmt:block stmts)
+     `(block ,@(map sham-stmt->sexp stmts))]
+    [(sham:stmt:exp e)
+     `(expr ,(sham-expr->sexp e))]))
 
-;;     [(ast-stmt-let id id-type id-val body)
-;;      `(let ((,(as id) : ,id-type ,(as id-val)))
-;;         ,(as body))]
-;;     [(ast-stmt-set! lhs val)
-;;      `(set! ,(as lhs) ,(as val))]
-;;     [(ast-stmt-store! lhs val)
-;;      `(store! ,(as lhs) ,(as val))]
-;;     [(ast-stmt-if tst thn els)
-;;       `(if ,(as tst) ,(as thn) ,(as els))]
-;;     [(ast-stmt-while phi-vars phi-types test body)
-;;      `(while ,(for/list ([p phi-vars]
-;;                          [t phi-types])
-;;                 `(,(as p) : ,t))
-;;         ,(as test) ,(as body))]
-;;     [(ast-stmt-ret val)
-;;      `(return ,(as val))]
-;;     [(ast-stmt-ret-void)
-;;      `(return-void)]
-;;     [(ast-stmt-block bodys)
-;;      `(block ,@(map as bodys))]
-;;     [(ast-stmt-exp val)
-;;      `(#%exp ,(as val))]
+(define (sham-expr->sexp e)
+  (match e
+    [(sham:exp:app rator rands)
+     `(,(sham-rator->sexp rator) ,@(map sham-expr->sexp rands))]
+    [(sham:exp:fl-value v t)
+     `(%float ,v ,(sham-type->sexp t))]
+    [(sham:exp:si-value v t)
+     `(%sint ,v ,(sham-type->sexp t))]
+    [(sham:exp:ui-value v t)
+     `(%uint ,v ,(sham-type->sexp t))]
+    [(sham:exp:void-value)
+     `void]
+    [(sham:exp:sizeof t)
+     `(%sizeof ,(sham-type->sexp t))]
+    [(sham:exp:type t)
+     `(%type ,(sham-type->sexp t))]
+    [(sham:exp:gep ptr indxs)
+     `(%gep ,(sham-expr->sexp ptr) ,@(map sham-expr->sexp indxs))]
+    [(sham:exp:var v)
+     v]))
 
-;;     [(ast-exp-app rator rands)
-;;      `(#%app ,(as rator) ,@(map as rands))]
-;;     [(ast-exp-fl-value v t)
-;;      `(#%fl-value ,(as v) ,(as t))]
-;;     [(ast-exp-si-value v t)
-;;      `(#%si-value ,(as v) ,(as t))]
-;;     [(ast-exp-ui-value v t)
-;;      `(#%ui-value ,(as v) ,(as t))]
-;;     [(ast-exp-void-value)
-;;      '#%void]
-;;     [(ast-exp-sizeof t)
-;;      `(#%sizeof ,(as t))]
-;;     [(ast-exp-type t)
-;;      `(#%type ,t)]
-;;     [(ast-exp-gep ptr indxs)
-;;      `(#%gep ,(as ptr) ,(map as indxs))]
-;;     [(ast-exp-var v)
-;;      v]
-;;     [else ast]))
+(define (sham-rator->sexp r)
+  (match r
+    [(sham:rator:intrinsic str-id ret-type)
+     `(,str-id :-> ,(sham-type->sexp ret-type))]
+    [(sham:rator:symbol s)
+     s]))
 
-;; (define (sexp->ast s)
-;;   (define sa sexp->ast)
-;;   (match s
-;;     [`(define-function (#:pass ,passes ...) (#:attr ,attrs ...)
-;;         (,id (,arg-ids : ,arg-types) ... : ,ret-type)
-;;         ,body)
-;;      (ast-function-def id passes attrs arg-ids arg-types ret-type body)]
-;;     [`(define-type ,id (struct (,fields : ,types)))
-;;      (ast-type-def id (ast-type-struct fields types))]
-;;     [`(define-type ,id (,args ... -> ,ret))
-;;      (ast-type-def id (ast-type-function args ret))]
-;;     [`(define-type ,id (pointer ,to))
-;;      (ast-type-def id (ast-type-pointer to))]
-;;     [`(define-type ,id ,to) #:when (symbol? to)
-;;      (ast-type-def (ast-type-ref to))]
-;;     [`(let ((,ids : ,types ,vals) ...) ,st)
-;;      (ast-stmt-let ids types (map sa vals) (sa st))]
-;;     [`(set! ,lhs ,v)
-;;      (ast-stmt-set! lhs (sa v))]
-;;     [`(store! ,lhs ,v)
-;;      (ast-stmt-store! lhs (sa v))]
-;;     [`(if ,tst ,thn ,els)
-;;      (ast-stmt-if (sa tst) (sa thn) (sa els))]
-;;     [`(while ((,vars : ,var-types) ...) ,tst ,body)
-;;      (ast-stmt-while vars var-types (sa tst) (sa body))]
-;;     [`(return ,v)
-;;      (ast-stmt-ret (sa v))]
-;;     [`(return-void)
-;;      (ast-stmt-ret-void)]
-;;     [`(block ,stmts ...)
-;;      (ast-stmt-block (map sa stmts))]
-;;     [`(#%exp ,e)
-;;      (ast-stmt-exp (sa e))]
-;;     [`(#%app ,rator ,rands ...)
-;;      (ast-exp-app (sa rator) (map sa rands))]
-;;     [`(#%fl-value ,value ,type)
-;;      (ast-exp-fl-value value (sa type))]
-;;     [`(#%si-value ,value ,type)
-;;      (ast-exp-si-value value (sa type))]
-;;     [`(#%ui-value ,value ,type)
-;;      (ast-exp-ui-value value (sa type))]
-;;     [`(#%sizeof ,type)
-;;      (ast-exp-sizeof (sa type))]
-;;     [`(#%type ,t)
-;;      (ast-exp-type t)]
-;;     [`(#%gep ,ptr ,indxs)
-;;      (ast-exp-gep (sa ptr) (map sa indxs))]
-;;     [(? symbol?)
-;;      (ast-exp-var s)]))
+(define (sham-def->sexp def)
+  (match def
+    [(sham:def:function id passes attrs arg-ids arg-types ret-type body)
+     `(define-function (passes ,@passes) (attrs ,@attrs)
+        (,id ,@(for/list [(id arg-ids) (typ arg-types)]
+                 `(,id : ,(sham-type->sexp typ)))
+             : ,(sham-type->sexp ret-type))
+        ,(sham-stmt->sexp body))]
+    [(sham:def:type id t)
+     `(define-type ,id ,(sham-type->sexp t))]))
 
+(define (sham-ast->sexp ast)
+  (match ast
+    [(sham:module passes defs)
+     `(module
+          (passes ,@passes)
+          ,@(map sham-def->sexp defs))]))
+
+;;;---;;;
+(define (sexp->sham-ast sexp)
+  (match sexp
+    [`(module
+          (passes ,passes ...)
+          ,defs ...)
+     (sham:module passes (map sexp->sham-def defs))]))
+
+(define (sexp->sham-type t)
+  (match t
+    ['_
+     (sham:type:internal)]
+    [`(* ,to)
+     (sham:type:pointer (sexp->sham-type to))]
+    [`(,args ... -> ,ret)
+     (sham:type:function (map sexp->sham-type args) (sexp->sham-type ret))]
+    [`(struct (,fields : ,types) ...)
+     (sham:type:struct fields (map sexp->sham-type types))]
+    [to #:when (symbol? to)
+     (sham:type:ref to)]))
+
+(define (sexp->sham-stmt sexp)
+  (match sexp
+    [`(let (,ids : ,types ,vals) ... ,stmt)
+     (sham:stmt:let ids (map sexp->sham-type types) (map sexp->sham-expr vals)
+                    (sexp->sham-stmt stmt))]
+    [`(set! ,lhs ,val)
+     (sham:stmt:set! (sexp->sham-expr lhs) (sexp->sham-expr val))]
+    [`(if ,tst ,thn ,els)
+     (sham:stmt:if (sexp->sham-expr tst) (sexp->sham-stmt thn) (sexp->sham-stmt els))]
+    [`(while ,tst ,body)
+     (sham:stmt:while (sexp->sham-expr tst) (sexp->sham-stmt body))]
+    [`(return ,val)
+     (sham:stmt:return (sexp->sham-expr val))]
+    [`(return-void)
+     (sham:stmt:return-void)]
+    [`(block ,stmts ...)
+     (sham:stmt:block (map sexp->sham-stmt stmts))]
+    [`(expr ,e)
+     (sham:stmt:exp (sexp->sham-expr e))]))
+
+(define (sexp->sham-expr e)
+  (match e
+    [`(%float ,v ,t)
+     (sham:exp:fl-value v (sexp->sham-type t))]
+    [`(%sint ,v ,t)
+     (sham:exp:si-value v (sexp->sham-type t))]
+    [`(%uint ,v ,t)
+     (sham:exp:ui-value v (sexp->sham-type t))]
+    ['void
+     (sham:exp:void-value)]
+    [`(%sizeof ,t)
+     (sham:exp:sizeof (sexp->sham-type t))]
+    [`(%type ,t)
+     (sham:exp:type (sexp->sham-type t))]
+    [`(%gep ,ptr (,indxs ...))
+     (sham:exp:gep (sexp->sham-expr ptr) (map sexp->sham-expr indxs))]
+    [`(,rator ,rands ...)
+     (sham:exp:app (sexp->sham-rator rator) (map sexp->sham-expr rands))]
+    [v #:when (symbol? v)
+       (sham:exp:var v)]))
+
+(define (sexp->sham-rator r)
+  (match r
+    [`(,str-id :-> ,ret-type)
+     (sham:rator:intrinsic str-id (sexp->sham-type ret-type))]
+    [s #:when (symbol? s)
+     (sham:rator:symbol s)]))
+
+(define (sexp->sham-def def)
+  (match def
+    [`(define-function (passes ,passes ...)
+        (attrs ,attrs ...)
+        (,id (,arg-ids : ,arg-types) ... : ,ret-type)
+        ,body)
+     (sham:def:function id passes attrs arg-ids (map sexp->sham-type arg-types)
+                        (sexp->sham-type  ret-type)
+                        (sexp->sham-stmt body))]
+    [`(define-type ,id ,t)
+     (sham:def:type id (sexp->sham-type t))]))
 
 
 ;;utils
