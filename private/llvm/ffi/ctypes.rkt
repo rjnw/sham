@@ -12,10 +12,10 @@
   (define-syntax-class id-pair
    (pattern (type-name:id cons:id acc:id)))
   (syntax-parse stx
-   ((_ p ...)
-    #'(begin
-        (define p (_cpointer 'p))
-        ...))))
+    ((_ p ...)
+     #`(begin
+         (define p (_cpointer 'p))
+         ...))))
 
 (define-llvm-types
   LLVMMemoryBufferRef  ;;Used to pass regions of memory through LLVM interfaces
@@ -37,6 +37,8 @@
   LLVMTargetDataRef
   LLVMTargetLibraryInfoRef
   LLVMMCJITMemoryManagerRef)
+
+(define LLVMValueRef/null (_cpointer/null 'LLVMValueRef))
 
 (define LLVMAttribute
   (_bitmask

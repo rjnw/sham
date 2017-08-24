@@ -105,9 +105,9 @@
 (define (print-sham-rator r)
   (match r
     [(sham:rator:intrinsic str-id ret-type)
-     str-id]
+     `(intrinsice ,str-id)]
     [(sham:rator:symbol s)
-     s]))
+     `(symbol ,s)]))
 (define (print-sham-def def)
   (match def
     [(sham:def:function id passes attrs arg-ids arg-types ret-type body)
@@ -217,14 +217,14 @@
      (sham:type:pointer (sexp->sham-type to))]
     [`(,args ... -> ,ret)
      (sham:type:function (map sexp->sham-type args) (sexp->sham-type ret))]
-    [`(struct (,fields : ,types) ...)
+    [`(struct ((,fields : ,types) ...))
      (sham:type:struct fields (map sexp->sham-type types))]
     [to #:when (symbol? to)
      (sham:type:ref to)]))
 
 (define (sexp->sham-stmt sexp)
   (match sexp
-    [`(let (,ids : ,types ,vals) ... ,stmt)
+    [`(let ((,ids : ,types ,vals) ...) ,stmt)
      (sham:stmt:let ids (map sexp->sham-type types) (map sexp->sham-expr vals)
                     (sexp->sham-stmt stmt))]
     [`(set! ,lhs ,val)
@@ -256,7 +256,7 @@
      (sham:exp:sizeof (sexp->sham-type t))]
     [`(%type ,t)
      (sham:exp:type (sexp->sham-type t))]
-    [`(%gep ,ptr (,indxs ...))
+    [`(%gep ,ptr ,indxs ...)
      (sham:exp:gep (sexp->sham-expr ptr) (map sexp->sham-expr indxs))]
     [`(,rator ,rands ...)
      (sham:exp:app (sexp->sham-rator rator) (map sexp->sham-expr rands))]
@@ -268,7 +268,7 @@
     [`(,str-id :-> ,ret-type)
      (sham:rator:intrinsic str-id (sexp->sham-type ret-type))]
     [s #:when (symbol? s)
-     (sham:rator:symbol s)]))
+       (sham:rator:symbol s)]))
 
 (define (sexp->sham-def def)
   (match def

@@ -14,6 +14,7 @@
  jit-dump-module
  jit-get-racket-type
  jit-get-function
+ jit-verify-module
  jit-optimize-module
  compile-module
  env-lookup)
@@ -194,14 +195,32 @@
        (define tst-value (build-expression tst env))
        (define then-block (new-block 'then))
        (define else-block (new-block 'else))
+       (define end-block (new-block 'ife))
 
        (LLVMBuildCondBr jit-builder tst-value then-block else-block)
 
        (LLVMPositionBuilderAtEnd jit-builder then-block)
        (build-statement thn env)
+       (define (current-return?)
+         (define bbt (LLVMGetBasicBlockTerminator (LLVMGetInsertBlock jit-builder)))
+         (if bbt
+             (zero? (LLVMGetNumSuccessors bbt))
+             #f))
+
+       (define then-return? (current-return?))
+       (unless then-return?
+         (LLVMBuildBr jit-builder end-block))
 
        (LLVMPositionBuilderAtEnd jit-builder else-block)
-       (build-statement els env)]
+       (build-statement els env)
+       (define else-return? (current-return?))
+       (unless else-return?
+         (LLVMBuildBr jit-builder end-block))
+
+
+       (if (and then-return? else-return?)
+           (LLVMDeleteBasicBlock end-block)
+           (LLVMPositionBuilderAtEnd jit-builder end-block))]
 
       [(sham:stmt:while tst body)
 
@@ -299,7 +318,12 @@
 
 (define (compile-module m [module-name "module"] [context global-jit-context])
   (define (diag-handler dinfo voidp)
-    (printf "\tllvm-diag: ~a\n" (LLVMGetDiagInfoDescription dinfo)))
+    (void)
+    ;; TODO fix memory bugs
+    ;; (define diag-desc (LLVMGetDiagInfoDescription dinfo))
+    ;; (printf "\tllvm-diag: ~a\n" diag-desc)
+    ;; (LLVMDisposeMessage diag-desc)
+    )
   (LLVMContextSetDiagnosticHandler context diag-handler #f)
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
   (LLVMSetDataLayout jit-module "e-m:e-i64:64-f80:128-n8:16:32:64-S128")
@@ -446,6 +470,13 @@
                                                           (build-app (rs 'load) (v 'arri)))))
                 (sham:stmt:set! (v 'i) (build-app (rs 'add) (v 'i) (ui32 1))))))
              (ret (v 'sum))))))
+        (defn 'if-void-test '() '() i32
+          (sham:stmt:block
+           (list
+            (sham:stmt:if (build-app icmp-eq (ui32 0) (ui32 0))
+                          (sham:stmt:exp (sham:exp:void-value))
+                          (sham:stmt:return (ui32 1)))
+            (ret (ui32 0)))))
         (defn 'malloc-test '() '() i32
           (sham:stmt:let '(ptr)
                          (list (sham:type:ref 'int*))

@@ -278,7 +278,7 @@
 (define-llvm LLVMContextSetYieldCallback (_fun LLVMContextRef LLVMYieldCallback (pointer-to _void) -> _void))
 
 (define-llvm LLVMGetDiagInfoDescription (_fun LLVMDiagnosticInfoRef -> _string)
-  #:wrap (allocator LLVMDisposeMessage))
+  #:wrap (allocator LLVMDisposeMessage)) ;; TODO _string changes pointer figure out how to dispose original
 (define-llvm LLVMGetDiagInfoSeverity (_fun LLVMDiagnosticInfoRef -> LLVMDiagnosticSeverity))
 (define-llvm LLVMGetMDKindIDInContext (_fun LLVMContextRef _string _uint -> unsigned))
 
@@ -480,8 +480,7 @@
 (define-llvm LLVMGetValueName (_fun LLVMValueRef -> _string))
 (define-llvm LLVMSetValueName (_fun LLVMValueRef _string -> _void))
 (define-llvm LLVMDumpValue (_fun LLVMValueRef -> _void))
-(define-llvm LLVMPrintValueToString (_fun LLVMValueRef -> _string)
-  #:wrap (allocator LLVMDisposeModule))
+(define-llvm LLVMPrintValueToString (_fun LLVMValueRef -> _string))
 (define-llvm LLVMReplaceAllUsesWith (_fun LLVMValueRef LLVMValueRef -> _void))
 (define-llvm LLVMIsConstant (_fun LLVMValueRef -> LLVMBool))
 (define-llvm LLVMIsUndef (_fun LLVMValueRef -> LLVMBool))
@@ -746,7 +745,7 @@
 (define-llvm LLVMValueIsBasicBlock (_fun LLVMValueRef -> LLVMBool))
 (define-llvm LLVMValueAsBasicBlock (_fun LLVMValueRef -> LLVMBasicBlockRef))
 (define-llvm LLVMGetBasicBlockParent (_fun LLVMBasicBlockRef -> LLVMValueRef))
-(define-llvm LLVMGetBasicBlockTerminator (_fun LLVMBasicBlockRef -> LLVMValueRef))
+(define-llvm LLVMGetBasicBlockTerminator (_fun LLVMBasicBlockRef -> LLVMValueRef/null))
 (define-llvm LLVMCountBasicBlocks (_fun LLVMValueRef -> unsigned))
 (define-llvm LLVMGetBasicBlocks (_fun LLVMValueRef (pointer-to LLVMBasicBlockRef) -> _void))
 (define-llvm LLVMGetFirstBasicBlock (_fun LLVMValueRef -> LLVMBasicBlockRef))
