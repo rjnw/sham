@@ -62,26 +62,63 @@
              (LLVMDumpValue (env-jit-function-ref v)))))))
 (define (jit-dump-function mod sym)
   (LLVMDumpValue (env-jit-function-ref (env-lookup sym mod))))
+(define (jit-get-info mod-env)
+  (env-lookup '#%jit-info mod-env))
+(define (jit-get-info-key sym mod-env)
+  (define info (unbox (jit-get-info mod-env)))
+  (cdr (assoc sym info)))
+(define (jit-add-info-key! key val mod-env)
+  (define info-box (jit-get-info mod-env))
+  (set-box! info-box (append `((,key . ,val)) (unbox info-box)))
+  mod-env)
+(define (jit-get-module mod-env)
+  (jit-get-info-key 'jit-module mod-env))
 
 (define (jit-write-bitcode mod fname)
-  (LLVMWriteBitcodeToFile (env-lookup '#%jit-module mod) fname))
+  (LLVMWriteBitcodeToFile (jit-get-module mod) fname))
 (define (jit-write-module mod fname)
-  (LLVMPrintModuleToFile (env-lookup '#%jit-module mod) fname))
+  (LLVMPrintModuleToFile (jit-get-module mod) fname))
+
+
+
+(define (add-ffi-mapping engine mod-env)
+  (define ffi-mappings (jit-get-info-key 'ffi-mappings mod-env))
+  (define ffi-libs (jit-get-info-key 'ffi-libs mod-env))
+  (for [(ffi-mapping ffi-mappings)]
+    (printf "ffi-mappings: ~a\n" ffi-mapping)
+    (match ffi-mapping
+      [`(,orig-fn-name ,fn-name ,lib-name ,fun-type ,fun-value)
+       (printf "ffi-libs: ~a\n" ffi-libs)
+       (define fflib (apply ffi-lib (cdr (assoc lib-name ffi-libs))))
+       (define fun-ptr (get-ffi-obj (symbol->string orig-fn-name) fflib _pointer))
+       ;       (printf "fun-value: ~a" (LLVMDumpValue fun-value))
+       (printf "linkage: ~a, visi: ~a\n" (LLVMGetLinkage fun-value) (LLVMGetVisibility fun-value))
+       ;; (printf "getting from global: ~a" 
+       ;;         (LLVMGetNamedGlobal (jit-get-module mod-env) "random1.1"))
+       (LLVMAddGlobalMapping engine fun-value fun-ptr)
+       ;; (error "void")
+
+       ])
+    ;(define-llvm LLVMAddGlobalMapping (_fun LLVMExecutionEngineRef LLVMValueRef _pointer -> _void))
+
+    ;; (error "void")
+    ))
 
 (define (initialize-jit mod #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
   (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
   ;;todo add globalmapping ;LLVMAddGlobalMapping
   (define-values (engine status err)
-    (LLVMCreateMCJITCompilerForModule (env-lookup '#%jit-module mod)
-                                      mcjit-options))
+    (LLVMCreateMCJITCompilerForModule (jit-get-module mod) mcjit-options))
   (if status
       (error "error initializing jit" status err)
-      (env-extend '#%mcjit-engine engine mod)))
+      (begin
+        (add-ffi-mapping engine mod)
+        (jit-add-info-key! 'mcjit-engine engine mod))))
 
 ;; TODO check for mcjit-engine in env
 (define (jit-compile-function f-sym mod)
-  (define mcjit-engine (env-lookup '#%mcjit-engine mod))
+  (define mcjit-engine (jit-get-info-key 'mcjit-engine mod))
   (cast (LLVMGetFunctionAddress mcjit-engine (symbol->string f-sym)) _uint64 _pointer))
 
 (define (jit-get-function f-sym mod)
@@ -95,9 +132,6 @@
   (define fref (env-lookup f-sym mod))
   (define f-type (internal-type-racket (env-type-prim (env-jit-function-type fref))))
   fptr)
-
-(define (jit-get-module mod-env)
-  (env-lookup '#%jit-module mod-env))
 
 (define (jit-run-function-pass passes jit-mod f)
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
@@ -125,11 +159,11 @@
   (jit-run-module-pass passes jit-mod))
 
 (define (jit-verify-module mod-env)
-  (define jit-mod (env-lookup '#%jit-module mod-env))
+  (define jit-mod (jit-get-module mod-env))
   (LLVMVerifyModule jit-mod 'LLVMPrintMessageAction #f))
 
 (define (jit-optimize-function mod-env #:opt-level [level 1])
-  (define jit-mod (env-lookup '#%jit-module mod-env))
+  (define jit-mod (jit-get-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (define fpmb (LLVMPassManagerBuilderCreate))
   (LLVMPassManagerBuilderSetOptLevel fpmb level)
@@ -141,7 +175,7 @@
   (LLVMPassManagerBuilderDispose fpmb))
 
 (define (jit-optimize-module mod-env #:opt-level [level 1])
-  (define jit-mod (env-lookup '#%jit-module mod-env))
+  (define jit-mod (jit-get-module mod-env))
   (define mpm (LLVMCreatePassManager))
   (define pmb (LLVMPassManagerBuilderCreate))
   (LLVMPassManagerBuilderSetOptLevel pmb level)
@@ -153,7 +187,7 @@
     (LLVMPassManagerBuilderDispose pmb)))
 
 (define (jit-run-basic-pass mod-env)
-  (define jit-mod (env-lookup '#%jit-module mod-env))
+  (define jit-mod (jit-get-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (LLVMAddCFGSimplificationPass fpm)
   (for [(m mod-env)]
@@ -178,8 +212,8 @@
   (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu") ;TODO set target for machine
   (define jit-builder (LLVMCreateBuilderInContext context))
   (define ffi-mappings (box '()))
-  (define (add-mapping! lib-id fun-id)
-    (set-box! ffi-mappings (cons (cons fun-id lib-id) (unbox ffi-mappings))))
+  (define (add-mapping! mapping)
+    (set-box! ffi-mappings (cons mapping (unbox ffi-mappings))))
 
   (define (register-module-statement stmt env)
     (define (compile-function-declaration env-function-type function-name)
@@ -326,10 +360,15 @@
            (define ref (LLVMAddFunction jit-module s fn-type))
            (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
           [(sham:rator:external lib-id str-id ret-type)
-           (define s (symbol->string str-id))
+           (define ss (gensym^ str-id))
+           (define s (symbol->string ss))
            (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
                                              (map LLVMTypeOf rand-values) #f))
-           (add-mapping! lib-id str-id)
+           (define fn-value (LLVMAddGlobal jit-module fn-type s))
+           (LLVMSetLinkage fn-value 'LLVMExternalLinkage)
+           (LLVMSetVisibility fn-value 'LLVMDefaultVisibility)
+           ;; (LLVMSetExternallyInitialized fn-value #t)
+           (add-mapping! (list str-id ss lib-id fn-type fn-value))
            (define ref (LLVMAddFunction jit-module s fn-type))
            (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
           [(sham:rator:symbol sym)
@@ -385,8 +424,10 @@
          (compile-module-statement stmt env module-env)))
      (jit-run-module-pass (cdr (assoc 'passes info)) jit-module)
      (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
-     (env-extend '#%ffi-mappings (unbox ffi-mappings)
-      (env-extend '#%jit-module jit-module module-env))]))
+     (env-extend '#%jit-info (box (append `((jit-module . ,jit-module)
+                                            (ffi-mappings . ,(unbox ffi-mappings)))
+                                          info))
+                 module-env)]))
 
 
 (module+ test
@@ -409,7 +450,7 @@
     (compile-module
      (sham:module
       '((passes . (AlwaysInliner))
-        (ffi-libs . (libc ("/usr/lib/libc" "6"))))
+        (ffi-libs . ((libc . ("/usr/lib/libc" "6")))))
        (list
         (sham:def:type 'int i32)
         (sham:def:type 'int* (sham:type:pointer i32))
@@ -495,6 +536,8 @@
                                               (sham:stmt:void))
                           (sham:stmt:return (ui32 1)))
             (ret (ui32 0)))))
+        (defn 'random '() '() i32
+          (ret (sham:exp:app (sham:rator:external 'libc 'random i32) '())))
         (defn 'malloc-test '() '() i32
           (sham:stmt:let '(ptr)
                          (list (sham:type:ref 'int*))
