@@ -2,7 +2,7 @@
 
 (provide (all-defined-out))
 
-(struct sham:module            (passes defs))
+(struct sham:module            (info defs))
 
 
 (struct sham:def ())
@@ -27,10 +27,10 @@
 (struct sham:stmt:if           (tst thn els))
 (struct sham:stmt:while        (tst body))
 (struct sham:stmt:return       (val))
+(struct sham:stmt:void         ())
 (struct sham:stmt:return-void  ())
 (struct sham:stmt:block        (stmts))
-(struct sham:stmt:exp          (e))
-
+(struct sham:stmt:exp-stmt     (e s))
 
 (struct sham:exp ())
 
@@ -43,12 +43,13 @@
 (struct sham:exp:type          (t))
 (struct sham:exp:gep           (ptr indxs))
 (struct sham:exp:var           (v))
-
+(struct sham:exp:stmt-exp      (s e))
 
 (struct sham:rator ())
 
 (struct sham:rator:intrinsic   (str-id ret-type))
 (struct sham:rator:symbol      (sym))
+(struct sham:rator:external    (lib-id str-id ret-type))
 
 ;;TODO add debug parameters to printer
 (define (print-sham-type t)
@@ -80,8 +81,9 @@
      `(return-void)]
     [(sham:stmt:block stmts)
      `(block ,@(map print-sham-stmt stmts))]
-    [(sham:stmt:exp e)
-     `(expr ,(print-sham-expr e))]))
+    [(sham:stmt:exp-stmt e s)
+     `(exp-stmt ,(print-sham-expr e)
+                ,(print-sham-stmt s))]))
 (define (print-sham-expr e)
   (match e
     [(sham:exp:app rator rands)
@@ -101,13 +103,18 @@
     [(sham:exp:gep ptr indxs)
      `(gep ,(print-sham-expr ptr) ,@(map print-sham-expr indxs))]
     [(sham:exp:var v)
-     v]))
+     v]
+    [(sham:exp:stmt-exp s e)
+     `(stmt-exp ,(print-sham-stmt s)
+                ,(print-sham-expr e))]))
 (define (print-sham-rator r)
   (match r
     [(sham:rator:intrinsic str-id ret-type)
-     `(intrinsice ,str-id)]
+     `(intrinsic ,str-id)]
     [(sham:rator:symbol s)
-     `(symbol ,s)]))
+     `(symbol ,s)]
+    [(sham:rator:external lib-id str-id ret-type)
+     `(external ,lib-id ,str-id)]))
 (define (print-sham-def def)
   (match def
     [(sham:def:function id passes attrs arg-ids arg-types ret-type body)
@@ -152,8 +159,9 @@
      `(return-void)]
     [(sham:stmt:block stmts)
      `(block ,@(map sham-stmt->sexp stmts))]
-    [(sham:stmt:exp e)
-     `(expr ,(sham-expr->sexp e))]))
+    [(sham:stmt:exp-stmt e s)
+     `(exp-stmt ,(sham-expr->sexp e)
+                ,(sham-stmt->sexp s))]))
 
 (define (sham-expr->sexp e)
   (match e
@@ -174,14 +182,18 @@
     [(sham:exp:gep ptr indxs)
      `(%gep ,(sham-expr->sexp ptr) ,@(map sham-expr->sexp indxs))]
     [(sham:exp:var v)
-     v]))
+     v]
+    [(sham:exp:stmt-exp s e)
+     `(stmt-exp ,(sham-stmt->sexp s)
+                ,(sham-expr->sexp e))]))
 
 (define (sham-rator->sexp r)
   (match r
     [(sham:rator:intrinsic str-id ret-type)
-     `(,str-id :-> ,(sham-type->sexp ret-type))]
-    [(sham:rator:symbol s)
-     s]))
+     `(intrinsic ,str-id ,(sham-type->sexp ret-type))]
+    [(sham:rator:external lib-id str-id ret-type)
+     `(external ,lib-id ,str-id ,(sham-type->sexp ret-type))]
+    [(sham:rator:symbol s) s]))
 
 (define (sham-def->sexp def)
   (match def
@@ -196,18 +208,18 @@
 
 (define (sham-ast->sexp ast)
   (match ast
-    [(sham:module passes defs)
+    [(sham:module info defs)
      `(module
-          (passes ,@passes)
+          ,info
           ,@(map sham-def->sexp defs))]))
 
 ;;;---;;;
 (define (sexp->sham-ast sexp)
   (match sexp
     [`(module
-          (passes ,passes ...)
+          ,info
           ,defs ...)
-     (sham:module passes (map sexp->sham-def defs))]))
+     (sham:module info (map sexp->sham-def defs))]))
 
 (define (sexp->sham-type t)
   (match t
@@ -239,8 +251,8 @@
      (sham:stmt:return-void)]
     [`(block ,stmts ...)
      (sham:stmt:block (map sexp->sham-stmt stmts))]
-    [`(expr ,e)
-     (sham:stmt:exp (sexp->sham-expr e))]))
+    [`(exp-stmt ,e ,s)
+     (sham:stmt:exp-stmt (sexp->sham-expr e) (sexp->sham-stmt s))]))
 
 (define (sexp->sham-expr e)
   (match e
@@ -258,6 +270,8 @@
      (sham:exp:type (sexp->sham-type t))]
     [`(%gep ,ptr ,indxs ...)
      (sham:exp:gep (sexp->sham-expr ptr) (map sexp->sham-expr indxs))]
+    [`(stmt-exp ,s ,e)
+     (sham:exp:stmt-exp (sexp->sham-stmt s)  (sexp->sham-expr e))]
     [`(,rator ,rands ...)
      (sham:exp:app (sexp->sham-rator rator) (map sexp->sham-expr rands))]
     [v #:when (symbol? v)
@@ -265,8 +279,10 @@
 
 (define (sexp->sham-rator r)
   (match r
-    [`(,str-id :-> ,ret-type)
+    [`(intrinsic ,str-id ,ret-type)
      (sham:rator:intrinsic str-id (sexp->sham-type ret-type))]
+    [`(external ,lib-id ,str-id ,ret-type)
+     (sham:rator:external lib-id str-id (sexp->sham-type ret-type))]
     [s #:when (symbol? s)
        (sham:rator:symbol s)]))
 

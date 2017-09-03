@@ -12,6 +12,8 @@
 (provide
  initialize-jit
  jit-dump-module
+ jit-write-bitcode
+ jit-write-module
  jit-get-racket-type
  jit-get-function
  jit-verify-module
@@ -63,10 +65,13 @@
 
 (define (jit-write-bitcode mod fname)
   (LLVMWriteBitcodeToFile (env-lookup '#%jit-module mod) fname))
+(define (jit-write-module mod fname)
+  (LLVMPrintModuleToFile (env-lookup '#%jit-module mod) fname))
 
 (define (initialize-jit mod #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
   (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
+  ;;todo add globalmapping ;LLVMAddGlobalMapping
   (define-values (engine status err)
     (LLVMCreateMCJITCompilerForModule (env-lookup '#%jit-module mod)
                                       mcjit-options))
@@ -159,163 +164,6 @@
 (define (jit-get-racket-type t)
   (internal-type-racket (env-type-prim t)))
 
-(define (compile-function-definition name args types ret-type
-                                     body env jit-module jit-builder)
-  (define env-function (env-lookup name env))
-  (define fref (env-jit-function-ref env-function))
-  (define ftype (env-jit-function-type env-function))
-  (define jit-target-data (LLVMCreateTargetData (LLVMGetDataLayout jit-module)))
-  (define (build-llvm-type t env)
-    (internal-type-jit (compile-type t env)))
-  (define (new-block n)
-    (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module) fref (symbol->string n)))
-  (define (build-statement stmt env)
-    (match stmt
-      [(sham:stmt:let ids types vals st)
-
-       (define new-env
-         (for/fold ([env env])
-                   ([id-type types]
-                    [id ids]
-                    [val vals])
-           (define val-type (build-llvm-type id-type env))
-           (define val-p (LLVMBuildAlloca jit-builder val-type
-                                      (symbol->string id)))
-           (unless (sham:exp:void-value? val)
-             (LLVMBuildStore jit-builder (build-expression val env) val-p))
-           (env-extend id (env-jit-value val-p (env-type val-type id-type)) env)))
-       (build-statement st new-env)]
-
-      [(sham:stmt:set! lhs v) ;;TODO: right now lhs can only be a var
-       (define v-ref (build-expression v env))
-       (define lhs-v (env-jit-value-ref (env-lookup (sham:exp:var-v lhs) env)))
-       (LLVMBuildStore jit-builder v-ref lhs-v)]
-
-      [(sham:stmt:if tst thn els)
-       (define tst-value (build-expression tst env))
-       (define then-block (new-block 'then))
-       (define else-block (new-block 'else))
-       (define end-block (new-block 'ife))
-
-       (LLVMBuildCondBr jit-builder tst-value then-block else-block)
-
-       (LLVMPositionBuilderAtEnd jit-builder then-block)
-       (build-statement thn env)
-       (define (current-return?)
-         (define bbt (LLVMGetBasicBlockTerminator (LLVMGetInsertBlock jit-builder)))
-         (if bbt
-             (zero? (LLVMGetNumSuccessors bbt))
-             #f))
-
-       (define then-return? (current-return?))
-       (unless then-return?
-         (LLVMBuildBr jit-builder end-block))
-
-       (LLVMPositionBuilderAtEnd jit-builder else-block)
-       (build-statement els env)
-       (define else-return? (current-return?))
-       (unless else-return?
-         (LLVMBuildBr jit-builder end-block))
-
-
-       (if (and then-return? else-return?)
-           (LLVMDeleteBasicBlock end-block)
-           (LLVMPositionBuilderAtEnd jit-builder end-block))]
-
-      [(sham:stmt:while tst body)
-
-       (define prev-block (LLVMGetInsertBlock jit-builder))
-       (define loop-entry (new-block 'loop-entry))
-       (define loop-block (new-block 'loop-block))
-       (define afterloop-block (new-block 'afterloop-block))
-
-       (LLVMBuildBr jit-builder loop-entry)
-
-       (LLVMPositionBuilderAtEnd jit-builder loop-entry)
-       (define tst-value (build-expression tst env))
-       (LLVMBuildCondBr jit-builder tst-value loop-block afterloop-block)
-
-       (LLVMPositionBuilderAtEnd jit-builder loop-block)
-
-       (build-statement body env)
-       (define body-end-blk (LLVMGetInsertBlock jit-builder))
-       (LLVMBuildBr jit-builder loop-entry)
-
-       (LLVMPositionBuilderAtEnd jit-builder afterloop-block)]
-      [(sham:stmt:return v)
-       (LLVMBuildRet jit-builder (build-expression v env))]
-      [(sham:stmt:return-void)
-       (LLVMBuildRetVoid jit-builder)]
-      [(sham:stmt:block stmts)
-       (for ([stmt stmts])
-         (build-statement stmt env))]
-      [(sham:stmt:exp e)
-       (build-expression e env)]
-      [else (error "unknown statement" stmt)]))
-
-  (define (build-expression e env)
-    (match e
-      [(sham:exp:app rator rands)
-       (define rand-values (for/list ([rand rands]) (build-expression rand env)))
-       (build-app rator rand-values env)]
-      [(sham:exp:fl-value value t) (LLVMConstReal (build-llvm-type t env) value)]
-      [(sham:exp:si-value value t) (LLVMConstInt (build-llvm-type t env) value #t)]
-      [(sham:exp:ui-value value t) (LLVMConstInt (build-llvm-type t env) value #f)]
-      [(sham:exp:sizeof type)
-       (define envtype (env-lookup type env))
-       (LLVMConstInt (internal-type-jit (env-type-prim (env-lookup 'i32 env)))
-                     (LLVMStoreSizeOfType jit-target-data
-                                          (internal-type-jit (env-type-prim envtype)))
-                     #f)]
-      [(sham:exp:type t)
-       (build-llvm-type t env)]
-      [(sham:exp:void-value) (void)]
-      [(sham:exp:gep ptr indxs)
-       (LLVMBuildGEP jit-builder
-                     (build-expression ptr env)
-                     (map (curryr build-expression env) indxs)
-                     "gep")]
-      [(sham:exp:var sym)
-       (LLVMBuildLoad jit-builder
-                      (env-jit-value-ref (env-lookup sym env))
-                      (symbol->string sym))]
-      [else (printf "~a\n" e)
-            (error "no matching clause for build-expression")]))
-
-  (define (build-app rator rand-values env)
-    (match rator
-      [(sham:rator:intrinsic str-id ret-type)
-       (define s (symbol->string str-id))
-       (define fn-type (LLVMFunctionType (build-llvm-type ret-type env) (map LLVMTypeOf rand-values) #f))
-       (define ref (LLVMAddFunction jit-module s fn-type))
-       (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
-      [(sham:rator:symbol sym)
-       (match (env-lookup sym env)
-         [(env-jit-function ref type)
-          (LLVMBuildCall jit-builder ref rand-values (substring (symbol->string sym) 0 3))]
-         [(env-jit-intr-function builder)
-          (builder jit-builder rand-values)]
-         [else (error "cannot figure out how to apply: ~a" rator)])]))
-  (define entry-block (new-block 'entry))
-  (LLVMPositionBuilderAtEnd jit-builder entry-block)
-  (define new-env
-    (for/fold ([env env])
-              ([arg args]
-               [type types]
-               [i (in-range (length args))])
-      (define l-type (build-env-type type env))
-      (define p-arg (LLVMBuildAlloca jit-builder (internal-type-jit (env-type-prim l-type))
-                                     (symbol->string arg)))
-      (LLVMBuildStore jit-builder (LLVMGetParam fref i) p-arg)
-      (env-extend arg (env-jit-value p-arg l-type) env)))
-
-  (build-statement body new-env)
-  env-function)
-
-(define (compile-function-declaration env-function-type function-name jit-module)
-  (define function-type (internal-type-jit (env-type-prim env-function-type)))
-  (LLVMAddFunction jit-module (symbol->string function-name) function-type))
-
 (define (compile-module m [module-name "module"] [context global-jit-context])
   (define (diag-handler dinfo voidp)
     (void)
@@ -329,17 +177,184 @@
   (LLVMSetDataLayout jit-module "e-m:e-i64:64-f80:128-n8:16:32:64-S128")
   (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu") ;TODO set target for machine
   (define jit-builder (LLVMCreateBuilderInContext context))
+  (define ffi-mappings (box '()))
+  (define (add-mapping! lib-id fun-id)
+    (set-box! ffi-mappings (cons (cons fun-id lib-id) (unbox ffi-mappings))))
 
   (define (register-module-statement stmt env)
+    (define (compile-function-declaration env-function-type function-name)
+      (define function-type (internal-type-jit (env-type-prim env-function-type)))
+      (LLVMAddFunction jit-module (symbol->string function-name) function-type))
+
     (match stmt
       [(sham:def:type type-name t)
        (env-extend type-name (build-env-type t env) env)]
       [(sham:def:function function-name _ _ args types ret-type body)
        (define type (build-env-type (sham:type:function types ret-type) env))
-       (define function-obj (compile-function-declaration type function-name jit-module))
+       (define function-obj (compile-function-declaration type function-name))
        (env-extend function-name (env-jit-function function-obj type) env)]))
 
   (define (compile-module-statement stmt env module-env)
+    (define (compile-function-definition name args types ret-type body)
+      (define env-function (env-lookup name env))
+      (define fref (env-jit-function-ref env-function))
+      (define ftype (env-jit-function-type env-function))
+      (define jit-target-data (LLVMCreateTargetData (LLVMGetDataLayout jit-module)))
+      (define (build-llvm-type t env)
+        (internal-type-jit (compile-type t env)))
+      (define (new-block n)
+        (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module) fref (symbol->string n)))
+      (define (build-statement stmt env)
+        (match stmt
+          [(sham:stmt:let ids types vals st)
+           (define new-env
+             (for/fold ([env env])
+                       ([id-type types]
+                        [id ids]
+                        [val vals])
+               (define val-type (build-llvm-type id-type env))
+               (define val-p (LLVMBuildAlloca jit-builder val-type
+                                              (symbol->string id)))
+               (unless (sham:exp:void-value? val)
+                 (LLVMBuildStore jit-builder (build-expression val env) val-p))
+               (env-extend id (env-jit-value val-p (env-type val-type id-type)) env)))
+           (build-statement st new-env)]
+
+          [(sham:stmt:set! lhs v) ;;TODO: right now lhs can only be a var
+           (define v-ref (build-expression v env))
+           (define lhs-v (env-jit-value-ref (env-lookup (sham:exp:var-v lhs) env)))
+           (LLVMBuildStore jit-builder v-ref lhs-v)]
+
+          [(sham:stmt:if tst thn els)
+           (define tst-value (build-expression tst env))
+           (define then-block (new-block 'then))
+           (define else-block (new-block 'else))
+           (define end-block (new-block 'ife))
+
+           (LLVMBuildCondBr jit-builder tst-value then-block else-block)
+
+           (LLVMPositionBuilderAtEnd jit-builder then-block)
+           (build-statement thn env)
+           (define (current-return?)
+             (define bbt (LLVMGetBasicBlockTerminator (LLVMGetInsertBlock jit-builder)))
+             (if bbt (zero? (LLVMGetNumSuccessors bbt)) #f))
+
+           (define then-return? (current-return?))
+           (unless then-return?
+             (LLVMBuildBr jit-builder end-block))
+
+           (LLVMPositionBuilderAtEnd jit-builder else-block)
+           (build-statement els env)
+           (define else-return? (current-return?))
+           (unless else-return?
+             (LLVMBuildBr jit-builder end-block))
+
+           (if (and then-return? else-return?)
+               (LLVMDeleteBasicBlock end-block)
+               (LLVMPositionBuilderAtEnd jit-builder end-block))]
+
+          [(sham:stmt:while tst body)
+           (define prev-block (LLVMGetInsertBlock jit-builder))
+           (define loop-entry (new-block 'loop-entry))
+           (define loop-block (new-block 'loop-block))
+           (define afterloop-block (new-block 'afterloop-block))
+
+           (LLVMBuildBr jit-builder loop-entry)
+
+           (LLVMPositionBuilderAtEnd jit-builder loop-entry)
+           (define tst-value (build-expression tst env))
+           (LLVMBuildCondBr jit-builder tst-value loop-block afterloop-block)
+
+           (LLVMPositionBuilderAtEnd jit-builder loop-block)
+
+           (build-statement body env)
+           (define body-end-blk (LLVMGetInsertBlock jit-builder))
+           (LLVMBuildBr jit-builder loop-entry)
+
+           (LLVMPositionBuilderAtEnd jit-builder afterloop-block)]
+          
+          [(sham:stmt:return v)
+           (LLVMBuildRet jit-builder (build-expression v env))]
+          [(sham:stmt:return-void)
+           (LLVMBuildRetVoid jit-builder)]
+          [(sham:stmt:block stmts)
+           (for ([stmt stmts])
+             (build-statement stmt env))]
+          [(sham:stmt:exp-stmt expr stmt)
+           (build-expression expr env)
+           (build-statement stmt env)]
+          [(sham:stmt:void) (void)]
+          [else (error "unknown statement" stmt)]))
+
+      (define (build-expression e env)
+        (match e
+          [(sham:exp:app rator rands)
+           (define rand-values (for/list ([rand rands]) (build-expression rand env)))
+           (build-app rator rand-values env)]
+          [(sham:exp:fl-value value t) (LLVMConstReal (build-llvm-type t env) value)]
+          [(sham:exp:si-value value t) (LLVMConstInt (build-llvm-type t env) value #t)]
+          [(sham:exp:ui-value value t) (LLVMConstInt (build-llvm-type t env) value #f)]
+          [(sham:exp:sizeof type)
+           (define envtype (env-lookup type env))
+           (LLVMConstInt (internal-type-jit (env-type-prim (env-lookup 'i32 env)))
+                         (LLVMStoreSizeOfType jit-target-data
+                                              (internal-type-jit (env-type-prim envtype)))
+                         #f)]
+          [(sham:exp:type t)
+           (build-llvm-type t env)]
+          [(sham:exp:void-value) (void)]
+          [(sham:exp:gep ptr indxs)
+           (LLVMBuildGEP jit-builder
+                         (build-expression ptr env)
+                         (map (curryr build-expression env) indxs)
+                         "gep")]
+          [(sham:exp:var sym)
+           (LLVMBuildLoad jit-builder
+                          (env-jit-value-ref (env-lookup sym env))
+                          (symbol->string sym))]
+          [(sham:exp:stmt-exp stmt expr)
+           (build-statement stmt env)
+           (build-expression expr env)]
+          [else (error "no matching clause for build-expression" e)]))
+
+      (define (build-app rator rand-values env)
+        (match rator
+          [(sham:rator:intrinsic str-id ret-type)
+           (define s (symbol->string str-id))
+           (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
+                                             (map LLVMTypeOf rand-values) #f))
+           (define ref (LLVMAddFunction jit-module s fn-type))
+           (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
+          [(sham:rator:external lib-id str-id ret-type)
+           (define s (symbol->string str-id))
+           (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
+                                             (map LLVMTypeOf rand-values) #f))
+           (add-mapping! lib-id str-id)
+           (define ref (LLVMAddFunction jit-module s fn-type))
+           (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
+          [(sham:rator:symbol sym)
+           (match (env-lookup sym env)
+             [(env-jit-function ref type)
+              (LLVMBuildCall jit-builder ref rand-values
+                             (substring (symbol->string sym) 0 3))]
+             [(env-jit-intr-function builder)
+              (builder jit-builder rand-values)]
+             [else (error "cannot figure out how to apply: ~a" rator)])]))
+      (define entry-block (new-block 'entry))
+      (LLVMPositionBuilderAtEnd jit-builder entry-block)
+      (define new-env
+        (for/fold ([env env])
+                  ([arg args]
+                   [type types]
+                   [i (in-range (length args))])
+          (define l-type (build-env-type type env))
+          (define p-arg (LLVMBuildAlloca jit-builder (internal-type-jit (env-type-prim l-type))
+                                         (symbol->string arg)))
+          (LLVMBuildStore jit-builder (LLVMGetParam fref i) p-arg)
+          (env-extend arg (env-jit-value p-arg l-type) env)))
+
+      (build-statement body new-env)
+      env-function)
     ;; TODO return values of name and obj
     (match stmt
       [(sham:def:type type-name t)
@@ -348,8 +363,8 @@
        (env-extend type-name (env-lookup type-name env) module-env)]
       [(sham:def:function function-name passes attrs args types ret-type body)
        (printf "compiling-function ~a\n" function-name)
-       (define f (compile-function-definition function-name args types ret-type body
-                                              env jit-module jit-builder))
+       (compile-function-definition function-name args types ret-type body)
+       (define f (env-lookup function-name env))
 
        (for ([attr attrs])
          (LLVMAddAttributeAtIndex
@@ -359,18 +374,19 @@
        (jit-run-function-pass passes jit-module f)
        (env-extend function-name f module-env)]))
   (match m
-    [(sham:module passes defs)
+    [(sham:module info defs)
      (define env
        (for/fold ([env (create-initial-environment context)])
                  ([stmt defs])
          (register-module-statement stmt env)))
      (define module-env
        (for/fold ([module-env (empty-env)])
-                ([stmt defs])
+                 ([stmt defs])
          (compile-module-statement stmt env module-env)))
-     (jit-run-module-pass passes jit-module)
+     (jit-run-module-pass (cdr (assoc 'passes info)) jit-module)
      (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
-     (env-extend '#%jit-module jit-module module-env)]))
+     (env-extend '#%ffi-mappings (unbox ffi-mappings)
+      (env-extend '#%jit-module jit-module module-env))]))
 
 
 (module+ test
@@ -392,7 +408,8 @@
   (define module-env
     (compile-module
      (sham:module
-       '(AlwaysInliner)
+      '((passes . (AlwaysInliner))
+        (ffi-libs . (libc ("/usr/lib/libc" "6"))))
        (list
         (sham:def:type 'int i32)
         (sham:def:type 'int* (sham:type:pointer i32))
@@ -474,7 +491,8 @@
           (sham:stmt:block
            (list
             (sham:stmt:if (build-app icmp-eq (ui32 0) (ui32 0))
-                          (sham:stmt:exp (sham:exp:void-value))
+                          (sham:stmt:exp-stmt (sham:exp:void-value)
+                                              (sham:stmt:void))
                           (sham:stmt:return (ui32 1)))
             (ret (ui32 0)))))
         (defn 'malloc-test '() '() i32
@@ -483,7 +501,8 @@
                          (list (build-app (rs 'malloc) (sham:exp:type (sham:type:ref 'int))))
                          (sham:stmt:block
                           (list
-                           (sham:stmt:exp (build-app (rs 'store!) (ui32 42) (v 'ptr)))
+                           (sham:stmt:exp-stmt (build-app (rs 'store!) (ui32 42) (v 'ptr))
+                                               (sham:stmt:void))
                            (ret (build-app (rs 'load) (v 'ptr)))))))))))
 
   (jit-dump-module module-env)
