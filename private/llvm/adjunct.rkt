@@ -6,10 +6,8 @@
          "ffi/target-machine.rkt"
          "ffi/execution-engine.rkt")
 
-(define adjunct-lib
-  (begin (unless (file-exists? adjunct-so-name)
-           (compile-adjunct))
-         (ffi-lib adjunct-so-name)))
+(provide LLVMCreateMCJITCompileForModuleWithTarget
+         LLVMAdjunctAddGlobalMapping)
 
 (define LLVMCreateMCJITCompileForModuleWithTarget
   (get-ffi-obj "LLVMCreateMCJITCompilerForModuleWithTarget"
@@ -21,3 +19,13 @@
                      (err : (_ptr o _string))
                      -> (status : LLVMBool)
                      -> (values ee status err))))
+
+
+(define LLVMAdjunctAddGlobalMapping
+  (get-ffi-obj "LLVMAdjunctAddGlobalMapping"
+               adjunct-lib
+               (_fun (engine : LLVMExecutionEngineRef)
+                     (fvalue : LLVMValueRef)
+                     (libname : _string)
+                     (fname : _string)
+                     -> _void)))

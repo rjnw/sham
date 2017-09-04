@@ -2,6 +2,7 @@
 (require ffi/unsafe)
 
 (require "private/llvm/ffi/all.rkt")
+(require "private/llvm/adjunct.rkt")
 (require "private/llvm/pass-table.rkt")
 (require "private/env.rkt")
 (require "private/types.rkt")
@@ -79,35 +80,20 @@
 (define (jit-write-module mod fname)
   (LLVMPrintModuleToFile (jit-get-module mod) fname))
 
-
-
 (define (add-ffi-mapping engine mod-env)
   (define ffi-mappings (jit-get-info-key 'ffi-mappings mod-env))
   (define ffi-libs (jit-get-info-key 'ffi-libs mod-env))
   (for [(ffi-mapping ffi-mappings)]
-    (printf "ffi-mappings: ~a\n" ffi-mapping)
     (match ffi-mapping
-      [`(,orig-fn-name ,fn-name ,lib-name ,fun-type ,fun-value)
-       (printf "ffi-libs: ~a\n" ffi-libs)
+      [`(,fn-name ,lib-name ,fun-value)
        (define fflib (apply ffi-lib (cdr (assoc lib-name ffi-libs))))
-       (define fun-ptr (get-ffi-obj (symbol->string orig-fn-name) fflib _pointer))
-       ;       (printf "fun-value: ~a" (LLVMDumpValue fun-value))
-       (printf "linkage: ~a, visi: ~a\n" (LLVMGetLinkage fun-value) (LLVMGetVisibility fun-value))
-       ;; (printf "getting from global: ~a" 
-       ;;         (LLVMGetNamedGlobal (jit-get-module mod-env) "random1.1"))
-       (LLVMAddGlobalMapping engine fun-value fun-ptr)
-       ;; (error "void")
-
-       ])
-    ;(define-llvm LLVMAddGlobalMapping (_fun LLVMExecutionEngineRef LLVMValueRef _pointer -> _void))
-
-    ;; (error "void")
-    ))
+       (LLVMAdjunctAddGlobalMapping engine fun-value
+                                    (ffi-lib-name fflib)
+                                    (symbol->string fn-name))])))
 
 (define (initialize-jit mod #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
   (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
-  ;;todo add globalmapping ;LLVMAddGlobalMapping
   (define-values (engine status err)
     (LLVMCreateMCJITCompilerForModule (jit-get-module mod) mcjit-options))
   (if status
@@ -359,18 +345,13 @@
                                              (map LLVMTypeOf rand-values) #f))
            (define ref (LLVMAddFunction jit-module s fn-type))
            (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
-          [(sham:rator:external lib-id str-id ret-type)
-           (define ss (gensym^ str-id))
-           (define s (symbol->string ss))
+          [(sham:rator:external lib-id id ret-type)
+           (define s (symbol->string id))
            (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
                                              (map LLVMTypeOf rand-values) #f))
-           (define fn-value (LLVMAddGlobal jit-module fn-type s))
-           (LLVMSetLinkage fn-value 'LLVMExternalLinkage)
-           (LLVMSetVisibility fn-value 'LLVMDefaultVisibility)
-           ;; (LLVMSetExternallyInitialized fn-value #t)
-           (add-mapping! (list str-id ss lib-id fn-type fn-value))
-           (define ref (LLVMAddFunction jit-module s fn-type))
-           (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
+           (define fn-value (LLVMAddFunction jit-module s fn-type))
+           (add-mapping! (list id lib-id fn-value))
+           (LLVMBuildCall jit-builder fn-value rand-values (substring s 0 3))]
           [(sham:rator:symbol sym)
            (match (env-lookup sym env)
              [(env-jit-function ref type)
@@ -433,9 +414,11 @@
 (module+ test
   (require racket/unsafe/ops)
   (require rackunit)
+  (require disassemble)
   ;; (require "../disassemble/disassemble/main.rkt")
 
   (define i32 (sham:type:ref 'i32))
+  (define i64 (sham:type:ref 'i64))
   (define icmp-eq (sham:rator:symbol 'icmp-eq))
   (define urem (sham:rator:symbol 'urem))
   (define (build-app rator . rands)
@@ -560,12 +543,14 @@
   (define meven? (jit-get-function 'meven? cenv))
   (define malloc-test (jit-get-function 'malloc-test cenv))
   (define sum-array (jit-get-function 'sum-array cenv))
-  ;; (disassemble-ffi-function (jit-get-function-ptr 'sum-array cenv)
-  ;;                           #:size 70)
-
+  (define r (jit-get-function 'random cenv))
+  (disassemble-ffi-function (jit-get-function-ptr 'random cenv)
+                            #:size 70)
+  (printf "running tests\n")
   (check-eq? (fact 5) 120)
   (check-eq? (factr 5) 120)
   (check-eq? (even? 42) 1)
   (check-eq? (meven? 21) 0)
   (check-eq? (malloc-test) 42)
-  (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6))
+  (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6)
+  (printf "random-value: ~a\n" (r)))

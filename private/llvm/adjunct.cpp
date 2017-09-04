@@ -1,3 +1,4 @@
+#include "llvm-c/Types.h"
 #include "llvm-c/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
@@ -7,6 +8,9 @@
 #include "llvm/Support/CodeGenCWrappers.h"
 #include "llvm/Support/ErrorHandling.h"
 #include "llvm/Target/TargetOptions.h"
+
+#include "stdlib.h"
+#include "dlfcn.h"
 
 #ifdef __cplusplus
 extern "C" {
@@ -42,6 +46,15 @@ LLVMBool LLVMCreateMCJITCompilerForModuleWithTarget(
   }
   *OutError = strdup(Error.c_str());
   return 1;
+}
+
+void LLVMAdjunctAddGlobalMapping(LLVMExecutionEngineRef engine,
+				 LLVMValueRef fvalue,
+				 char* libname, char* fname) {
+  void* flib = dlopen (libname, RTLD_LAZY);
+  void* fnameptr = dlsym (flib, fname);
+  LLVMAddGlobalMapping (engine, fvalue, fnameptr);
+  dlclose (flib);
 }
 
 #ifdef __cplusplus

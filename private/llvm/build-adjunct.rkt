@@ -1,13 +1,21 @@
 #lang racket
 
 (require racket/system
-         dynext/compile)
+         dynext/compile
+         ffi/unsafe)
 
-(provide adjunct-so-name
-         compile-adjunct)
+(provide adjunct-lib)
 
-(define adjunct-so-name
-  (string-append "adjunct" (bytes->string/utf-8 (system-type 'so-suffix))))
+(define adjunct-so-path
+  (build-path (collection-path "sham") "private" "llvm" (string-append "adjunct" (bytes->string/utf-8 (system-type 'so-suffix)))))
+(define adjunct-file-path
+  (build-path (collection-path "sham") "private" "llvm" "adjunct.cpp"))
 
 (define (compile-adjunct)
-  (compile-extension #f "adjunct.cpp" adjunct-so-name '()))
+  (parameterize ([current-extension-compiler-flags (list "-shared" "-fPIC" "-O2" )])
+    (compile-extension #f adjunct-file-path adjunct-so-path '())))
+
+(define adjunct-lib
+  (begin (unless (file-exists? adjunct-so-path)
+           (compile-adjunct))
+         (ffi-lib adjunct-so-path)))
