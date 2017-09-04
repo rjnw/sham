@@ -95,7 +95,7 @@
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
   (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
   (define-values (engine status err)
-    (LLVMCreateMCJITCompilerForModule (jit-get-module mod) mcjit-options))
+    (LLVMCreateMCJITCompilerForModuleWithTarget (jit-get-module mod) mcjit-options))
   (if status
       (error "error initializing jit" status err)
       (begin
@@ -544,8 +544,8 @@
   (define malloc-test (jit-get-function 'malloc-test cenv))
   (define sum-array (jit-get-function 'sum-array cenv))
   (define r (jit-get-function 'random cenv))
-  (disassemble-ffi-function (jit-get-function-ptr 'random cenv)
-                            #:size 70)
+  ;; (disassemble-ffi-function (jit-get-function-ptr 'random cenv)
+  ;;                           #:size 70)
   (printf "running tests\n")
   (check-eq? (fact 5) 120)
   (check-eq? (factr 5) 120)
