@@ -2,7 +2,9 @@
 (require ffi/unsafe)
 
 (require "private/llvm/ffi/all.rkt")
-(require "private/llvm/adjunct.rkt")
+(require "private/llvm/adjunct.rkt"
+         "private/llvm/global-mapping.rkt")
+
 (require "private/llvm/pass-table.rkt")
 (require "private/env.rkt")
 (require "private/types.rkt")
@@ -13,12 +15,16 @@
 (provide
  initialize-jit
  jit-dump-module
+ jit-dump-function
  jit-write-bitcode
  jit-write-module
  jit-get-racket-type
  jit-get-function
  jit-verify-module
  jit-optimize-module
+ jit-optimize-function
+ jit-run-module-pass-env
+ jit-run-function-pass-env
  compile-module
  env-lookup)
 
@@ -87,20 +93,25 @@
     (match ffi-mapping
       [`(,fn-name ,lib-name ,fun-value)
        (define fflib (apply ffi-lib (cdr (assoc lib-name ffi-libs))))
-       (LLVMAdjunctAddGlobalMapping engine fun-value
-                                    (ffi-lib-name fflib)
-                                    (symbol->string fn-name))])))
+       (LLVMAddGlobalMapping engine fun-value (get-ffi-pointer fflib (symbol->string fn-name)))])))
 
-(define (initialize-jit mod #:opt-level [opt-level 1])
+(define (initialize-jit mod-env #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
   (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
   (define-values (engine status err)
-    (LLVMCreateMCJITCompilerForModuleWithTarget (jit-get-module mod) mcjit-options))
+    (LLVMCreateMCJITCompilerForModuleWithTarget (jit-get-module mod-env) mcjit-options))
   (if status
       (error "error initializing jit" status err)
       (begin
-        (add-ffi-mapping engine mod)
-        (jit-add-info-key! 'mcjit-engine engine mod))))
+        (add-ffi-mapping engine mod-env)
+        (jit-add-info-key! 'mcjit-engine engine mod-env)))
+  ;; (initialize-orc-jit mod-env)
+  )
+(define (initialize-orc-jit mod-env)
+  (define orc (LLVMOrcCreateInstance (LLVMCreateCurrentTargetMachineRef)))
+  (jit-add-info-key! 'orc-jit orc mod-env)
+  ;; (LLVMOrcAddEagerlyCompiledIR orc (jit-get-module mod-env) symbolResolver orc)
+  )
 
 ;; TODO check for mcjit-engine in env
 (define (jit-compile-function f-sym mod)

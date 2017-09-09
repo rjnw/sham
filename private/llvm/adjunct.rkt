@@ -7,6 +7,7 @@
          "ffi/execution-engine.rkt")
 
 (provide LLVMCreateMCJITCompilerForModuleWithTarget
+         LLVMCreateCurrentTargetMachineRef
          LLVMAdjunctAddGlobalMapping)
 
 (define LLVMCreateMCJITCompilerForModuleWithTarget
@@ -28,3 +29,8 @@
                      (libname : _string)
                      (fname : _string)
                      -> _void)))
+
+(define LLVMCreateCurrentTargetMachineRef
+  (get-ffi-obj "LLVMCreateCurrentTargetMachineRef"
+               adjunct-lib
+               (_fun -> LLVMTargetMachineRef)))

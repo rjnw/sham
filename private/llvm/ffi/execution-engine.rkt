@@ -66,7 +66,7 @@
 (define-llvm LLVMRecompileAndRelinkFunction (_fun LLVMExecutionEngineRef LLVMValueRef -> _pointer))
 (define-llvm LLVMGetExecutionEngineTargetData (_fun LLVMExecutionEngineRef -> LLVMTargetDataRef))
 (define-llvm LLVMGetExecutionEngineTargetMachine (_fun LLVMExecutionEngineRef -> LLVMTargetMachineRef))
-(define-llvm LLVMAddGlobalMapping (_fun LLVMExecutionEngineRef LLVMValueRef _pointer -> _void))
+(define-llvm LLVMAddGlobalMapping (_fun LLVMExecutionEngineRef LLVMValueRef _uintptr -> _void))
 (define-llvm LLVMGetPointerToGlobal (_fun LLVMExecutionEngineRef LLVMValueRef -> _pointer))
 (define-llvm LLVMGetGlobalValueAddress (_fun LLVMExecutionEngineRef _string -> _uint64))
 (define-llvm LLVMGetFunctionAddress (_fun LLVMExecutionEngineRef _string -> _uint64))

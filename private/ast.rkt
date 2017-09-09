@@ -157,6 +157,8 @@
      `(return ,(sham-expr->sexp val))]
     [(sham:stmt:return-void)
      `(return-void)]
+    [(sham:stmt:void)
+     'void-stmt]
     [(sham:stmt:block stmts)
      `(block ,@(map sham-stmt->sexp stmts))]
     [(sham:stmt:exp-stmt e s)
@@ -324,3 +326,6 @@
         'id '() '(AlwaysInline)
         '(args ...) (list (sham:type:ref 't) ...) (sham:type:ref 'rett)
         (sham:stmt:return stmt))]))
+
+(define (sham:stmt:exp e)
+  (sham:stmt:exp-stmt e (sham:stmt:void)))

@@ -22,40 +22,46 @@ extern "C" {
 
 using namespace llvm;
 
+TargetMachine* LLVMCreateCurrentTargetMachine () {
+  TargetOptions targetOptions;
+  auto targetTriple = sys::getDefaultTargetTriple();
+  std::string error;
+  auto target = TargetRegistry::lookupTarget (targetTriple, error);
+  auto relocModel = Optional<Reloc::Model>(Reloc::Static);
+  
+  SubtargetFeatures features;
+  StringMap<bool> hostFeatures;
+  if (sys::getHostCPUFeatures(hostFeatures)) {
+    for (auto &feature : hostFeatures) {
+      features.AddFeature(feature.first(), feature.second);
+    }
+  }
+  auto targetMachine = target->createTargetMachine(targetTriple,
+						   sys::getHostCPUName(),
+						   features.getString(),
+						   targetOptions, relocModel);
+  return targetMachine;
+}
+
+LLVMTargetMachineRef LLVMCreateCurrentTargetMachineRef (){
+  return
+    reinterpret_cast<LLVMTargetMachineRef>(const_cast<TargetMachine *>
+  					   (LLVMCreateCurrentTargetMachine ()));
+}
+
 LLVMBool LLVMCreateMCJITCompilerForModuleWithTarget(
-    LLVMExecutionEngineRef *OutJIT, LLVMModuleRef M,
-    LLVMMCJITCompilerOptions *options, char **OutError) {
+    LLVMExecutionEngineRef *outJIT, LLVMModuleRef moduleRef,
+    LLVMMCJITCompilerOptions *options, char **outError) {
   TargetOptions targetOptions;
   targetOptions.EnableFastISel = options->EnableFastISel;
 
-  std::unique_ptr<Module> Mod(unwrap(M));
-  std::string Error;
-  // TargetMachine* TM(reinterpret_cast<TargetMachine* >(TMR));
-
-  auto TargetTriple = sys::getDefaultTargetTriple();
-  auto Target = TargetRegistry::lookupTarget (TargetTriple, Error);
-  auto RM = Optional<Reloc::Model>();
-
-  printf ("creating mcjit for target with triple: %s\n", TargetTriple.c_str());
-  printf ("host cpu: %s\n", sys::getHostCPUName ().data ());
-
-  SubtargetFeatures features;
-  StringMap<bool> HostFeatures;
-  if (sys::getHostCPUFeatures(HostFeatures)) {
-    for (auto &F : HostFeatures) {
-      features.AddFeature(F.first(), F.second);
-    }
-  }
-  printf ("feature string: %s\n", features.getString().c_str());
-  auto TargetMachine = Target->createTargetMachine (TargetTriple,
-						    sys::getHostCPUName(),
-						    features.getString(),
-						    targetOptions, RM);
-  
-  EngineBuilder builder(std::move(Mod));
+  std::unique_ptr<Module> module(unwrap(moduleRef));
+  std::string error;
+  EngineBuilder builder(std::move(module));
   builder.setEngineKind(EngineKind::JIT)
-         .setErrorStr(&Error)
+         .setErrorStr(&error)
          .setOptLevel((CodeGenOpt::Level)options->OptLevel)
+         .setMCPU (sys::getHostCPUName())
          .setCodeModel(unwrap(options->CodeModel))
          .setTargetOptions(targetOptions);
 
@@ -63,11 +69,11 @@ LLVMBool LLVMCreateMCJITCompilerForModuleWithTarget(
     builder.setMCJITMemoryManager(
       std::unique_ptr<RTDyldMemoryManager>(unwrap(options->MCJMM)));
   }
-  if (ExecutionEngine *JIT = builder.create(TargetMachine)) {
-    *OutJIT = wrap(JIT);
+  if (ExecutionEngine *jit = builder.create(LLVMCreateCurrentTargetMachine())) {
+    *outJIT = wrap(jit);
     return 0;
   }
-  *OutError = strdup(Error.c_str());
+  *outError = strdup(error.c_str());
   return 1;
 }
 
