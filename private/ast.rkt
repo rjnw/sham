@@ -9,6 +9,7 @@
 
 (struct sham:def:function  sham:def     (id passes attrs arg-ids arg-types ret-type body))
 (struct sham:def:type      sham:def     (id type))
+(struct sham:def:global    sham:def     (id type))
 
 
 (struct sham:type ())
@@ -32,6 +33,7 @@
 (struct sham:stmt:block        (stmts))
 (struct sham:stmt:exp-stmt     (e s))
 
+
 (struct sham:exp ())
 
 (struct sham:exp:app           (rator rands))
@@ -43,7 +45,9 @@
 (struct sham:exp:type          (t))
 (struct sham:exp:gep           (ptr indxs))
 (struct sham:exp:var           (v))
+(struct sham:exp:global        (v))
 (struct sham:exp:stmt-exp      (s e))
+
 
 (struct sham:rator ())
 

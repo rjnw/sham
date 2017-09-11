@@ -77,15 +77,6 @@ LLVMBool LLVMCreateMCJITCompilerForModuleWithTarget(
   return 1;
 }
 
-void LLVMAdjunctAddGlobalMapping(LLVMExecutionEngineRef engine,
-				 LLVMValueRef fvalue,
-				 char* libname, char* fname) {
-  void* flib = dlopen (libname, RTLD_LAZY);
-  void* fnameptr = dlsym (flib, fname);
-  LLVMAddGlobalMapping (engine, fvalue, fnameptr);
-  dlclose (flib);
-}
-
 #ifdef __cplusplus
 }
 #endif /* defined(__cplusplus) */

@@ -675,7 +675,7 @@
 (define-llvm LLVMGetPreviousGlobal (_fun LLVMValueRef -> LLVMValueRef))
 (define-llvm LLVMDeleteGlobal (_fun LLVMValueRef -> _void))
 (define-llvm LLVMGetInitializer (_fun LLVMValueRef -> LLVMValueRef))
-(define-llvm LLVMSetInitializer (_fun LLVMValueRef LLVMValueRef -> _void))
+(define-llvm LLVMSetInitializer (_fun LLVMValueRef LLVMValueRef/null -> _void))
 (define-llvm LLVMIsThreadLocal (_fun LLVMValueRef -> LLVMBool))
 (define-llvm LLVMSetThreadLocal (_fun LLVMValueRef LLVMBool -> _void))
 (define-llvm LLVMIsGlobalConstant (_fun LLVMValueRef -> LLVMBool))

@@ -58,6 +58,7 @@
   (register-jit-internals (register-initial-types (empty-env) context) context))
 
 (define (jit-dump-module mod)
+  (LLVMDumpModule (jit-get-module mod))
   (for [(m mod)]
     (let ([s (car m)]
           [v (cdr m)])
@@ -223,7 +224,13 @@
       [(sham:def:function function-name _ _ args types ret-type body)
        (define type (build-env-type (sham:type:function types ret-type) env))
        (define function-obj (compile-function-declaration type function-name))
-       (env-extend function-name (env-jit-function function-obj type) env)]))
+       (env-extend function-name (env-jit-function function-obj type) env)]
+      [(sham:def:global id t)
+       (define type (build-env-type t env))
+       (define value
+         (LLVMAddGlobal jit-module (internal-type-jit (env-type-prim type)) (symbol->string id)))
+       (LLVMSetInitializer value (LLVMConstInt (internal-type-jit (env-type-prim type)) 0 #f))
+       (env-extend id (env-jit-value value (build-env-type t env)) env)]))
 
   (define (compile-module-statement stmt env module-env)
     (define (compile-function-definition name args types ret-type body)
@@ -252,9 +259,15 @@
            (build-statement st new-env)]
 
           [(sham:stmt:set! lhs v) ;;TODO: right now lhs can only be a var
-           (define v-ref (build-expression v env))
-           (define lhs-v (env-jit-value-ref (env-lookup (sham:exp:var-v lhs) env)))
-           (LLVMBuildStore jit-builder v-ref lhs-v)]
+           (match lhs
+             [(sham:exp:var var)
+              (define lhs-v (env-jit-value-ref (env-lookup var env)))
+              (define rhs-v (build-expression v env))
+              (LLVMBuildStore jit-builder rhs-v lhs-v)]
+             [(sham:exp:global var)
+              (define global-v (env-jit-value-ref (env-lookup var env)))
+              (define rhs-v (build-expression v env))
+              (LLVMSetInitializer global-v rhs-v)])]
 
           [(sham:stmt:if tst thn els)
            (define tst-value (build-expression tst env))
@@ -346,6 +359,8 @@
           [(sham:exp:stmt-exp stmt expr)
            (build-statement stmt env)
            (build-expression expr env)]
+          [(sham:exp:global sym)
+           (env-jit-value-ref (env-lookup sym env))]
           [else (error "no matching clause for build-expression" e)]))
 
       (define (build-app rator rand-values env)
@@ -403,7 +418,10 @@
           (cast -1 _int _uint)
           (jit-lookup-attr attr context)))
        (jit-run-function-pass passes jit-module f)
-       (env-extend function-name f module-env)]))
+       (env-extend function-name f module-env)]
+      [(sham:def:global id t)
+       (define env-value (env-lookup id env))
+       (env-extend id env-value module-env)]))
   (match m
     [(sham:module info defs)
      (define env
@@ -453,9 +471,23 @@
         (sham:def:type 'ui (sham:type:struct '(bc1 bc2) (list (sham:type:ref 'pbc)
                                                               (sham:type:ref 'pbc))))
 
-
+        (sham:def:global 'constant1 i32)
+        (sham:def:function 'setglobal '() '() '() '() i32
+                           (sham:stmt:block
+                            (list
+                             ;; (sham:stmt:set! (sham:exp:global 'constant1)
+                             ;;                 ;(build-app (sham:rator:symbol 'fact) (sham:exp:ui-value 5 i32))
+                             ;;                 (sham:exp:ui-value 1 i32)
+                             ;;                 )
+                             (sham:stmt:set! (sham:exp:var 'constant1)
+                                             (build-app (sham:rator:symbol 'fact) (sham:exp:ui-value 5 i32)))
+                             (sham:stmt:return (sham:exp:ui-value 1 i32)))))
         (sham:def:function 'const1 '() '() '() '() i32
-                           (sham:stmt:return (sham:exp:ui-value 1 i32)))
+                           (sham:stmt:block
+                            (list
+                             (sham:stmt:set! (sham:exp:var 'constant1)
+                                             (sham:exp:ui-value 2 i32))
+                             (sham:stmt:return (sham:exp:var 'constant1)))))
         (sham:def:function 'id '() '() '(x) (list i32) i32
                            (ret (v 'x)))
 
