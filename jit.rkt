@@ -92,9 +92,9 @@
   (define ffi-libs (jit-get-info-key 'ffi-libs mod-env))
   (for [(ffi-mapping ffi-mappings)]
     (match ffi-mapping
-      [`(,fn-name ,lib-name ,fun-value)
+      [`(,name ,lib-name ,value)
        (define fflib (apply ffi-lib (cdr (assoc lib-name ffi-libs))))
-       (LLVMAddGlobalMapping engine fun-value (get-ffi-pointer fflib (symbol->string fn-name)))])))
+       (LLVMAddGlobalMapping engine value (get-ffi-pointer fflib (symbol->string name)))])))
 
 (define (initialize-jit mod-env #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
@@ -359,6 +359,10 @@
           [(sham:exp:stmt-exp stmt expr)
            (build-statement stmt env)
            (build-expression expr env)]
+          [(sham:exp:external lib-id sym t)
+           (define value (LLVMAddGlobal jit-module  (build-llvm-type t env) (symbol->string sym)))
+           (add-mapping! (list sym lib-id value))
+           (LLVMBuildLoad jit-builder value (symbol->string sym))]
           [(sham:exp:global sym)
            (env-jit-value-ref (env-lookup sym env))]
           [else (error "no matching clause for build-expression" e)]))
@@ -564,6 +568,8 @@
             (ret (ui32 0)))))
         (defn 'random '() '() i32
           (ret (sham:exp:app (sham:rator:external 'libc 'random i32) '())))
+        (defn 'test '() '() (sham:type:ref 'void*)
+          (ret (sham:exp:external 'libc 'random (sham:type:ref 'void*))))
         (defn 'malloc-test '() '() i32
           (sham:stmt:let '(ptr)
                          (list (sham:type:ref 'int*))
@@ -587,6 +593,7 @@
   (define malloc-test (jit-get-function 'malloc-test cenv))
   (define sum-array (jit-get-function 'sum-array cenv))
   (define r (jit-get-function 'random cenv))
+  (define test (jit-get-function 'test cenv))
   ;; (disassemble-ffi-function (jit-get-function-ptr 'random cenv)
   ;;                           #:size 70)
   (printf "running tests\n")

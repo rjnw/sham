@@ -44,8 +44,9 @@
 (struct sham:exp:sizeof        (t))
 (struct sham:exp:type          (t))
 (struct sham:exp:gep           (ptr indxs))
-(struct sham:exp:var           (v))
-(struct sham:exp:global        (v))
+(struct sham:exp:var           (id))
+(struct sham:exp:global        (id))
+(struct sham:exp:external      (lib-id id t))
 (struct sham:exp:stmt-exp      (s e))
 
 
@@ -71,7 +72,10 @@
 (define (print-sham-stmt stmt)
   (match stmt
     [(sham:stmt:let ids ts vs st)
-     `(let ,(for/list [(i ids) (t ts) (v vs)] `(,i ,(print-sham-expr v)))
+     `(let ,(for/list [(i ids) (t ts) (v vs)]
+               (if (sham:exp:void-value? v)
+                   i
+                   `(,i ,(print-sham-expr v))))
         ,(print-sham-stmt st))]
     [(sham:stmt:set! lhs val)
      `(set! ,(print-sham-expr lhs) ,(print-sham-expr val))]
@@ -85,6 +89,8 @@
      `(return-void)]
     [(sham:stmt:block stmts)
      `(block ,@(map print-sham-stmt stmts))]
+    [(sham:stmt:void)
+     `void]
     [(sham:stmt:exp-stmt e s)
      `(exp-stmt ,(print-sham-expr e)
                 ,(print-sham-stmt s))]))
@@ -114,9 +120,9 @@
 (define (print-sham-rator r)
   (match r
     [(sham:rator:intrinsic str-id ret-type)
-     `(intrinsic ,str-id)]
+     str-id]
     [(sham:rator:symbol s)
-     `(symbol ,s)]
+     s]
     [(sham:rator:external lib-id str-id ret-type)
      `(external ,lib-id ,str-id)]))
 (define (print-sham-def def)
