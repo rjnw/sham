@@ -110,6 +110,10 @@
      `(sizeof ,(print-sham-type t))]
     [(sham:exp:type t)
      `(%type ,(print-sham-type t))]
+    [(sham:exp:global id)
+     `(global ,id)]
+    [(sham:exp:external lib-id id t)
+     `(external ,id ,lib-id)]
     [(sham:exp:gep ptr indxs)
      `(gep ,(print-sham-expr ptr) ,@(map print-sham-expr indxs))]
     [(sham:exp:var v)
@@ -131,7 +135,9 @@
      `(define (,id ,@arg-ids)
         ,(print-sham-stmt body))]
     [(sham:def:type id t)
-     `(define ,id ,(print-sham-type t))]))
+     `(define ,id ,(print-sham-type t))]
+    [(sham:def:global id t)
+     `(global ,id ,(print-sham-type t))]))
 (define (print-sham-ast ast)
   (match ast
     [(sham:module passes defs)

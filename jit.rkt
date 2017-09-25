@@ -90,10 +90,19 @@
 (define (add-ffi-mapping engine mod-env)
   (define ffi-mappings (jit-get-info-key 'ffi-mappings mod-env))
   (define ffi-libs (jit-get-info-key 'ffi-libs mod-env))
+  (define lib-map (for/hash ([fl ffi-libs])
+                    (match fl
+                      [`(,lib-name . (,str-args ... #:global? ,gv))
+                       (define flib (apply ffi-lib str-args #:global? gv))
+                       (values lib-name flib)]
+                      [`(,lib-name . (,str-args ...))
+                       (define flib (apply ffi-lib str-args))
+                       (values lib-name flib)])))
+  (printf "lib-map: ~a\n" lib-map)
   (for [(ffi-mapping ffi-mappings)]
     (match ffi-mapping
       [`(,name ,lib-name ,value)
-       (define fflib (apply ffi-lib (cdr (assoc lib-name ffi-libs))))
+       (define fflib (hash-ref lib-map lib-name))
        (LLVMAddGlobalMapping engine value (get-ffi-pointer fflib (symbol->string name)))])))
 
 (define (initialize-jit mod-env #:opt-level [opt-level 1])
@@ -580,10 +589,11 @@
                                                (sham:stmt:void))
                            (ret (build-app (rs 'load) (v 'ptr)))))))))))
 
-  (jit-dump-module module-env)
+  ;; (jit-dump-module module-env)
+
   (jit-optimize-module module-env #:opt-level 3)
   (jit-dump-module module-env)
-  (jit-verify-module module-env)
+  (printf "verifying module: ~a\n" (jit-verify-module module-env))
   (define cenv (initialize-jit module-env #:opt-level 3))
 
   (define factr (jit-get-function 'factr cenv))
@@ -603,4 +613,5 @@
   (check-eq? (meven? 21) 0)
   (check-eq? (malloc-test) 42)
   (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6)
-  (printf "random-value: ~a\n" (r)))
+  (printf "random-value: ~a\n" (r))
+  )

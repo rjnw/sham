@@ -390,7 +390,7 @@
 (define-llvm LLVMGetTypeKind (_fun LLVMTypeRef -> LLVMTypeKind))
 (define-llvm LLVMTypeIsSized (_fun LLVMTypeRef -> LLVMBool))
 (define-llvm LLVMGetTypeContext (_fun LLVMTypeRef -> LLVMContextRef))
-(define-llvm LLVMDumpType (_fun LLVMTypeRef -> _void))
+;(define-llvm LLVMDumpType (_fun LLVMTypeRef -> _void))
 (define-llvm LLVMPrintTypeToString (_fun LLVMTypeRef -> _string))
 
 ;;Integer types
