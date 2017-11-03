@@ -23,7 +23,6 @@
 
 (struct sham:stmt ())
 
-;(struct sham:stmt:let          (ids id-types id-vals stmt))
 (struct sham:stmt:set!         (lhs val))
 (struct sham:stmt:if           (tst thn els))
 (struct sham:stmt:while        (tst body))
@@ -31,6 +30,7 @@
 (struct sham:stmt:void         ())
 (struct sham:stmt:expr         (e))
 (struct sham:stmt:block        (stmts))
+
 
 (struct sham:exp ())
 
@@ -46,7 +46,6 @@
 (struct sham:exp:global        (id))
 (struct sham:exp:external      (lib-id id t))
 (struct sham:exp:let           (ids id-types id-vals stmt expr))
-;(struct sham:exp:stmt-exp      (s e))
 
 
 (struct sham:rator ())
