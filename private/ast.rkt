@@ -70,28 +70,37 @@
      `(* ,(print-sham-type to))]))
 (define (print-sham-stmt stmt)
   (match stmt
-    
+    [(sham:stmt:expr e)
+     (list (print-sham-expr e))]
     [(sham:stmt:set! lhs val)
-     `(set! ,(print-sham-expr lhs) ,(print-sham-expr val))]
+     `((set! ,(print-sham-expr lhs) ,(print-sham-expr val)))]
     [(sham:stmt:if tst thn els)
-     `(if ,(print-sham-expr tst) ,(print-sham-stmt thn) ,(print-sham-stmt els))]
+     `((if ,(print-sham-expr tst) ,@(print-sham-stmt thn) ,@(print-sham-stmt els)))]
     [(sham:stmt:while tst body)
-     `(while ,(print-sham-expr tst) ,(print-sham-stmt body))]
+     `((while ,(print-sham-expr tst) ,@(print-sham-stmt body)))]
     [(sham:stmt:return val)
-     `(return ,(print-sham-expr val))]
+     `((return ,(print-sham-expr val)))]
+    [(sham:stmt:expr l)
+     #:when (sham:exp:let? l)
+     (print-sham-expr l)]
     [(sham:stmt:block stmts)
-     `(block ,@(map print-sham-stmt stmts))]
+     (append-map print-sham-stmt stmts)]
     [(sham:stmt:void)
-     `void]))
+     `(svoid)]))
 
 (define (print-sham-expr e)
   (match e
     [(sham:exp:let ids ts vs st e)
-     `(let ,(for/list [(i ids) (t ts) (v vs)]
-               (if (sham:exp:void? v)
-                   i
-                   `(,i ,(print-sham-expr v))))
-        ,(print-sham-stmt st)
+     #:when (sham:exp:void? e)
+     `(let ,@(map (λ (v) `(,(car v)
+                           ,(print-sham-expr (cdr v))))
+                  (map cons ids vs))
+        ,@(print-sham-stmt st))]
+    [(sham:exp:let ids ts vs st e)
+     `(let ,@(map (λ (v) `(,(car v)
+                           ,(print-sham-expr (cdr v))))
+                  (map cons ids vs))
+        ,@(print-sham-stmt st)
         ,(print-sham-expr e))]
     [(sham:exp:app rator rands)
      `(,(print-sham-rator rator) ,@(map print-sham-expr rands))]
@@ -102,7 +111,7 @@
     [(sham:exp:ui-value v t)
      `(uint ,v ,(print-sham-type t))]
     [(sham:exp:void)
-     `void]
+     `evoid]
     [(sham:exp:sizeof t)
      `(sizeof ,(print-sham-type t))]
     [(sham:exp:type t)
@@ -128,7 +137,7 @@
   (match def
     [(sham:def:function id passes attrs arg-ids arg-types ret-type body)
      `(define (,id ,@arg-ids)
-        ,(print-sham-stmt body))]
+        ,@(print-sham-stmt body))]
     [(sham:def:type id t)
      `(define ,id ,(print-sham-type t))]
     [(sham:def:global id t)

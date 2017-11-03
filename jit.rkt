@@ -315,7 +315,7 @@
            (LLVMPositionBuilderAtEnd jit-builder afterloop-block)]
           
           [(sham:stmt:return v)
-           (if (sham:stmt:void? v)
+           (if (sham:exp:void? v)
                (LLVMBuildRetVoid jit-builder)
                (LLVMBuildRet jit-builder (build-expression v env)))]
           [(sham:stmt:block stmts)
