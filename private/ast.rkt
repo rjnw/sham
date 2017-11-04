@@ -198,6 +198,10 @@
      `(%sizeof ,(sham-type->sexp t))]
     [(sham:exp:type t)
      `(%type ,(sham-type->sexp t))]
+    [(sham:exp:global id)
+     `(%global ,id)]
+    [(sham:exp:external lib-id id t)
+     `(%external ,lib-id ,id ,(sham-type->sexp t))]
     [(sham:exp:gep ptr indxs)
      `(%gep ,(sham-expr->sexp ptr) ,@(map sham-expr->sexp indxs))]
     [(sham:exp:var v)
