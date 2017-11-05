@@ -7,7 +7,7 @@
   (define val (assoc key env))
   (if val
       (cdr val)
-      (error "key not found in env ~a" key)))
+      (error "key not found in env" key)))
 
 (define (env-contains? key env)
   (not (false? (assoc key env))))

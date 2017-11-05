@@ -19,13 +19,13 @@
 
 (define (compile-type t-obj env)
   (match t-obj
-    [(sham:type:ref t) (env-type-prim (env-lookup t env))]
-    [(sham:type:struct names types)
+    [(sham:type:ref _ t) (env-type-prim (env-lookup t env))]
+    [(sham:type:struct _ names types)
      (create-struct-type (map (curryr compile-type env) types))]
-    [(sham:type:function args ret)
+    [(sham:type:function _ args ret)
      (create-function-type (map (curryr compile-type env) args)
                            (compile-type ret env))]
-    [(sham:type:pointer to)
+    [(sham:type:pointer _ to)
      (create-pointer-type (compile-type to env))]))
 
 ;input internal-type
