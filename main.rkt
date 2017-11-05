@@ -1,13 +1,6 @@
 #lang racket/base
 
-(module+ test
-  (require rackunit))
+(require "jit.rkt"
+         "ast.rkt")
 
-
-(module+ test
-  ;; Tests to be run with raco test
-  )
-
-(module+ main
-  ;; Main entry point, executed when run with the `racket` executable or DrRacket.
-  )
+(provide (all-from-out "ast.rkt" "jit.rkt"))

@@ -46,22 +46,22 @@
       (assign ,var-sym ,start-exp)
       (while ,(check-bexp var-sym)
         ,(combine-blocks
-          `(block
+          `(block)
           ,(body-bstmt var-sym)
-          (assign var-sym ,(inc-bexp var-sym))))))))
+          (assign var-sym ,(inc-bexp var-sym)))))))
 
 (define ((add1b [t 'int]) var-sym)
   `(appb-add ,var-sym (vl 1 t)))
 
 
 ;;binary jit ops
-(register-ops (null? add add-ovf sub sub-ovf mul mul-ovf div rem rem-ieee and or
-		     xor shl shr ushr sshr eq? ne? lt? le? gt? ge? cmpl cmpg))
+(register-ops (null? add add-ovf sub sub-ovf mul mul-ovf div rem rem-ieee and or)
+         xor shl shr ushr sshr eq? ne? lt? le? gt? ge? cmpl cmpg)
 
 ;;unary jit ops
-(register-ops (neg to-bool to-not-bool acos asin atan ceil cos cosh exp floor
-		   log log10 rint round sin sinh sqrt tan tanh trunc is-nan
-		   is-inf is-finite abs sign))
+(register-ops (neg to-bool to-not-bool acos asin atan ceil cos cosh exp floor)
+       log log10 rint round sin sinh sqrt tan tanh trunc is-nan
+       is-inf is-finite abs sign)
 
 (module+ test
   (pretty-display (for-loopb 'i 'int 0
@@ -71,12 +71,10 @@
                             ;; (lambda (i) ((ap 'jit-add) i (vi 1)))
                             (lambda (i) `(test-exp)))))
 
-
 ;;misc utils
 (define (symbol-append s1 s2)
-  (string->symbol (string-append (symbol->string s1)
-				 (symbol->string s2))))
-
+  (string->symbol (string-append (symbol->string s1))
+         (symbol->string s2)))
 
 (define (clean-block stmt)
   (match stmt
@@ -85,7 +83,7 @@
      (if (eq? 1 (length ne-sts))
          (car ne-sts)
          `(block ,@ne-sts))]
-    [else exp]))
+    [else stmt]))
 
 (define (combine-blocks stmt)
   (match stmt

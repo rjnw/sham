@@ -35,20 +35,20 @@
 (struct sham:stmt:block  sham:stmt (stmts))
 
 
-(struct sham:exp sham:ast ())
+(struct sham:expr sham:ast ())
 
-(struct sham:exp:app      sham:exp (rator rands))
-(struct sham:exp:fl-value sham:exp (v t))
-(struct sham:exp:si-value sham:exp (v t))
-(struct sham:exp:ui-value sham:exp (v t))
-(struct sham:exp:void     sham:exp ())
-(struct sham:exp:sizeof   sham:exp (t))
-(struct sham:exp:type     sham:exp (t)) ;;only used for malloc and variants
-(struct sham:exp:gep      sham:exp (ptr indxs))
-(struct sham:exp:var      sham:exp (id))
-(struct sham:exp:global   sham:exp (id))
-(struct sham:exp:external sham:exp (lib-id id t))
-(struct sham:exp:let      sham:exp (ids id-types id-vals stmt expr))
+(struct sham:expr:app      sham:expr (rator rands))
+(struct sham:expr:fl-value sham:expr (v t))
+(struct sham:expr:si-value sham:expr (v t))
+(struct sham:expr:ui-value sham:expr (v t))
+(struct sham:expr:void     sham:expr ())
+(struct sham:expr:sizeof   sham:expr (t))
+(struct sham:expr:type     sham:expr (t)) ;;only used for malloc and variants
+(struct sham:expr:gep      sham:expr (ptr indxs))
+(struct sham:expr:var      sham:expr (id))
+(struct sham:expr:global   sham:expr (id))
+(struct sham:expr:external sham:expr (lib-id id t))
+(struct sham:expr:let      sham:expr (ids id-types id-vals stmt expr))
 
 
 (struct sham:rator sham:ast ())
@@ -79,38 +79,38 @@
      `((while ,(print-sham-expr tst) ,@(print-sham-stmt body)))]
     [(sham:stmt:return md val) `((return ,(print-sham-expr val)))]
     [(sham:stmt:expr md l)
-     #:when (sham:exp:let? l)
+     #:when (sham:expr:let? l)
      (print-sham-expr l)]
     [(sham:stmt:block md stmts) (append-map print-sham-stmt stmts)]
     [(sham:stmt:void md) `(svoid)]))
 
 (define (print-sham-expr e)
   (match e
-    [(sham:exp:let md ids ts vs st e)
-     #:when (sham:exp:void? e)
+    [(sham:expr:let md ids ts vs st e)
+     #:when (sham:expr:void? e)
      `(let ,@(map (λ (v) `(,(car v)
                            ,(print-sham-expr (cdr v))))
                   (map cons ids vs))
         ,@(print-sham-stmt st))]
-    [(sham:exp:let md ids ts vs st e)
+    [(sham:expr:let md ids ts vs st e)
      `(let ,@(map (λ (v) `(,(car v)
                            ,(print-sham-expr (cdr v))))
                   (map cons ids vs))
         ,@(print-sham-stmt st)
         ,(print-sham-expr e))]
-    [(sham:exp:app md rator rands)
+    [(sham:expr:app md rator rands)
      `(,(print-sham-rator rator) ,@(map print-sham-expr rands))]
-    [(sham:exp:fl-value md v t) `(float ,v ,(print-sham-type t))]
-    [(sham:exp:si-value md v t) `(sint ,v ,(print-sham-type t))]
-    [(sham:exp:ui-value md v t) `(uint ,v ,(print-sham-type t))]
-    [(sham:exp:void md) `evoid]
-    [(sham:exp:sizeof md t) `(sizeof ,(print-sham-type t))]
-    [(sham:exp:type md t) `(%type ,(print-sham-type t))]
-    [(sham:exp:global md id) `(global ,id)]
-    [(sham:exp:external md lib-id id t) `(external ,id ,lib-id)]
-    [(sham:exp:gep md ptr indxs)
+    [(sham:expr:fl-value md v t) `(float ,v ,(print-sham-type t))]
+    [(sham:expr:si-value md v t) `(sint ,v ,(print-sham-type t))]
+    [(sham:expr:ui-value md v t) `(uint ,v ,(print-sham-type t))]
+    [(sham:expr:void md) `evoid]
+    [(sham:expr:sizeof md t) `(sizeof ,(print-sham-type t))]
+    [(sham:expr:type md t) `(%type ,(print-sham-type t))]
+    [(sham:expr:global md id) `(global ,id)]
+    [(sham:expr:external md lib-id id t) `(external ,id ,lib-id)]
+    [(sham:expr:gep md ptr indxs)
      `(gep ,(print-sham-expr ptr) ,@(map print-sham-expr indxs))]
-    [(sham:exp:var md v) v]))
+    [(sham:expr:var md v) v]))
 
 (define (print-sham-rator r)
   (match r
@@ -135,7 +135,7 @@
   (match mod
     [(sham:module info defs)
      `(module
-       ,@(map print-sham-def defs))]))
+          ,@(map print-sham-def defs))]))
 
 ;; (define (sham-type->sexp t)
 ;;   (match t
@@ -169,32 +169,32 @@
 
 ;; (define (sham-expr->sexp e)
 ;;   (match e
-;;     [(sham:exp:let ids ts vs st e)
+;;     [(sham:expr:let ids ts vs st e)
 ;;      `(let ,(for/list [(i ids) (t ts) (v vs)]
 ;;               `(,i : ,(sham-type->sexp t) ,(sham-expr->sexp v)))
 ;;         ,(sham-stmt->sexp st)
 ;;         ,(sham-expr->sexp e))]
-;;     [(sham:exp:app rator rands)
+;;     [(sham:expr:app rator rands)
 ;;      `(,(sham-rator->sexp rator) ,@(map sham-expr->sexp rands))]
-;;     [(sham:exp:fl-value v t)
+;;     [(sham:expr:fl-value v t)
 ;;      `(%float ,v ,(sham-type->sexp t))]
-;;     [(sham:exp:si-value v t)
+;;     [(sham:expr:si-value v t)
 ;;      `(%sint ,v ,(sham-type->sexp t))]
-;;     [(sham:exp:ui-value v t)
+;;     [(sham:expr:ui-value v t)
 ;;      `(%uint ,v ,(sham-type->sexp t))]
-;;     [(sham:exp:void)
+;;     [(sham:expr:void)
 ;;      'evoid]
-;;     [(sham:exp:sizeof t)
+;;     [(sham:expr:sizeof t)
 ;;      `(%sizeof ,(sham-type->sexp t))]
-;;     [(sham:exp:type t)
+;;     [(sham:expr:type t)
 ;;      `(%type ,(sham-type->sexp t))]
-;;     [(sham:exp:global id)
+;;     [(sham:expr:global id)
 ;;      `(%global ,id)]
-;;     [(sham:exp:external lib-id id t)
+;;     [(sham:expr:external lib-id id t)
 ;;      `(%external ,lib-id ,id ,(sham-type->sexp t))]
-;;     [(sham:exp:gep ptr indxs)
+;;     [(sham:expr:gep ptr indxs)
 ;;      `(%gep ,(sham-expr->sexp ptr) ,@(map sham-expr->sexp indxs))]
-;;     [(sham:exp:var v)
+;;     [(sham:expr:var v)
 ;;      v]))
 
 ;; (define (sham-rator->sexp r)
@@ -270,23 +270,23 @@
 ;;                     (sexp->sham-expr expr))]
 
 ;;     [`(%float ,v ,t)
-;;      (sham:exp:fl-value v (sexp->sham-type t))]
+;;      (sham:expr:fl-value v (sexp->sham-type t))]
 ;;     [`(%sint ,v ,t)
-;;      (sham:exp:si-value v (sexp->sham-type t))]
+;;      (sham:expr:si-value v (sexp->sham-type t))]
 ;;     [`(%uint ,v ,t)
-;;      (sham:exp:ui-value v (sexp->sham-type t))]
+;;      (sham:expr:ui-value v (sexp->sham-type t))]
 ;;     ['evoid
-;;      (sham:exp:void)]
+;;      (sham:expr:void)]
 ;;     [`(%sizeof ,t)
-;;      (sham:exp:sizeof (sexp->sham-type t))]
+;;      (sham:expr:sizeof (sexp->sham-type t))]
 ;;     [`(%type ,t)
-;;      (sham:exp:type (sexp->sham-type t))]
+;;      (sham:expr:type (sexp->sham-type t))]
 ;;     [`(%gep ,ptr ,indxs ...)
-;;      (sham:exp:gep (sexp->sham-expr ptr) (map sexp->sham-expr indxs))]
+;;      (sham:expr:gep (sexp->sham-expr ptr) (map sexp->sham-expr indxs))]
 ;;     [`(,rator ,rands ...)
-;;      (sham:exp:app (sexp->sham-rator rator) (map sexp->sham-expr rands))]
+;;      (sham:expr:app (sexp->sham-rator rator) (map sexp->sham-expr rands))]
 ;;     [v #:when (symbol? v)
-;;        (sham:exp:var v)]))
+;;        (sham:expr:var v)]))
 
 ;; (define (sexp->sham-rator r)
 ;;   (match r
@@ -311,29 +311,72 @@
 
 
 ;; ;;utils
-;; (define-syntax (sham$block stx)
-;;   (syntax-case stx ()
-;;     [(_ stmts ...)
-;;      #'(sham:stmt:block (list stmts ...))]))
-;; (define sham$var sham:exp:var)
-;; (define-syntax (sham$app stx)
-;;   (syntax-case stx ()
-;;     [(_ (str t) rands ...)
-;;      #'(sham:exp:app (sham:rator:intrinsic 'str
-;;                                            (sham:type:ref 't))
-;;                      (list rands ...))]
-;;     [(_ sym rands ...)
-;;      #'(sham:exp:app (sham:rator:symbol 'sym) (list rands ...))]))
-;; (define-syntax (sham$app-var stx)
-;;   (syntax-case stx ()
-;;     [(_ app rands ...)
-;;      #'(sham$app app (sham:exp:var 'rands) ...)]))
-;; (define-syntax (sham$define stx)
-;;   (syntax-case stx (return :)
-;;     [(_ (id (args : t) ... : rett) (return stmt))
-;;      #'(sham:def:function
-;;         'id '() '(AlwaysInline)
-;;         '(args ...) (list (sham:type:ref 't) ...) (sham:type:ref 'rett)
-;;         (sham:stmt:return stmt))]))
-;; (define (sham:stmt:let ids id-types id-vals stmt)
-;;   (sham:stmt:expr (sham:exp:let ids id-types id-vals stmt (sham:exp:void))))
+(module* utils #f
+  (provide (all-defined-out))
+  (define (basic-function-info) '())
+  (define (basic-module-info) '())
+
+  (define (sham:stmt:let ids id-types id-vals stmt);backward compatibility, or short key as well
+    (sham:stmt:expr (sham:expr:let ids id-types id-vals stmt (sham:expr:void))))
+  (define sham$slet sham:stmt:let)
+
+  ;simple shorts
+  (define sham$set! sham:stmt:set!)
+  (define sham$if sham:stmt:if)
+  (define sham$while sham:stmt:while)
+  (define sham$return sham:stmt:return)
+  (define sham$svoid (sham:stmt:void))
+  (define sham$stexpr sham:stmt:expr)
+
+  (define sham$fl-value sham:expr:fl-value)
+  (define sham$si-value sham:expr:si-value)
+  (define sham$ui-value sham:expr:ui-value)
+  (define sham$evoid (sham:expr:void))
+  (define sham$sizeof sham:expr:sizeof)
+  (define sham$etype sham:expr:type)
+  (define sham$gep sham:expr:gep)
+  (define sham$global sham:expr:global) ;; maybe copy the var macro here as well
+  (define sham$external sham:expr:external)
+  (define sham$let sham:expr:let)
+
+  (define sham$ri sham:rator:intrinsic)
+  (define sham$rs sham:rator:symbol)
+  (define sham$re sham:rator:external)
+
+  (require (for-syntax syntax/parse))
+
+  ; a little complicated shorts, but should make my life easier
+  (define-syntax (sham$block stx)
+    (syntax-case stx ()
+      [(_ b) #'(sham:stmt:block b)]
+      [(_ s1 s2 ...) #'(sham:stmt:block (list s1 s2 ...))]))
+
+
+  (define-syntax (sham$var stx)
+    (syntax-parse stx
+      [(_ v:id)
+       (if (identifier-binding #'v)
+           #'(sham:expr:var v)
+           #'(sham:expr:var 'v))]
+      [(_ v:expr) #'(sham:expr:var v)]))
+
+  (define-syntax (sham$app stx)
+    (syntax-parse stx
+      [(_ (str:id t:id) rands:expr ...)
+       #'(sham:expr:app (sham:rator:intrinsic 'str
+                                              (sham:type:ref 't))
+                        (list (sham$var rands) ...))]
+      [(_ sym:id rands:expr ...)
+       (if (identifier-binding #'sym)
+           #'(sham:expr:app sym (list (sham$var rands) ...))
+           #'(sham:expr:app (sham:rator:symbol 'sym) (list (sham$var rands) ...)))]
+      [(_ rator:expr rands:expr ...)
+       #'(sham:expr:app rator (list rands ...))]))
+
+  (define-syntax (sham$define stx)
+    (syntax-parse stx #:datum-literals (:)
+                  [(_ (id:id (args:id : t:id) ... : rett:id) stmt:expr)
+                   #'(sham:def:function (basic-function-info)
+                                        'id
+                                        '(args ...) (list (sham:type:ref 't) ...) (sham:type:ref 'rett)
+                                        stmt)])))
