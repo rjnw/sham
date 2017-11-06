@@ -325,8 +325,8 @@
   (define (basic-module-info) '())
   (define (basic-type-info) '())
 
-  (define (sham$def:type id t)
-    (sham:def:type (basic-type-info) id t))
+  (define-syntax-rule (sham$def:type id t)
+    (sham:def:type (basic-type-info) (check-sym id) t))
 
   (define (sham:stmt:let ids id-types id-vals stmt);backward compatibility, or short key as well
     (sham:stmt:expr (sham:expr:let ids id-types id-vals stmt (sham:expr:void))))
@@ -345,7 +345,8 @@
   (define sham$uiv sham:expr:ui-value)
   (define sham$evoid (sham:expr:void))
   (define sham$sizeof sham:expr:sizeof)
-  (define sham$etype sham:expr:type)
+  (define-syntax-rule (sham$etype t)
+    (sham:expr:type (sham$tref t)))
   (define sham$gep sham:expr:gep)
   (define sham$global sham:expr:global) ;; maybe copy the var macro here as well
   (define sham$external sham:expr:external)
@@ -384,7 +385,7 @@
   (define-bind-sym-checker check-stmt (const (error "not a statement")) sham:stmt?)
   (define-bind-sym-checker check-type (const (error "not a type")) sham:type?)
 
-  (define-syntax (sham$app stx)
+  (define-syntax (sham$app stx) ;;TODO move the rator parsing to sham$rator
     (syntax-parse stx
       [(_ (i:id t:expr) rands:expr ...)
        #'(sham:expr:app (sham$ri (check-sym i) (sham$tref t))
@@ -393,7 +394,8 @@
        #'(sham:expr:app (sham$re (check-sym l) (check-sym i) (sham$tref t))
                         (list (check-expr rands) ...))]
       [(_ rator:expr rands:expr ...)
-       #'(sham:expr:app (sham$rator rator) (list (check-expr rands) ...))]))
+       #'(sham:expr:app (sham$rator 'rator) (list (check-expr rands) ...))]))
+  ;;forcing rator to be sym, otherwise messes up with load, maybe we can check for all the intrinsic names :P
 
   (define-syntax (sham$block stx)
     (syntax-case stx ()
@@ -403,10 +405,23 @@
   (define-syntax (sham$define stx)
     (syntax-parse stx
       [(_ (name:id (args:id t:expr) ... rett:id) stmt:expr)
-       #'(sham:def:function (basic-function-info) (check-sym name)
-                            '((check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
-                            (check-stmt stmt))]
+       #'(sham:def:function
+          (basic-function-info) (check-sym name)
+          (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
+          (check-stmt stmt))]
       [(_ (name:id info:expr (args:id t:expr) ... rett:id) stmt:expr)
-       #'(sham:def:function info (check-sym name)
-                            '((check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
-                            (check-stmt stmt))])))
+       #'(sham:def:function
+          info (check-sym name)
+          (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
+          (check-stmt stmt))]
+      [(_ (name:id info:expr rett:id) stmt:expr)
+       #'(sham:def:function
+          info (check-sym name)
+          '() '() (sham$tref rett)
+          (check-stmt stmt))]
+      [(_ (name:id rett:id) stmt:expr)
+       #'(sham:def:function
+          (basic-function-info)
+          (check-sym name)
+          '() '() (sham$tref rett)
+          (check-stmt stmt))])))
