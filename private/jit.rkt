@@ -458,7 +458,7 @@
        (for/fold ([module-env (empty-env)])
                  ([stmt defs])
          (compile-module-statement stmt env module-env)))
-     (jit-run-module-pass (cdr (assoc 'passes info)) jit-module)
+     ;(jit-run-module-pass (cdr (assoc 'passes info)) jit-module)
      (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
      (env-extend '#%jit-info (box (append `((jit-module . ,jit-module)
                                             (ffi-mappings . ,(unbox ffi-mappings)))
