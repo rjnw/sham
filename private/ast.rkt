@@ -51,11 +51,11 @@
 (struct sham:expr:let      sham:expr (ids id-types id-vals stmt expr))
 
 
-(struct sham:rator sham:ast ())
+(struct sham:rator ())
 
-(struct sham:rator:intrinsic (str-id ret-type))
-(struct sham:rator:symbol    (sym))
-(struct sham:rator:external  (lib-id str-id ret-type))
+(struct sham:rator:intrinsic sham:rator (str-id ret-type))
+(struct sham:rator:symbol    sham:rator (sym))
+(struct sham:rator:external  sham:rator (lib-id str-id ret-type))
 
 ;; ;;TODO add debug parameters to printer
 (define (print-sham-type t)
@@ -312,9 +312,21 @@
 
 ;; ;;utils
 (module* utils #f
-  (provide (all-defined-out))
+  (provide (except-out (all-defined-out)
+                       define-bind-sym-checker
+                       check-sym
+                       check-expr
+                       is-list-stmt?
+                       check-list-stmt
+                       check-stmt
+                       check-type))
+
   (define (basic-function-info) '())
   (define (basic-module-info) '())
+  (define (basic-type-info) '())
+
+  (define (sham$def:type id t)
+    (sham:def:type (basic-type-info) id t))
 
   (define (sham:stmt:let ids id-types id-vals stmt);backward compatibility, or short key as well
     (sham:stmt:expr (sham:expr:let ids id-types id-vals stmt (sham:expr:void))))
@@ -328,9 +340,9 @@
   (define sham$svoid (sham:stmt:void))
   (define sham$stexpr sham:stmt:expr)
 
-  (define sham$fl-value sham:expr:fl-value)
-  (define sham$si-value sham:expr:si-value)
-  (define sham$ui-value sham:expr:ui-value)
+  (define sham$flv sham:expr:fl-value)
+  (define sham$siv sham:expr:si-value)
+  (define sham$uiv sham:expr:ui-value)
   (define sham$evoid (sham:expr:void))
   (define sham$sizeof sham:expr:sizeof)
   (define sham$etype sham:expr:type)
@@ -340,43 +352,61 @@
   (define sham$let sham:expr:let)
 
   (define sham$ri sham:rator:intrinsic)
-  (define sham$rs sham:rator:symbol)
+
   (define sham$re sham:rator:external)
 
   (require (for-syntax syntax/parse))
 
   ; a little complicated shorts, but should make my life easier
-  (define-syntax (sham$block stx)
-    (syntax-case stx ()
-      [(_ b) #'(sham:stmt:block b)]
-      [(_ s1 s2 ...) #'(sham:stmt:block (list s1 s2 ...))]))
+  (define-syntax-rule (define-bind-sym-checker mid astf astf?)
+    (define-syntax (mid stx)
+      (define (check-if-symbol e)
+        #`(cond
+           [(symbol? #,e) (astf #,e)]
+           [(astf? #,e) #,e] ;this will allow (sham$rs (sham$rs (... 'a))), don't know if we want that?
+           [else (error "invalid input for: " (object-name astf) #,e)]))
+      (syntax-parse stx
+        [(_ i:id)
+         (if (identifier-binding #'i) (check-if-symbol #'i) #'(astf 'i))]
+        [(_ e:expr) (check-if-symbol #'e)])))
 
+  (define-bind-sym-checker sham$rator sham:rator:symbol sham:rator?)
+  (define-bind-sym-checker sham$rs sham:rator:symbol sham:rator:symbol?)
+  (define-bind-sym-checker sham$var sham:expr:var sham:expr:var?)
 
-  (define-syntax (sham$var stx)
-    (syntax-parse stx
-      [(_ v:id)
-       (if (identifier-binding #'v)
-           #'(sham:expr:var v)
-           #'(sham:expr:var 'v))]
-      [(_ v:expr) #'(sham:expr:var v)]))
+  (define-bind-sym-checker sham$tref sham:type:ref sham:type?)
+  (define-bind-sym-checker check-sym identity symbol?)
+  (define-bind-sym-checker check-expr sham:expr:var sham:expr?)
+
+  (define  (is-list-stmt? l) (if (andmap sham:stmt? l) l (error "not a list of statements")))
+  (define-bind-sym-checker check-list-stmt is-list-stmt? is-list-stmt?)
+
+  (define-bind-sym-checker check-stmt (const (error "not a statement")) sham:stmt?)
+  (define-bind-sym-checker check-type (const (error "not a type")) sham:type?)
 
   (define-syntax (sham$app stx)
     (syntax-parse stx
-      [(_ (str:id t:id) rands:expr ...)
-       #'(sham:expr:app (sham:rator:intrinsic 'str
-                                              (sham:type:ref 't))
-                        (list (sham$var rands) ...))]
-      [(_ sym:id rands:expr ...)
-       (if (identifier-binding #'sym)
-           #'(sham:expr:app sym (list (sham$var rands) ...))
-           #'(sham:expr:app (sham:rator:symbol 'sym) (list (sham$var rands) ...)))]
+      [(_ (i:id t:expr) rands:expr ...)
+       #'(sham:expr:app (sham$ri (check-sym i) (sham$tref t))
+                        (list (check-expr rands) ...))]
+      [(_ (l:id i:id t:id) rands:expr ...)
+       #'(sham:expr:app (sham$re (check-sym l) (check-sym i) (sham$tref t))
+                        (list (check-expr rands) ...))]
       [(_ rator:expr rands:expr ...)
-       #'(sham:expr:app rator (list rands ...))]))
+       #'(sham:expr:app (sham$rator rator) (list (check-expr rands) ...))]))
+
+  (define-syntax (sham$block stx)
+    (syntax-case stx ()
+      [(_ b) #'(sham:stmt:block (check-list-stmt b))]
+      [(_ s ...) #'(sham:stmt:block (list (check-stmt s) ...))]))
 
   (define-syntax (sham$define stx)
-    (syntax-parse stx #:datum-literals (:)
-                  [(_ (id:id (args:id : t:id) ... : rett:id) stmt:expr)
-                   #'(sham:def:function (basic-function-info)
-                                        'id
-                                        '(args ...) (list (sham:type:ref 't) ...) (sham:type:ref 'rett)
-                                        stmt)])))
+    (syntax-parse stx
+      [(_ (name:id (args:id t:expr) ... rett:id) stmt:expr)
+       #'(sham:def:function (basic-function-info) (check-sym name)
+                            '((check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
+                            (check-stmt stmt))]
+      [(_ (name:id info:expr (args:id t:expr) ... rett:id) stmt:expr)
+       #'(sham:def:function info (check-sym name)
+                            '((check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
+                            (check-stmt stmt))])))
