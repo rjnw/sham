@@ -321,9 +321,9 @@
                        check-stmt
                        check-type))
 
-  (define (basic-function-info) '())
-  (define (basic-module-info) '())
-  (define (basic-type-info) '())
+  (define (basic-function-info) (void))
+  (define (basic-module-info) (void))
+  (define (basic-type-info) (void))
 
   (define-syntax-rule (sham$def:type id t)
     (sham:def:type (basic-type-info) (check-sym id) t))

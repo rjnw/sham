@@ -332,7 +332,6 @@
           [else (error "unknown statement" stmt)]))
 
       (define (build-expression e env)
-        ;(printf "building-expression: ~a\n" (print-sham-expr e))
         (match e
           [(sham:expr:let md ids types vals st ex)
            (define new-env
@@ -355,7 +354,7 @@
           [(sham:expr:fl-value md value t)
            (LLVMConstReal (build-llvm-type t env) value)]
           [(sham:expr:si-value md value t)
-           (LLVMConstInt (build-llvm-type t env) value #t)]
+           (LLVMConstInt (build-llvm-type t env) (cast value _sint64 _uint64) #f)]
           [(sham:expr:ui-value md value t)
            (LLVMConstInt (build-llvm-type t env) value #f)]
           [(sham:expr:sizeof md type)
