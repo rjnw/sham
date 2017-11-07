@@ -26,6 +26,7 @@
  jit-run-module-pass-env
  jit-run-function-pass-env
  compile-module
+ build-info
  env-lookup)
 
 (define (llvm-initialize)
@@ -70,15 +71,28 @@
 
 (define (jit-dump-function mod sym)
   (LLVMDumpValue (env-jit-function-ref (env-lookup sym mod))))
+
+(define (build-info cinfo assocs)
+  (define new-info (make-hash assocs))
+  (when (hash? cinfo)
+    (for ([(key value) (in-hash cinfo)])
+      (unless (hash-has-key? new-info key)
+        (hash-set! new-info key value))))
+  new-info)
+
+(define (jit-add-info mod-env info)
+  (env-extend '#%jit-info info mod-env))
 (define (jit-get-info mod-env)
   (env-lookup '#%jit-info mod-env))
+
 (define (jit-get-info-key sym mod-env)
-  (define info (unbox (jit-get-info mod-env)))
-  (cdr (assoc sym info)))
+  (define info  (jit-get-info mod-env))
+  (hash-ref info sym))
+
 (define (jit-add-info-key! key val mod-env)
-  (define info-box (jit-get-info mod-env))
-  (set-box! info-box (append `((,key . ,val)) (unbox info-box)))
-  mod-env)
+  (define info (jit-get-info mod-env))
+  (hash-set! info key val))
+
 (define (jit-get-module mod-env)
   (jit-get-info-key 'jit-module mod-env))
 
@@ -210,10 +224,10 @@
 (define (compile-module m [module-name "module"] [context global-jit-context])
   (define (diag-handler dinfo voidp)
     (void))
-    ;; TODO fix memory bugs
-    ;; (define diag-desc (LLVMGetDiagInfoDescription dinfo))
-    ;; (printf "\tllvm-diag: ~a\n" diag-desc)
-    ;; (LLVMDisposeMessage diag-desc)
+  ;; TODO fix memory bugs
+  ;; (define diag-desc (LLVMGetDiagInfoDescription dinfo))
+  ;; (printf "\tllvm-diag: ~a\n" diag-desc)
+  ;; (LLVMDisposeMessage diag-desc)
 
   (LLVMContextSetDiagnosticHandler context diag-handler #f)
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
@@ -458,11 +472,11 @@
                  ([stmt defs])
          (compile-module-statement stmt env module-env)))
      ;(jit-run-module-pass (cdr (assoc 'passes info)) jit-module)
-     (LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
-     (env-extend '#%jit-info (box (append `((jit-module . ,jit-module)
-                                            (ffi-mappings . ,(unbox ffi-mappings)))
-                                          info))
-                 module-env)]))
+     ;(LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
+     (jit-add-info module-env
+                   (build-info info `((jit-module . ,jit-module)
+                                      (ffi-mappings . ,(unbox ffi-mappings)))))]))
+
 
 ;; disabling tests for now
 ;; (module+ test

@@ -5,6 +5,8 @@
 (require "types.rkt")
 (provide register-jit-internals)
 
+;;TODO figure out how we can add constant internals
+
 (define (register-jit-internals env context)
   (register-internal-instructions env))
 
@@ -143,10 +145,24 @@
     (arr-alloca ,LLVMBuildArrayAlloca)
 
     ;;casts
+    (trunc  ,LLVMBuildTrunc)
+    (zext   ,LLVMBuildZExt)
+    (sext   ,LLVMBuildSExt)
     (fp->ui ,LLVMBuildFPToUI)
     (fp->si ,LLVMBuildFPToSI)
     (ui->fp ,LLVMBuildUIToFP)
     (si->fp ,LLVMBuildSIToFP)
+    (fp-trunc ,LLVMBuildFPTrunc)
+    (fp-ext   ,LLVMBuildFPExt)
+    (ptr->int ,LLVMBuildPtrToInt)
+    (int->ptr ,LLVMBuildIntToPtr)
+    (bitcast  ,LLVMBuildCast)
+    (addrspacecast ,LLVMBuildAddrSpaceCast)
+    (zextorbitcast ,LLVMBuildZExtOrBitCast)
+    (sextorbitcast ,LLVMBuildSExtOrBitCast)
+    (ptrcast  ,LLVMBuildPointerCast)
+    (intcast  ,LLVMBuildIntCast)
+    (fpcast   ,LLVMBuildFPCast)
     ))
 
 (define unary-internals
