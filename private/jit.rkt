@@ -87,7 +87,7 @@
 
 (define (jit-get-info-key sym mod-env)
   (define info  (jit-get-info mod-env))
-  (hash-ref info sym))
+  (hash-ref info sym (void)))
 
 (define (jit-add-info-key! key val mod-env)
   (define info (jit-get-info mod-env))
@@ -103,21 +103,22 @@
 
 (define (add-ffi-mapping engine mod-env)
   (define ffi-mappings (jit-get-info-key 'ffi-mappings mod-env))
-  (define ffi-libs (jit-get-info-key 'ffi-libs mod-env))
-  (define lib-map (for/hash ([fl ffi-libs])
-                    (match fl
-                      [`(,lib-name . (,str-args ... #:global? ,gv))
-                       (define flib (apply ffi-lib str-args #:global? gv))
-                       (values lib-name flib)]
-                      [`(,lib-name . (,str-args ...))
-                       (define flib (apply ffi-lib str-args))
-                       (values lib-name flib)])))
-  (for [(ffi-mapping ffi-mappings)]
-    (match ffi-mapping
-      [`(,name ,lib-name ,value)
-       (define fflib (hash-ref lib-map lib-name))
-       (LLVMAddGlobalMapping engine value
-                             (get-ffi-pointer fflib (symbol->string name)))])))
+  (unless (empty? ffi-mappings)
+    (define ffi-libs (jit-get-info-key 'ffi-libs mod-env))
+    (define lib-map (for/hash ([fl ffi-libs])
+                      (match fl
+                        [`(,lib-name . (,str-args ... #:global? ,gv))
+                         (define flib (apply ffi-lib str-args #:global? gv))
+                         (values lib-name flib)]
+                        [`(,lib-name . (,str-args ...))
+                         (define flib (apply ffi-lib str-args))
+                         (values lib-name flib)])))
+    (for [(ffi-mapping ffi-mappings)]
+      (match ffi-mapping
+        [`(,name ,lib-name ,value)
+         (define fflib (hash-ref lib-map lib-name))
+         (LLVMAddGlobalMapping engine value
+                               (get-ffi-pointer fflib (symbol->string name)))]))) )
 
 (define (initialize-jit mod-env #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
@@ -128,7 +129,8 @@
       (error "error initializing jit" status err)
       (begin
         (add-ffi-mapping engine mod-env)
-        (jit-add-info-key! 'mcjit-engine engine mod-env))))
+        (jit-add-info-key! 'mcjit-engine engine mod-env)))
+  mod-env)
   ;; (initialize-orc-jit mod-env)
 
 (define (initialize-orc-jit mod-env)
@@ -232,13 +234,14 @@
   (LLVMContextSetDiagnosticHandler context diag-handler #f)
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
   (LLVMSetDataLayout jit-module "e-m:e-i64:64-f80:128-n8:16:32:64-S128")
-  (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu") ;TODO set target for machine
+  (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu")
   (define jit-builder (LLVMCreateBuilderInContext context))
   (define ffi-mappings (box '()))
+  (define intrinsic-map (make-hash))
   (define (add-mapping! mapping)
     (set-box! ffi-mappings (cons mapping (unbox ffi-mappings))))
 
-  (define (register-module-statement stmt env)
+  (define (register-module-define stmt env)
     (define (compile-function-declaration env-function-type function-name)
       (define function-type (internal-type-jit (env-type-prim env-function-type)))
       (LLVMAddFunction jit-module (symbol->string function-name) function-type))
@@ -260,7 +263,7 @@
                            (LLVMConstNull (internal-type-jit (env-type-prim type))))
        (env-extend id (env-jit-value value (build-env-type t env)) env)]))
 
-  (define (compile-module-statement stmt env module-env)
+  (define (compile-module-define def env module-env)
     (define (compile-function-definition name args types ret-type body)
       (define env-function (env-lookup name env))
       (define fref (env-jit-function-ref env-function))
@@ -402,9 +405,14 @@
         (match rator
           [(sham:rator:intrinsic str-id ret-type)
            (define s (symbol->string str-id))
-           (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
-                                             (map LLVMTypeOf rand-values) #f))
-           (define ref (LLVMAddFunction jit-module s fn-type))
+           (define ref
+             (if (hash-has-key? intrinsic-map s)
+                 (hash-ref intrinsic-map s)
+                 (let* ([fn-type (LLVMFunctionType (build-llvm-type ret-type env)
+                                                  (map LLVMTypeOf rand-values) #f)]
+                        [ref (LLVMAddFunction jit-module s fn-type)])
+                   (hash-set! intrinsic-map s ref)
+                   ref)))
            (LLVMBuildCall jit-builder ref rand-values (substring s 0 3))]
           [(sham:rator:external lib-id id ret-type)
            (define s (symbol->string id))
@@ -438,7 +446,7 @@
       (build-statement body new-env)
       env-function)
     ;; TODO return values of name and obj
-    (match stmt
+    (match def
       [(sham:def:type info type-name t)
        ;types are created in register phase
        ; something for recursive struct types to be done
@@ -465,12 +473,12 @@
     [(sham:module info defs)
      (define env
        (for/fold ([env (create-initial-environment context)])
-                 ([stmt defs])
-         (register-module-statement stmt env)))
+                 ([def defs])
+         (register-module-define def env)))
      (define module-env
        (for/fold ([module-env (empty-env)])
-                 ([stmt defs])
-         (compile-module-statement stmt env module-env)))
+                 ([def defs])
+         (compile-module-define def env module-env)))
      ;(jit-run-module-pass (cdr (assoc 'passes info)) jit-module)
      ;(LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
      (jit-add-info module-env
