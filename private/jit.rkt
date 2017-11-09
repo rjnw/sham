@@ -20,6 +20,7 @@
  jit-write-module
  jit-get-racket-type
  jit-get-function
+ jit-get-function-ptr
  jit-verify-module
  jit-optimize-module
  jit-optimize-function
@@ -118,7 +119,7 @@
         [`(,name ,lib-name ,value)
          (define fflib (hash-ref lib-map lib-name))
          (LLVMAddGlobalMapping engine value
-                               (get-ffi-pointer fflib (symbol->string name)))]))) )
+                               (get-ffi-pointer fflib (symbol->string name)))]))))
 
 (define (initialize-jit mod-env #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
@@ -157,6 +158,11 @@
   (define fref (env-lookup f-sym mod))
   (define f-type (internal-type-racket (env-type-prim (env-jit-function-type fref))))
   fptr)
+
+(define (jit-get-racket-type t-sym mod)
+  (internal-type-racket (env-type-prim (env-lookup t-sym mod))))
+
+
 
 (define (jit-run-function-pass passes jit-mod f)
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
@@ -220,8 +226,7 @@
       (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
   (LLVMDisposePassManager fpm))
 
-(define (jit-get-racket-type t)
-  (internal-type-racket (env-type-prim t)))
+
 
 (define (compile-module m [module-name "module"] [context global-jit-context])
   (define (diag-handler dinfo voidp)
@@ -409,7 +414,7 @@
              (if (hash-has-key? intrinsic-map s)
                  (hash-ref intrinsic-map s)
                  (let* ([fn-type (LLVMFunctionType (build-llvm-type ret-type env)
-                                                  (map LLVMTypeOf rand-values) #f)]
+                                                   (map LLVMTypeOf rand-values) #f)]
                         [ref (LLVMAddFunction jit-module s fn-type)])
                    (hash-set! intrinsic-map s ref)
                    ref)))
@@ -474,6 +479,7 @@
      (define env
        (for/fold ([env (create-initial-environment context)])
                  ([def defs])
+         (printf "registering def: ~a\n" (sham:def-id def))
          (register-module-define def env)))
      (define module-env
        (for/fold ([module-env (empty-env)])
@@ -491,7 +497,7 @@
 ;;   (require racket/unsafe/ops)
 ;;   (require rackunit)
 ;;   (require disassemble)
-;;   ;; (require "../disassemble/disassemble/main.rkt")
+;;   (require "../disassemble/disassemble/main.rkt")
 
 ;;   (define i32 (sham:type:ref 'i32))
 ;;   (define i64 (sham:type:ref 'i64))
