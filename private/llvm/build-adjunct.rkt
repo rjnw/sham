@@ -3,10 +3,15 @@
 (require racket/system
          dynext/compile
          ffi/unsafe
-         srfi/13
          "ffi/lib.rkt")
 
 (provide adjunct-lib)
+
+(define (get-out-string process-str)
+  (let* ([out (open-output-string)]
+         [l (process/ports out #f #f process-str)])
+    ((last l) 'wait)
+    (string-trim (get-output-string out))))
 
 (define adjunct-so-path
   (build-path (collection-path "sham") "private" "llvm" (string-append "adjunct" (bytes->string/utf-8 (system-type 'so-suffix)))))
@@ -14,17 +19,8 @@
 (define adjunct-file-path
   (build-path (collection-path "sham") "private" "llvm" "adjunct.cpp"))
 
-(define llvm-c-flags
-  (let-values (((process out in err)
-                (subprocess #f #f #f "/usr/bin/env" "llvm-config" "--cflags")))
-  (begin0
-   (string-trim-both (port->string out))
-   (close-output-port in)
-   (close-input-port err)
-   (close-input-port out)
-   (subprocess-wait process)
-   (unless (equal? (subprocess-status process) 0)
-     (error 'llvm-config "Returned non zero exit code")))))
+(define llvm-c-flags (get-out-string "llvm-config --cflags"))
+
 (define (compile-adjunct)
   (parameterize ([current-extension-compiler-flags (cons "--shared" (string-split llvm-c-flags))])
     (compile-extension #f adjunct-file-path adjunct-so-path '())))
