@@ -162,8 +162,6 @@
 (define (jit-get-racket-type t-sym mod)
   (internal-type-racket (env-type-prim (env-lookup t-sym mod))))
 
-
-
 (define (jit-run-function-pass passes jit-mod f)
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (for ([pass passes])
@@ -243,6 +241,8 @@
   (define jit-builder (LLVMCreateBuilderInContext context))
   (define ffi-mappings (box '()))
   (define intrinsic-map (make-hash))
+  (define rkt-fn-map (make-hash))
+  (define add-rkt-mapping! (curry hash-set! rkt-fn-map))
   (define (add-mapping! mapping)
     (set-box! ffi-mappings (cons mapping (unbox ffi-mappings))))
 
@@ -425,6 +425,13 @@
                                              (map LLVMTypeOf rand-values) #f))
            (define fn-value (LLVMAddFunction jit-module s fn-type))
            (add-mapping! (list id lib-id fn-value))
+           (LLVMBuildCall jit-builder fn-value rand-values (substring s 0 3))]
+          [(sham:rator:racket id rkt-fun type)
+           (define s (symbol->string id))
+           (define ct (compile-type type env))
+           (define fn-type (internal-type-jit ct))
+           (define fn-value (LLVMAddFunction jit-module s fn-type))
+           (add-rkt-mapping! s (list rkt-fun type ct))
            (LLVMBuildCall jit-builder fn-value rand-values (substring s 0 3))]
           [(sham:rator:symbol sym)
            (match (env-lookup sym env)

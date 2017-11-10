@@ -56,6 +56,7 @@
 (struct sham:rator:intrinsic sham:rator (str-id ret-type))
 (struct sham:rator:symbol    sham:rator (sym))
 (struct sham:rator:external  sham:rator (lib-id str-id ret-type))
+(struct sham:rator:racket    sham:rator (id rkt-value fun-type))
 
 ;; ;;TODO add debug parameters to printer
 (define (print-sham-type t)

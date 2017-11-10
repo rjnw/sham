@@ -1,5 +1,5 @@
 #lang racket
- 
+
 (require ffi/unsafe (prefix-in foreign: '#%foreign))
 
 (provide get-ffi-pointer)
@@ -17,5 +17,8 @@
 
 (module+ test
   (define libc (ffi-lib "libc" "6"))
-  (get-ffi-pointer libc "gets"))
-
+  (get-ffi-pointer libc "gets")
+  (define (id x) x)
+  (define idc (cast id _scheme (_fun _uint -> _uint)))
+  (define idcf (cast idc _scheme _ffi_obj_struct-pointer))
+  (printf "name: ~a\n" (ffi_obj_struct-name idcf)))

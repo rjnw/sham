@@ -83,7 +83,7 @@
       (env-extend pr
                   (env-jit-intr-function
                    (lambda (jit-builder args [name "fpred"])
-                     (LLVMBuildICmp jit-builder
+                     (LLVMBuildFCmp jit-builder
                                     predicate
                                     (first args)
                                     (second args)

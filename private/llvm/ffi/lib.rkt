@@ -1,37 +1,19 @@
 #lang racket
 
 (require
-  racket/port)
-(require ffi/unsafe)
 
-
-(require srfi/13)
+ ffi/unsafe)
 
 (provide llvm-lib)
 
-(define llvm-version-string
-  (let-values (((process out in err)
-                (subprocess #f #f #f "/usr/bin/env" "llvm-config" "--version")))
-  (begin0
-   (string-trim-both (port->string out))
-   (close-output-port in)
-   (close-input-port err)
-   (close-input-port out)
-   (subprocess-wait process)
-   (unless (equal? (subprocess-status process) 0)
-     (error 'llvm-config "Returned non zero exit code")))))
+(define (get-out-string process-str)
+  (let* ([out (open-output-string)]
+         [l (process/ports out #f #f process-str)])
+    ((last l) 'wait)
+    (string-trim (get-output-string out))))
 
-(define llvm-lib-path
-  (let-values (((process out in err)
-                (subprocess #f #f #f "/usr/bin/env" "llvm-config" "--libdir")))
-  (begin0
-   (string-trim-both (port->string out))
-   (close-output-port in)
-   (close-input-port err)
-   (close-input-port out)
-   (subprocess-wait process)
-   (unless (equal? (subprocess-status process) 0)
-     (error 'llvm-config "Returned non zero exit code")))))
+(define llvm-version-string (get-out-string "llvm-config --version"))
+(define llvm-lib-path (get-out-string "llvm-config --libdir"))
 
 (define llvm-lib
   (let ((lib-name (string-append "libLLVM-" llvm-version-string)))
