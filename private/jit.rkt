@@ -3,12 +3,13 @@
 
 (require "llvm/ffi/all.rkt"
          "llvm/adjunct.rkt"
-         "llvm/global-mapping.rkt"
          "llvm/pass-table.rkt")
 
 (require "env.rkt"
          "types.rkt"
          "ast.rkt"
+         "info.rkt"
+         "rator.rkt"
          "internals.rkt"
          "utils.rkt")
 
@@ -73,27 +74,6 @@
 (define (jit-dump-function mod sym)
   (LLVMDumpValue (env-jit-function-ref (env-lookup sym mod))))
 
-(define (build-info cinfo assocs)
-  (define new-info (make-hash assocs))
-  (when (hash? cinfo)
-    (for ([(key value) (in-hash cinfo)])
-      (unless (hash-has-key? new-info key)
-        (hash-set! new-info key value))))
-  new-info)
-
-(define (jit-add-info mod-env info)
-  (env-extend '#%jit-info info mod-env))
-(define (jit-get-info mod-env)
-  (env-lookup '#%jit-info mod-env))
-
-(define (jit-get-info-key sym mod-env)
-  (define info  (jit-get-info mod-env))
-  (hash-ref info sym (void)))
-
-(define (jit-add-info-key! key val mod-env)
-  (define info (jit-get-info mod-env))
-  (hash-set! info key val))
-
 (define (jit-get-module mod-env)
   (jit-get-info-key 'jit-module mod-env))
 
@@ -101,25 +81,6 @@
   (LLVMWriteBitcodeToFile (jit-get-module mod) fname))
 (define (jit-write-module mod fname)
   (LLVMPrintModuleToFile (jit-get-module mod) fname))
-
-(define (add-ffi-mapping engine mod-env)
-  (define ffi-mappings (jit-get-info-key 'ffi-mappings mod-env))
-  (unless (empty? ffi-mappings)
-    (define ffi-libs (jit-get-info-key 'ffi-libs mod-env))
-    (define lib-map (for/hash ([fl ffi-libs])
-                      (match fl
-                        [`(,lib-name . (,str-args ... #:global? ,gv))
-                         (define flib (apply ffi-lib str-args #:global? gv))
-                         (values lib-name flib)]
-                        [`(,lib-name . (,str-args ...))
-                         (define flib (apply ffi-lib str-args))
-                         (values lib-name flib)])))
-    (for [(ffi-mapping ffi-mappings)]
-      (match ffi-mapping
-        [`(,name ,lib-name ,value)
-         (define fflib (hash-ref lib-map lib-name))
-         (LLVMAddGlobalMapping engine value
-                               (get-ffi-pointer fflib (symbol->string name)))]))))
 
 (define (initialize-jit mod-env #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
@@ -129,7 +90,8 @@
   (if status
       (error "error initializing jit" status err)
       (begin
-        (add-ffi-mapping engine mod-env)
+        (add-ffi-mappings engine mod-env)
+        (add-rkt-mappings engine mod-env)
         (jit-add-info-key! 'mcjit-engine engine mod-env)))
   mod-env)
   ;; (initialize-orc-jit mod-env)
@@ -224,8 +186,6 @@
       (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
   (LLVMDisposePassManager fpm))
 
-
-
 (define (compile-module m [module-name "module"] [context global-jit-context])
   (define (diag-handler dinfo voidp)
     (void))
@@ -239,12 +199,11 @@
   (LLVMSetDataLayout jit-module "e-m:e-i64:64-f80:128-n8:16:32:64-S128")
   (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu")
   (define jit-builder (LLVMCreateBuilderInContext context))
-  (define ffi-mappings (box '()))
   (define intrinsic-map (make-hash))
-  (define rkt-fn-map (make-hash))
-  (define add-rkt-mapping! (curry hash-set! rkt-fn-map))
-  (define (add-mapping! mapping)
-    (set-box! ffi-mappings (cons mapping (unbox ffi-mappings))))
+  (define ffi-mappings (make-hash))
+  (define rkt-mappings (make-hash))
+  (define add-rkt-mapping! (curry hash-set! rkt-mappings))
+  (define add-ffi-mapping! (curry hash-set! ffi-mappings))
 
   (define (register-module-define stmt env)
     (define (compile-function-declaration env-function-type function-name)
@@ -400,7 +359,7 @@
           [(sham:expr:external md lib-id sym t)
            (define value
              (LLVMAddGlobal jit-module (build-llvm-type t env) (symbol->string sym)))
-           (add-mapping! (list sym lib-id value))
+           (add-ffi-mapping! (list sym lib-id value))
            (LLVMBuildLoad jit-builder value (symbol->string sym))]
           [(sham:expr:global md sym)
            (env-jit-value-ref (env-lookup sym env))]
@@ -424,14 +383,14 @@
            (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
                                              (map LLVMTypeOf rand-values) #f))
            (define fn-value (LLVMAddFunction jit-module s fn-type))
-           (add-mapping! (list id lib-id fn-value))
+           (add-ffi-mapping! id (list lib-id fn-value))
            (LLVMBuildCall jit-builder fn-value rand-values (substring s 0 3))]
           [(sham:rator:racket id rkt-fun type)
            (define s (symbol->string id))
            (define ct (compile-type type env))
            (define fn-type (internal-type-jit ct))
            (define fn-value (LLVMAddFunction jit-module s fn-type))
-           (add-rkt-mapping! s (list rkt-fun type ct))
+           (add-rkt-mapping! s (list rkt-fun (internal-type-racket ct) fn-value))
            (LLVMBuildCall jit-builder fn-value rand-values (substring s 0 3))]
           [(sham:rator:symbol sym)
            (match (env-lookup sym env)
@@ -496,7 +455,30 @@
      ;(LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
      (jit-add-info module-env
                    (build-info info `((jit-module . ,jit-module)
-                                      (ffi-mappings . ,(unbox ffi-mappings)))))]))
+                                      (,ffi-mapping-key . ,ffi-mappings)
+                                      (,rkt-mapping-key . ,rkt-mappings))))]))
+
+
+(module+ test
+  (define module-env
+    (compile-module
+     (sham:module
+      (void)
+      (list
+       (sham:def:function
+        (void)
+        'test (list 'a) (list (sham:type:ref 'i32)) (sham:type:ref 'void)
+        (sham:stmt:block
+         (list
+          (sham:stmt:expr (sham:expr:app (sham:rator:racket 'test
+                                                            (λ (a) (printf "got a: ~a" a))
+                                                            (sham:type:function (list (sham:type:ref 'i32))
+                                                                                (sham:type:ref 'void)))
+                                         (list (sham:expr:var 'a))))
+          (sham:stmt:return (sham:expr:void)))))))))
+  (initialize-jit module-env)
+  (jit-dump-module module-env)
+  (define t (jit-get-function 'test module-env)))
 
 
 ;; disabling tests for now
