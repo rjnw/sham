@@ -1,7 +1,7 @@
 #lang racket
 
 (require ffi/unsafe (prefix-in foreign: '#%foreign))
-(require "info.rkt"
+(require "info-key.rkt"
          "llvm/ffi/all.rkt")
 
 (provide (all-defined-out))
