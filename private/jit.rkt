@@ -65,9 +65,10 @@
   (for [(m mod)]
     (let ([s (car m)]
           [v (cdr m)])
-      (cond ([env-type? v]
-             (printf "type ~a: ~a\n" s
-                     (LLVMPrintTypeToString (internal-type-jit (env-type-prim v)))))
+      (cond ([env-type? v])
+             ;; (printf "type ~a: ~a\n" s
+             ;;         (LLVMPrintTypeToString (internal-type-jit (env-type-prim v))))
+
             ([env-jit-function? v]
              (LLVMDumpValue (env-jit-function-ref v)))))))
 
@@ -110,16 +111,15 @@
         _uint64 _pointer))
 
 (define (jit-get-function f-sym mod)
-  (define fptr (jit-compile-function f-sym mod))
+  (define fptr (jit-get-function-ptr f-sym mod))
   (define fref (env-lookup f-sym mod))
   (define f-type (internal-type-racket (env-type-prim (env-jit-function-type fref))))
   (cast fptr _pointer f-type))
 
 (define (jit-get-function-ptr f-sym mod)
-  (define fptr (jit-compile-function f-sym mod))
-  (define fref (env-lookup f-sym mod))
-  (define f-type (internal-type-racket (env-type-prim (env-jit-function-type fref))))
-  fptr)
+  (when (not (env-contains? f-sym mod))
+    (error "function not in module " f-sym))
+  (jit-compile-function f-sym mod))
 
 (define (jit-get-racket-type t-sym mod)
   (internal-type-racket (env-type-prim (env-lookup t-sym mod))))
@@ -359,7 +359,7 @@
           [(sham:expr:external md lib-id sym t)
            (define value
              (LLVMAddGlobal jit-module (build-llvm-type t env) (symbol->string sym)))
-           (add-ffi-mapping! (list sym lib-id value))
+           (add-ffi-mapping! sym (list lib-id value))
            (LLVMBuildLoad jit-builder value (symbol->string sym))]
           [(sham:expr:global md sym)
            (env-jit-value-ref (env-lookup sym env))]
@@ -386,6 +386,7 @@
            (add-ffi-mapping! id (list lib-id fn-value))
            (LLVMBuildCall jit-builder fn-value rand-values (substring s 0 3))]
           [(sham:rator:racket id rkt-fun type)
+           ;; (printf "got racket rator: ~a: type: ~a\n" id (print-sham-type type))
            (define s (symbol->string id))
            (define ct (compile-type type env))
            (define fn-type (internal-type-jit ct))
@@ -425,7 +426,7 @@
        ;and then adding fields here
        (env-extend type-name (env-lookup type-name env) module-env)]
       [(sham:def:function info function-name args types ret-type body)
-       (printf "compiling-function ~a\n" function-name)
+       ;; (printf "compiling-function ~a\n" function-name)
        (compile-function-definition function-name args types ret-type body)
        (define f (env-lookup function-name env))
        ;; TODO figure out info for attrs and passes together
@@ -445,7 +446,7 @@
      (define env
        (for/fold ([env (create-initial-environment context)])
                  ([def defs])
-         (printf "registering def: ~a\n" (sham:def-id def))
+         ;; (printf "registering def: ~a\n" (sham:def-id def))
          (register-module-define def env)))
      (define module-env
        (for/fold ([module-env (empty-env)])
