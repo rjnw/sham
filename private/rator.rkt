@@ -34,10 +34,11 @@
                         [`(,lib-name . (,str-args ...))
                          (define flib (apply ffi-lib str-args))
                          (values lib-name flib)])))
-    (for [(ffi-mapping ffi-mappings)]
-      (match ffi-mapping
-        [`(,name ,lib-name ,value)
+    (for [((name lib-v) ffi-mappings)]
+      (match lib-v
+        [`(,lib-name ,value)
          (define fflib (hash-ref lib-map lib-name))
+         ;; (printf "adding ffi-mapping for: ~a:~a\n" name lib-name)
          (LLVMAddGlobalMapping engine value
                                (get-ffi-pointer fflib (symbol->string name)))]))))
 
@@ -45,8 +46,7 @@
   (define rkt-mappings (jit-get-info-key rkt-mapping-key mod-env))
   (for ([(id rkt-mapping) (in-hash rkt-mappings)])
     (match-define (list rkt-fun rkt-type jit-value)  rkt-mapping)
-    (define rfc (cast rkt-fun _scheme rkt-type))
-    (define rfs (cast rfc _scheme _ffi_obj_struct-pointer))
+    ;; (printf "adding rkt-mapping: ~a\n" id)
     (LLVMAddGlobalMapping engine jit-value (cast (function-ptr rkt-fun rkt-type) _pointer _uint64))))
 
 
