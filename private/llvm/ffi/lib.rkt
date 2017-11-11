@@ -19,7 +19,6 @@
   (let ((lib-name (string-append "libLLVM-" llvm-version-string)))
     (ffi-lib
       (case (system-type 'os)
-        ((macosx) (build-path llvm-lib-path lib-name))
-        ((unix) (string->path lib-name))
+        ((macosx unix) (build-path llvm-lib-path lib-name))
         ((windows) (string->path lib-name)))
       #:global? #t)))
