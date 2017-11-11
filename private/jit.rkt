@@ -8,7 +8,7 @@
 (require "env.rkt"
          "types.rkt"
          "ast.rkt"
-         "info.rkt"
+         "info-key.rkt"
          "rator.rkt"
          "internals.rkt"
          "utils.rkt")
