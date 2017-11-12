@@ -4,7 +4,8 @@
 (require "info-key.rkt"
          "llvm/ffi/all.rkt")
 
-(provide (all-defined-out))
+(provide add-ffi-mappings
+         add-rkt-mappings)
 
 (define-cstruct _scheme_object  ([typetag _short]   [key _short]))
 (define-cstruct _ffi_obj_struct
@@ -18,34 +19,33 @@
   (define fname-ffi-obj (cast fptr-obj _scheme _ffi_obj_struct-pointer))
   (ffi_obj_struct-obj fname-ffi-obj))
 
+(define (load-ffi-libs mod-env)
+  (for/hash ([fl (env-get-info-key ffi-lib-key mod-env)])
+    (match fl
+      [`(,lib-name . (,str-args ... #:global? ,gv))
+       (define flib (apply ffi-lib str-args #:global? gv))
+       (values lib-name flib)]
+      [`(,lib-name . (,str-args ...))
+       (define flib (apply ffi-lib str-args))
+       (values lib-name flib)])))
 
-(define (add-ffi-mappings engine mod-env)
-  (define ffi-mappings (jit-get-info-key ffi-mapping-key mod-env))
-  (define ffi-libs (jit-get-info-key ffi-lib-key mod-env))
-  (unless (or (empty? ffi-mappings) (void? ffi-libs))
-    (define lib-map (for/hash ([fl ffi-libs])
-                      (match fl
-                        [`(,lib-name . (,str-args ... #:global? ,gv))
-                         (define flib (apply ffi-lib str-args #:global? gv))
-                         (values lib-name flib)]
-                        [`(,lib-name . (,str-args ...))
-                         (define flib (apply ffi-lib str-args))
-                         (values lib-name flib)])))
-    (for [((name lib-v) ffi-mappings)]
-      (match lib-v
-        [`(,lib-name ,value)
-         (define fflib (hash-ref lib-map lib-name))
-         ;; (printf "adding ffi-mapping for: ~a:~a\n" name lib-name)
-         (LLVMAddGlobalMapping engine value
-                               (get-ffi-pointer fflib (symbol->string name)))]))))
+(define (add-ffi-mappings mod-env)
+  (define mcjit (env-get-mcjit mod-env))
+  (define lib-map (load-ffi-libs mod-env))
+  (do-if-info-key
+   ffi-mapping-key (env-get-info mod-env) ffi-mappings
+   (for ([(name lib-v) (in-hash ffi-mappings)])
+     (match-define (cons lib-name value) lib-v)
+     (define fptr (get-ffi-pointer (hash-ref lib-map lib-name) (symbol->string name)))
+     (LLVMAddGlobalMapping mcjit value fptr))))
 
-(define (add-rkt-mappings engine mod-env)
-  (define rkt-mappings (jit-get-info-key rkt-mapping-key mod-env))
-  (for ([(id rkt-mapping) (in-hash rkt-mappings)])
-    (match-define (list rkt-fun rkt-type jit-value)  rkt-mapping)
-    ;; (printf "adding rkt-mapping: ~a\n" id)
-    (LLVMAddGlobalMapping engine jit-value (cast (function-ptr rkt-fun rkt-type) _pointer _uint64))))
-
+(define (add-rkt-mappings mod-env)
+  (define mcjit (env-get-mcjit mod-env))
+  (do-if-info-key
+   rkt-mapping-key (env-get-info mod-env) rkt-mappings
+   (for ([(id v) (in-hash rkt-mappings)])
+     (match-define (list rkt-fun rkt-type jit-value) v)
+     (LLVMAddGlobalMapping mcjit jit-value (cast (function-ptr rkt-fun rkt-type) _pointer _uint64)))))
 
 (module+ test
   (define libc (ffi-lib "libc" "6"))

@@ -18,7 +18,7 @@
         (hash-set! new-info key value))))
   new-info)
 
-(define get-info-key )
+(define get-info-key)
 (define (env-get-info-key sym mod-env)
   (define info (get-info mod-env))
   (hash-ref info sym (void)))
@@ -27,12 +27,8 @@
   (define info (get-info mod-env))
   (hash-set! info key val))
 
-
 (define (env-add-info mod-env info)
   (env-extend info-sym info mod-env))
 (define (env-get-info mod-env)
   (env-lookup info-sym mod-env))
-
-
-
 (define env-get-module (curry get-info-key module-key))
