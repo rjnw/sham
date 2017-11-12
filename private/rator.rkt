@@ -18,9 +18,6 @@
   (define fname-ffi-obj (cast fptr-obj _scheme _ffi_obj_struct-pointer))
   (ffi_obj_struct-obj fname-ffi-obj))
 
-(define ffi-mapping-key 'ffi-mappings)
-(define ffi-lib-key 'ffi-libs)
-(define rkt-mapping-key 'rkt-mappings)
 
 (define (add-ffi-mappings engine mod-env)
   (define ffi-mappings (jit-get-info-key ffi-mapping-key mod-env))
