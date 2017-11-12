@@ -7,9 +7,6 @@
 (provide run-function-pass
          run-module-pass)
 
-(define function-pass-info-key 'function-passes)
-(define module-pass-info-key 'module-passes)
-
 ;; function and module passes are both list of symbols
 (define (run-function-pass lf jit-module context info)
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-module))
