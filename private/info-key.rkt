@@ -4,7 +4,7 @@
 
 (provide (all-defined-out))
 
-(define (build-info cinfo assocs)
+(define (build-on-info cinfo assocs)
   (define new-info (make-hash assocs))
   (when (hash? cinfo)
     (for ([(key value) (in-hash cinfo)])

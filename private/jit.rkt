@@ -11,6 +11,8 @@
          "info-key.rkt"
          "rator.rkt"
          "internals.rkt"
+         "passes.rkt"
+         "attributes.rkt"
          "utils.rkt")
 
 (provide
@@ -31,15 +33,9 @@
  build-info
  env-lookup)
 
-
-
-
-
-
-
 ;; TODO check for mcjit-engine in env
-(define (jit-compile-function f-sym mod)
-  (define mcjit-engine (jit-get-info-key 'mcjit-engine mod))
+(define (jit-compile-function f-sym mod-env)
+  (define mcjit-engine (env-info-key-value 'mcjit-engine mod-env))
   (cast (LLVMGetFunctionAddress mcjit-engine
                                 (symbol->string f-sym))
         _uint64 _pointer))
@@ -314,14 +310,9 @@
        ;; (printf "compiling-function ~a\n" function-name)
        (compile-function-definition function-name args types ret-type body)
        (define f (env-lookup function-name env))
-       ;; TODO figure out info for attrs and passes together
-       ;; and metadata for function as well, similar to info for module
-       ;; (for ([attr attrs])
-       ;;   (LLVMAddAttributeAtIndex
-       ;;    (env-jit-function-ref f)
-       ;;    (cast -1 _int _uint)
-       ;;    (jit-lookup-attr attr context)))
-       ;; (jit-run-function-pass passes jit-module f)
+       (define lf (env-jit-function-ref f))
+       (add-function-attributes lf jit-module context info)
+       (add-function-pass lf jit-module context info)
        (env-extend function-name f module-env)]
       [(sham:def:global info id t)
        (define env-value (env-lookup id env))

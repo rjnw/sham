@@ -2,17 +2,17 @@
 (require ffi/unsafe)
 (require "ffi/all.rkt")
 
-(provide jit-lookup-pass
-         jit-lookup-attr)
+(provide lookup-pass
+         lookup-attribute)
 
-(define (jit-lookup-pass p)
-  (hash-ref jit-pass-table p))
-(define (jit-lookup-attr a context)
+(define (lookup-pass p)
+  (hash-ref pass-table p))
+(define (lookup-attribute a context)
   (LLVMCreateEnumAttribute
    context
-   (LLVMGetEnumAttributeKindForName (symbol->string (hash-ref jit-attr-table a)))
+   (LLVMGetEnumAttributeKindForName (symbol->string (hash-ref attr-table a)))
    0))
-(define jit-pass-table
+(define pass-table
   (make-hash
      ;;Scaler transformations
    `((AggressiveDCE                         . ,LLVMAddAggressiveDCEPass)
@@ -75,7 +75,7 @@
      (StripDeadPrototypes                   . ,LLVMAddStripDeadPrototypesPass)
      (StripSymbols                          . ,LLVMAddStripSymbolsPass))))
 
-(define jit-attr-table
+(define attr-table
   (make-hash
    `((AlwaysInline                . alwaysinline)
      (SanitizeAddress             . sanitize_address)
