@@ -31,76 +31,10 @@
  build-info
  env-lookup)
 
-(define (llvm-initialize)
-  (LLVMLinkInMCJIT)
-  (LLVMInitializeX86Target)
-  (LLVMInitializeX86TargetInfo)
-  (LLVMInitializeX86TargetMC)
-  (LLVMInitializeX86AsmParser)
-  (LLVMInitializeX86AsmPrinter)
-  (define gpr (LLVMGetGlobalPassRegistry))
-  (LLVMInitializeCore gpr)
-  (LLVMInitializeTransformUtils gpr)
-  (LLVMInitializeScalarOpts gpr)
-  (LLVMInitializeObjCARCOpts gpr)
-  (LLVMInitializeVectorization gpr)
-  (LLVMInitializeInstCombine gpr)
-  (LLVMInitializeIPO gpr)
-  (LLVMInitializeInstrumentation gpr)
-  (LLVMInitializeAnalysis gpr)
-  (LLVMInitializeIPA gpr)
-  (LLVMInitializeCodeGen gpr)
-  (LLVMInitializeTarget gpr))
-(llvm-initialize)
 
-(define (create-jit-context)
-  (LLVMContextCreate))
-(define global-jit-context (LLVMGetGlobalContext))
 
-(define (create-initial-environment context)
-  (register-jit-internals (register-initial-types (empty-env) context) context))
 
-(define (jit-dump-module mod)
-  (LLVMDumpModule (jit-get-module mod))
-  (for [(m mod)]
-    (let ([s (car m)]
-          [v (cdr m)])
-      (cond ([env-type? v])
-             ;; (printf "type ~a: ~a\n" s
-             ;;         (LLVMPrintTypeToString (internal-type-jit (env-type-prim v))))
 
-            ([env-jit-function? v]
-             (LLVMDumpValue (env-jit-function-ref v)))))))
-
-(define (jit-dump-function mod sym)
-  (LLVMDumpValue (env-jit-function-ref (env-lookup sym mod))))
-
-(define (jit-get-module mod-env)
-  (jit-get-info-key 'jit-module mod-env))
-
-(define (jit-write-bitcode mod fname)
-  (LLVMWriteBitcodeToFile (jit-get-module mod) fname))
-(define (jit-write-module mod fname)
-  (LLVMPrintModuleToFile (jit-get-module mod) fname))
-
-(define (initialize-jit mod-env #:opt-level [opt-level 1])
-  (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
-  (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
-  (define-values (engine status err)
-    (LLVMCreateMCJITCompilerForModuleWithTarget (jit-get-module mod-env) mcjit-options))
-  (if status
-      (error "error initializing jit" status err)
-      (begin
-        (add-ffi-mappings engine mod-env)
-        (add-rkt-mappings engine mod-env)
-        (jit-add-info-key! 'mcjit-engine engine mod-env)))
-  mod-env)
-  ;; (initialize-orc-jit mod-env)
-
-(define (initialize-orc-jit mod-env)
-  (define orc (LLVMOrcCreateInstance (LLVMCreateCurrentTargetMachineRef)))
-  (jit-add-info-key! 'orc-jit orc mod-env))
-  ;; (LLVMOrcAddEagerlyCompiledIR orc (jit-get-module mod-env) symbolResolver orc)
 
 
 ;; TODO check for mcjit-engine in env
@@ -124,58 +58,9 @@
 (define (jit-get-racket-type t-sym mod)
   (internal-type-racket (env-type-prim (env-lookup t-sym mod))))
 
-(define (jit-run-function-pass passes jit-mod f)
-  (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
-  (for ([pass passes])
-    ((jit-lookup-pass pass) fpm))
-  (begin0
-      (LLVMRunFunctionPassManager fpm (env-jit-function-ref f))
-    (LLVMDisposePassManager fpm)))
-
-(define (jit-run-function-pass-env passes f-sym mod-env)
-  (define jit-mod (jit-get-module mod-env))
-  (jit-run-function-pass passes (env-lookup f-sym mod-env) jit-mod))
-
-(define (jit-run-module-pass passes jit-mod)
-  (define mpm (LLVMCreatePassManager))
-  (for ([pass passes])
-    (define module-pass (jit-lookup-pass pass))
-    (module-pass mpm))
-  (begin0
-      (LLVMRunPassManager mpm jit-mod)
-    (LLVMDisposePassManager mpm)))
-
-(define (jit-run-module-pass-env passes mod-env)
-  (define jit-mod (jit-get-module mod-env))
-  (jit-run-module-pass passes jit-mod))
-
 (define (jit-verify-module mod-env)
   (define jit-mod (jit-get-module mod-env))
   (LLVMVerifyModule jit-mod 'LLVMPrintMessageAction #f))
-
-(define (jit-optimize-function mod-env #:opt-level [level 1])
-  (define jit-mod (jit-get-module mod-env))
-  (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
-  (define fpmb (LLVMPassManagerBuilderCreate))
-  (LLVMPassManagerBuilderSetOptLevel fpmb level)
-  (LLVMPassManagerBuilderPopulateFunctionPassManager fpmb fpm)
-  (for [(m mod-env)]
-    (when (env-jit-function? (cdr m))
-      (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
-  (LLVMDisposePassManager fpm)
-  (LLVMPassManagerBuilderDispose fpmb))
-
-(define (jit-optimize-module mod-env #:opt-level [level 1])
-  (define jit-mod (jit-get-module mod-env))
-  (define mpm (LLVMCreatePassManager))
-  (define pmb (LLVMPassManagerBuilderCreate))
-  (LLVMPassManagerBuilderSetOptLevel pmb level)
-  (LLVMPassManagerBuilderSetSizeLevel pmb 100)
-  (LLVMPassManagerBuilderPopulateModulePassManager pmb mpm)
-  (begin0
-      (LLVMRunPassManager mpm jit-mod)
-    (LLVMDisposePassManager mpm)
-    (LLVMPassManagerBuilderDispose pmb)))
 
 (define (jit-run-basic-pass mod-env)
   (define jit-mod (jit-get-module mod-env))
@@ -454,12 +339,10 @@
          (compile-module-define def env module-env)))
      ;(jit-run-module-pass (cdr (assoc 'passes info)) jit-module)
      ;(LLVMVerifyModule jit-module 'LLVMPrintMessageAction #f)
-     (jit-add-info module-env
-                   (build-info info `((jit-module . ,jit-module)
-                                      (,ffi-mapping-key . ,ffi-mappings)
-                                      (,rkt-mapping-key . ,rkt-mappings))))]))
-
-
+     (add-info module-env
+               (build-info info `((jit-module . ,jit-module)
+                                  (,ffi-mapping-key . ,ffi-mappings)
+                                  (,rkt-mapping-key . ,rkt-mappings))))]))
 (module+ test
   (define module-env
     (compile-module
