@@ -6,7 +6,6 @@
 
 (provide add-function-attributes)
 
-(define function-attributes-info-key 'function-attrs)
 (define function-attribute-index (modulo -1 (expt 2 32)))
 
 ;;function attributes are a list of symbols
