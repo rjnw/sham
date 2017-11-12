@@ -35,18 +35,19 @@
 (define (initialize-jit mod-env #:opt-level [opt-level 1])
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
   (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
-  (define-values (engine status err)
+  (define-values (mcjit status err)
     (LLVMCreateMCJITCompilerForModuleWithTarget (jit-get-module mod-env) mcjit-options))
   (if status
       (error "error initializing jit" status err)
       (begin
-        (add-ffi-mappings engine mod-env)
-        (add-rkt-mappings engine mod-env)
-        (add-info-key! 'mcjit-engine engine mod-env)))
+        (env-add-mcjit! mod-env mcjit)
+        (add-ffi-mappings mod-env)
+        (add-rkt-mappings mod-env)))
+
   mod-env)
   ;; (initialize-orc-jit mod-env)
 
 (define (initialize-orc-jit mod-env)
   (define orc (LLVMOrcCreateInstance (LLVMCreateCurrentTargetMachineRef)))
-  (jit-add-info-key! 'orc-jit orc mod-env))
+  (env-add-orc! mod-env orc))
 ;; (LLVMOrcAddEagerlyCompiledIR orc (jit-get-module mod-env) symbolResolver orc)
