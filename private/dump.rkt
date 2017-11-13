@@ -1,7 +1,7 @@
 #lang racket
 
 (require "llvm/ffi/all.rkt")
-(require "info-key.rkt"
+(require "mod-env-info.rkt"
          "env.rkt")
 (provide (all-defined-out))
 

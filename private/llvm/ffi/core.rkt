@@ -286,7 +286,7 @@
 
 
 (define-llvm LLVMGetMDKindIDInContext (_fun LLVMContextRef _string _uint -> unsigned))
-
+(define-llvm LLVMGetMDKindID (_fun _string _uint -> unsigned))
 
 ;; Attributes
 #|
@@ -729,22 +729,24 @@
 (define-llvm LLVMMDStringInContext (_fun LLVMContextRef _string _uint -> LLVMValueRef))
 (define-llvm LLVMMDString (_fun _string _uint -> LLVMValueRef))
 (define-llvm LLVMMDNodeInContext (_fun LLVMContextRef (pointer-to LLVMValueRef) _uint -> LLVMValueRef))
-(define-llvm LLVMMDNode (_fun (pointer-to LLVMValueRef) _uint -> LLVMValueRef))
+(define-llvm LLVMMDNode (_fun (vals : (_list i  LLVMValueRef)) (size : _uint = (length vals)) -> LLVMValueRef))
+(define-llvm LLVMMetadataAsValue (_fun LLVMContextRef LLVMMetadataRef -> LLVMValueRef))
+(define-llvm LLVMValueAsMetadata (_fun LLVMValueRef -> LLVMMetadataRef))
 (define-llvm LLVMGetMDString (_fun LLVMValueRef (pointer-to unsigned) -> _string))
 (define-llvm LLVMGetMDNodeNumOperands (_fun LLVMValueRef -> unsigned))
 (define-llvm LLVMGetMDNodeOperands (_fun LLVMValueRef (pointer-to LLVMValueRef) -> _void))
 
 ;; LLVMCCoreValueBasicBlock
 #|
- * A basic block represents a single entry single exit section of code.
- * Basic blocks contain a list of instructions which form the body of
- * the block.
- *
- * Basic blocks belong to functions. They have the type of label.
- *
- * Basic blocks are themselves values. However, the C API models them as
- * LLVMBasicBlockRef.
- |#
+* A basic block represents a single entry single exit section of code.
+* Basic blocks contain a list of instructions which form the body of
+* the block.
+*
+* Basic blocks belong to functions. They have the type of label.
+*
+* Basic blocks are themselves values. However, the C API models them as
+* LLVMBasicBlockRef.
+|#
 
 (define-llvm LLVMBasicBlockAsValue (_fun LLVMBasicBlockRef -> LLVMValueRef))
 (define-llvm LLVMValueIsBasicBlock (_fun LLVMValueRef -> LLVMBool))

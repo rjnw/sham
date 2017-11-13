@@ -12,7 +12,6 @@
          "mod-env-info.rkt"
          "rator.rkt"
          "dump.rkt"
-         "passes.rkt"
          "utils.rkt")
 
 (provide compile-module
@@ -314,6 +313,7 @@
       (update-info!
        info
        `((,module-key            . ,jit-module)
+         (,context-key           . ,context)
          (,per-function-info-key . ,function-info-map)
          (,per-type-info-key     . ,type-info-map)
          (,ffi-mapping-key       . ,ffi-mappings)

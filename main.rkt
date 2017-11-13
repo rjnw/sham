@@ -2,8 +2,9 @@
 
 (require "jit.rkt"
          "ast.rkt"
-         "private/info-key.rkt"
+         "private/mod-env-info.rkt"
          "private/dump.rkt"
+         "private/optimize.rkt"
          "private/init.rkt")
 
 
@@ -11,6 +12,7 @@
  (all-from-out
   "ast.rkt"
   "jit.rkt"
-  "private/info-key.rkt"
+  "private/mod-env-info.rkt"
   "private/dump.rkt"
+  "private/optimize.rkt"
   "private/init.rkt"))

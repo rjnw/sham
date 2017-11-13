@@ -2,7 +2,7 @@
 
 (require "llvm/ffi/all.rkt"
          "llvm/adjunct.rkt"
-         "info-key.rkt"
+         "mod-env-info.rkt"
          "internals.rkt"
          "types.rkt"
          "env.rkt"
