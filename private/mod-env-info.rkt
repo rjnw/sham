@@ -3,19 +3,23 @@
 (require "env.rkt")
 
 (provide (all-defined-out))
+;; module info is mutable hash
+;; as module env is immutable and we add stuff to module
+;; info from time to time
+
+;; function, type, and global info are immutable
+;; which satisfy the invariant that each key maps to a list
 
 (define info-sym '#%jit-info)
 (define module-key 'module)
 (define ffi-mapping-key 'ffi-mappings)
 (define ffi-lib-key 'ffi-libs)
 (define rkt-mapping-key 'rkt-mappings)
-(define function-attributes-info-key 'function-attrs)
-(define function-pass-info-key 'function-passes)
 (define module-pass-info-key 'module-passes)
 (define mcjit-info-key 'mcjit)
 (define orc-info-key 'orc)
-(define function-info-key 'function-info)
-(define type-info-key 'type-info)
+(define per-function-info-key 'per-function-info)
+(define per-type-info-key 'per-type-info)
 (define-syntax-rule (do-if-info-key key info v expr ...)
   (let ([v (get-info-key info key)])
     (when v
