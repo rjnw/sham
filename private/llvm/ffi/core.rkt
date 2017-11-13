@@ -248,21 +248,18 @@
 
 (define-llvm LLVMInitializeCore (_fun LLVMPassRegistryRef -> _void))
 (define-llvm LLVMShutdown (_fun -> _void))
-(define-llvm LLVMDisposeMessage (_fun _string -> _void)
-  #:wrap (deallocator))
-(define-llvm LLVMCreateMessage (_fun _string -> _string)
-  #:wrap (allocator LLVMDisposeMessage))
+
+
 
 
 ;; LLVMCCoreContext
 #|
- * Contexts are execution states for the core LLVM IR system.
- *
- * Most types are tied to a context instance. Multiple contexts can
- * exist simultaneously. A single context is not thread safe. However,
- * different contexts can execute on different threads simultaneously.
- |#
-
+* Contexts are execution states for the core LLVM IR system.
+*
+* Most types are tied to a context instance. Multiple contexts can
+* exist simultaneously. A single context is not thread safe. However,
+* different contexts can execute on different threads simultaneously.
+|#
 (define LLVMDiagnosticHandler (_fun LLVMDiagnosticInfoRef _pointer -> _void))
 (define LLVMYieldCallback (_fun LLVMContextRef _pointer -> _void))
 
@@ -270,6 +267,7 @@
   #:wrap (deallocator))
 ;; Create a new context, racket ffi will automatically call
 ;; dispose using gc
+
 (define-llvm LLVMContextCreate (_fun -> LLVMContextRef)
   #:wrap (allocator LLVMContextDispose))
 
@@ -277,9 +275,16 @@
 (define-llvm LLVMContextSetDiagnosticHandler (_fun LLVMContextRef LLVMDiagnosticHandler (pointer-to _void) -> _void))
 (define-llvm LLVMContextSetYieldCallback (_fun LLVMContextRef LLVMYieldCallback (pointer-to _void) -> _void))
 
-(define-llvm LLVMGetDiagInfoDescription (_fun LLVMDiagnosticInfoRef -> _string)
+(define-llvm LLVMDisposeMessage (_fun _pointer -> _void)
+  #:wrap (deallocator))
+(define-llvm LLVMGetDiagInfoDescription (_fun LLVMDiagnosticInfoRef -> _pointer)
   #:wrap (allocator LLVMDisposeMessage)) ;; TODO _string changes pointer figure out how to dispose original
 (define-llvm LLVMGetDiagInfoSeverity (_fun LLVMDiagnosticInfoRef -> LLVMDiagnosticSeverity))
+
+(define-llvm LLVMCreateMessage (_fun _string -> _pointer)
+  #:wrap (allocator LLVMDisposeMessage))
+
+
 (define-llvm LLVMGetMDKindIDInContext (_fun LLVMContextRef _string _uint -> unsigned))
 
 
@@ -317,7 +322,7 @@
 (define-llvm LLVMIsStringAttribute (_fun LLVMAttributeRef -> LLVMBool))
 
 ;; LLVMCCoreModules
-#| 
+#|
  * Modules represent the top-level structure in an LLVM program. An LLVM
  * module is effectively a translation unit or a collection of
  * translation units merged together.
@@ -1030,4 +1035,3 @@
 (define-llvm LLVMInitializeFunctionPassManager (_fun LLVMPassManagerRef -> LLVMBool))
 (define-llvm LLVMRunFunctionPassManager (_fun LLVMPassManagerRef LLVMValueRef -> LLVMBool))
 (define-llvm LLVMFinalizeFunctionPassManager (_fun LLVMPassManagerRef -> LLVMBool))
-
