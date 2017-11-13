@@ -9,11 +9,10 @@
          "init.rkt"
          "types.rkt"
          "ast.rkt"
-         "info-key.rkt"
+         "mod-env-info.rkt"
          "rator.rkt"
          "dump.rkt"
          "passes.rkt"
-         "attributes.rkt"
          "utils.rkt")
 
 (provide compile-module
@@ -263,8 +262,8 @@
              [(env-jit-function ref type)
               (LLVMBuildCall builder ref rand-values
                              (substring (symbol->string sym) 0 3))]
-             [(env-jit-intr-function builder)
-              (builder builder rand-values)]
+             [(env-jit-intr-function appbuilder)
+              (appbuilder builder rand-values)]
              [else (error "cannot figure out how to apply: ~a" rator)])]))
       (define entry-block (new-block 'entry))
       (LLVMPositionBuilderAtEnd builder entry-block)
@@ -312,13 +311,28 @@
          (compile-module-define def env module-env)))
      (env-add-info
       module-env
-      (build-on-info
+      (update-info!
        info
-       `((,module-key        . ,jit-module)
-         (,function-info-key . ,function-info-map)
-         (,type-info-key     . ,type-info-map)
-         (,ffi-mapping-key   . ,ffi-mappings)
-         (,rkt-mapping-key   . ,rkt-mappings))))]))
+       `((,module-key            . ,jit-module)
+         (,per-function-info-key . ,function-info-map)
+         (,per-type-info-key     . ,type-info-map)
+         (,ffi-mapping-key       . ,ffi-mappings)
+         (,rkt-mapping-key       . ,rkt-mappings))))]))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 (module+ test
   (define module-env
