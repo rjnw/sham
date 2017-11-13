@@ -20,18 +20,17 @@
 (define orc-info-key 'orc)
 (define per-function-info-key 'per-function-info)
 (define per-type-info-key 'per-type-info)
+
 (define-syntax-rule (do-if-info-key key info v expr ...)
   (let ([v (get-info-key info key)])
     (when v
       expr ...)))
 
-(define (build-on-info cinfo assocs)
-  (define new-info (make-hash assocs))
-  (when (hash? cinfo)
-    (for ([(key value) (in-hash cinfo)])
-      (unless (hash-has-key? new-info key)
-        (hash-set! new-info key value))))
-  new-info)
+(define (update-info! info assocs)
+  (for ([as assocs])
+    (match-define (cons key val) as)
+    (hash-set! info key val))
+  info)
 
 (define (get-info-key info key [failure-result (void)])
   (hash-ref info key failure-result))
