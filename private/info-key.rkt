@@ -14,11 +14,12 @@
 (define module-pass-info-key 'module-passes)
 (define mcjit-info-key 'mcjit)
 (define orc-info-key 'orc)
-
-(define-syntax-rule (do-if-info-key key info v expr)
+(define function-info-key 'function-info)
+(define type-info-key 'type-info)
+(define-syntax-rule (do-if-info-key key info v expr ...)
   (let ([v (get-info-key info key)])
     (when v
-      expr)))
+      expr ...)))
 
 (define (build-on-info cinfo assocs)
   (define new-info (make-hash assocs))
@@ -28,13 +29,13 @@
         (hash-set! new-info key value))))
   new-info)
 
-(define (get-info-key info key)
-  (hash-ref info key (void)))
+(define (get-info-key info key [failure-result (void)])
+  (hash-ref info key failure-result))
 (define (add-info-key! info key val)
   (hash-set! info key val))
 
-(define (env-get-info-key mod-env key)
-  (get-info-key (env-get-info mod-env) key))
+(define (env-get-info-key mod-env key [failure-result (void)])
+  (get-info-key (env-get-info mod-env) key failure-result))
 
 (define (env-add-info-key! mod-env key val)
   (add-info-key! (env-get-info mod-env) key val))
@@ -44,8 +45,8 @@
 (define (env-get-info mod-env)
   (env-lookup info-sym mod-env))
 
-(define env-get-module (curryr get-info-key module-key))
-(define env-get-mcjit (curryr get-info-key mcjit-info-key))
+(define env-get-module (curryr env-get-info-key module-key))
+(define env-get-mcjit (curryr env-get-info-key mcjit-info-key))
 (define env-add-mcjit! (λ (mod-env mcjit) (env-add-info-key! mod-env mcjit-info-key mcjit)))
-(define env-get-orc (curryr get-info-key orc-info-key))
+(define env-get-orc (curryr env-get-info-key orc-info-key))
 (define env-add-orc! (λ (mod-env orc) (env-add-info-key! mod-env orc-info-key orc)))
