@@ -1,11 +1,11 @@
 #lang racket
 
 (require ffi/unsafe (prefix-in foreign: '#%foreign))
+
 (require "info-key.rkt"
          "llvm/ffi/all.rkt")
 
-(provide add-ffi-mappings
-         add-rkt-mappings)
+(provide add-ffi-mappings add-rkt-mappings)
 
 (define-cstruct _scheme_object  ([typetag _short]   [key _short]))
 (define-cstruct _ffi_obj_struct
@@ -20,7 +20,7 @@
   (ffi_obj_struct-obj fname-ffi-obj))
 
 (define (load-ffi-libs mod-env)
-  (for/hash ([fl (env-get-info-key ffi-lib-key mod-env)])
+  (for/hash ([fl (env-get-info-key mod-env ffi-lib-key '())])
     (match fl
       [`(,lib-name . (,str-args ... #:global? ,gv))
        (define flib (apply ffi-lib str-args #:global? gv))
