@@ -27,3 +27,12 @@
   (begin0
       (LLVMRunPassManager mpm jit-module)
     (LLVMDisposePassManager mpm)))
+
+;; (define (jit-run-basic-pass mod-env)
+;;   (define jit-mod (env-get-module mod-env))
+;;   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
+;;   (LLVMAddCFGSimplificationPass fpm)
+;;   (for [(m mod-env)]
+;;     (when (env-jit-function? (cdr m))
+;;       (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
+;;   (LLVMDisposePassManager fpm))
