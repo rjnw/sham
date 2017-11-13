@@ -246,7 +246,7 @@
 
 (define LLVMAttributeIndex unsigned)
 
-(define-llvm LLVMInitializeCore (_fun LLVMPassRegistryRef -> _void))
+
 (define-llvm LLVMShutdown (_fun -> _void))
 
 
@@ -1019,12 +1019,6 @@
 (define-llvm LLVMGetBufferStart (_fun LLVMMemoryBufferRef -> _bytes))
 (define-llvm LLVMGetBufferSize (_fun LLVMMemoryBufferRef -> _size))
 
-;; LLVMCCorePassRegistry
-
-#| Return the global pass registry, for use with initialization functions.
-   See llvm::PassRegistry::getPassRegistry.|#
-(define-llvm LLVMGetGlobalPassRegistry
- (_fun -> LLVMPassRegistryRef))
 
 ;; LLVMCCorePassManagers
 (define-llvm LLVMDisposePassManager (_fun LLVMPassManagerRef -> _void)
