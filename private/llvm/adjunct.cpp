@@ -24,11 +24,11 @@ using namespace llvm;
 
 TargetMachine* LLVMCreateCurrentTargetMachine () {
   TargetOptions targetOptions;
-  auto targetTriple = sys::getDefaultTargetTriple();
+  auto targetTriple = sys::getProcessTriple();
   std::string error;
   auto target = TargetRegistry::lookupTarget (targetTriple, error);
   auto relocModel = Optional<Reloc::Model>(Reloc::Static);
-  
+
   SubtargetFeatures features;
   StringMap<bool> hostFeatures;
   if (sys::getHostCPUFeatures(hostFeatures)) {
