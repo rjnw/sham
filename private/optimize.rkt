@@ -1,7 +1,10 @@
 #lang racket
+(require "llvm/ffi/all.rkt"
+         "info-key.rkt"
+         "env.rkt")
 
 (define (jit-optimize-function mod-env #:opt-level [level 1])
-  (define jit-mod (jit-get-module mod-env))
+  (define jit-mod (env-get-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (define fpmb (LLVMPassManagerBuilderCreate))
   (LLVMPassManagerBuilderSetOptLevel fpmb level)
@@ -12,8 +15,10 @@
   (LLVMDisposePassManager fpm)
   (LLVMPassManagerBuilderDispose fpmb))
 
+;;we don't want rely on llvm's basic optimization levels anymore
+;; as they are based on c style languages. need to figure out our own
 (define (jit-optimize-module mod-env #:opt-level [level 1])
-  (define jit-mod (jit-get-module mod-env))
+  (define jit-mod (env-get-module mod-env))
   (define mpm (LLVMCreatePassManager))
   (define pmb (LLVMPassManagerBuilderCreate))
   (LLVMPassManagerBuilderSetOptLevel pmb level)
