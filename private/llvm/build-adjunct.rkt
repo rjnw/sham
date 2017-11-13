@@ -29,3 +29,5 @@
   (begin (unless (file-exists? adjunct-so-path)
            (compile-adjunct))
          (ffi-lib adjunct-so-path)))
+(module+ test
+ (compile-adjunct))
