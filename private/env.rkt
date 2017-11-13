@@ -22,7 +22,6 @@
 (struct env-jit-function (ref type) #:prefab)
 (struct env-jit-intr-function (builder) #:prefab)
 
-
 (struct env-jit-value (ref type) #:prefab)
 (struct env-racket-function (type object) #:prefab)
 (struct env-racket-ffi-function (type object) #:prefab)
