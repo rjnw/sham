@@ -156,7 +156,7 @@
     (fp-ext   ,LLVMBuildFPExt)
     (ptr->int ,LLVMBuildPtrToInt)
     (int->ptr ,LLVMBuildIntToPtr)
-    (bitcast  ,LLVMBuildCast)
+    (bitcast  ,LLVMBuildBitCast)
     (addrspacecast ,LLVMBuildAddrSpaceCast)
     (zextorbitcast ,LLVMBuildZExtOrBitCast)
     (sextorbitcast ,LLVMBuildSExtOrBitCast)
