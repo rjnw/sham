@@ -125,7 +125,7 @@
   (_enum
    '(LLVMDefaultStorageClass   = 0
      LLVMDLLImportStorageClass = 1
-     LLVMDLLExportStorageClass = 2 )))
+     LLVMDLLExportStorageClass = 2)))
 
 (define LLVMCallConv
   (_enum
@@ -221,7 +221,7 @@
      LLVMAtomicOrderingAcquire                = 4
      LLVMAtomicOrderingRelease                = 5
      LLVMAtomicOrderingAcquireRelease         = 6
-     LLVMAtomicOrderingSequentiallyConsistent = 7 )))
+     LLVMAtomicOrderingSequentiallyConsistent = 7)))
 
 (define LLVMAtomicRMWBinOp
   (_enum
@@ -568,12 +568,15 @@
 (define-llvm LLVMConstString (_fun _string _uint LLVMBool -> LLVMValueRef))
 (define-llvm LLVMIsConstantString (_fun LLVMValueRef -> LLVMBool))
 (define-llvm LLVMGetAsString (_fun LLVMValueRef (pointer-to _size) -> _string))
-(define-llvm LLVMConstStructInContext (_fun LLVMContextRef (pointer-to LLVMValueRef) _uint LLVMBool -> LLVMValueRef))
-(define-llvm LLVMConstStruct (_fun (pointer-to LLVMValueRef) _uint LLVMBool -> LLVMValueRef))
-(define-llvm LLVMConstArray (_fun LLVMTypeRef (pointer-to LLVMValueRef) _uint -> LLVMValueRef))
-(define-llvm LLVMConstNamedStruct (_fun LLVMTypeRef (pointer-to LLVMValueRef) _uint -> LLVMValueRef))
+(define-llvm LLVMConstStructInContext (_fun LLVMContextRef
+                                            (vals : (_list i LLVMValueRef)) (len : _uint = (length vals)) LLVMBool
+                                            -> LLVMValueRef))
+(define-llvm LLVMConstStruct (_fun (vals : (_list i LLVMValueRef)) (len : _uint = (length vals)) LLVMBool -> LLVMValueRef))
+(define-llvm LLVMConstArray (_fun LLVMTypeRef (vals : (_list i  LLVMValueRef)) (len : _uint = (length vals)) -> LLVMValueRef))
+(define-llvm LLVMConstNamedStruct (_fun LLVMTypeRef (vals : (_list i LLVMValueRef)) (len : _uint = (length vals))
+                                        -> LLVMValueRef))
 (define-llvm LLVMGetElementAsConstant (_fun LLVMValueRef _uint -> LLVMValueRef))
-(define-llvm LLVMConstVector (_fun (pointer-to LLVMValueRef) _uint -> LLVMValueRef))
+(define-llvm LLVMConstVector (_fun (vals : (_list i  LLVMValueRef)) (len : _uint = (length vals)) -> LLVMValueRef))
 
 ;; LLVMCCoreValueConstantExpressions
 #|
@@ -1003,7 +1006,7 @@
         (out-message : (_ptr o _string))
         -> (fail : LLVMBool)
         -> (values memory-buffer out-message fail))
-          #:wrap (allocator LLVMDisposeMemoryBuffer))
+  #:wrap (allocator LLVMDisposeMemoryBuffer))
 (define-llvm LLVMCreateMemoryBufferWithSTDIN
   (_fun (memory-buffer : (_ptr o LLVMMemoryBufferRef))
         (out-message : (_ptr o _string))
