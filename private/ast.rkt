@@ -1,5 +1,6 @@
 #lang racket
-
+(require "fun-info.rkt")
+(require "mod-env-info.rkt")
 (provide (all-defined-out))
 
 (struct sham:module ([info #:mutable] defs))
@@ -21,6 +22,8 @@
 (struct sham:type:struct   sham:type (fields types))
 (struct sham:type:function sham:type (args ret))
 (struct sham:type:pointer  sham:type (to))
+(struct sham:type:array    sham:type (of size))
+(struct sham:type:vector   sham:type (of size))
 
 
 (struct sham:stmt sham:ast ())
@@ -36,11 +39,16 @@
 
 
 (struct sham:expr sham:ast ())
+(struct sham:expr:const sham:expr ())
+
+(struct sham:expr:fl-value     sham:expr:const (v t))
+(struct sham:expr:si-value     sham:expr:const (v t))
+(struct sham:expr:ui-value     sham:expr:const (v t))
+(struct sham:expr:struct-value sham:expr:const (vs))
+(struct sham:expr:array-value  sham:expr:const (vs t))
+(struct sham:expr:vector-value sham:expr:const (vs t))
 
 (struct sham:expr:app      sham:expr (rator rands))
-(struct sham:expr:fl-value sham:expr (v t))
-(struct sham:expr:si-value sham:expr (v t))
-(struct sham:expr:ui-value sham:expr (v t))
 (struct sham:expr:void     sham:expr ())
 (struct sham:expr:sizeof   sham:expr (t))
 (struct sham:expr:type     sham:expr (t)) ;;only used for malloc and variants
@@ -65,6 +73,8 @@
     [(sham:type:ref md to) to]
     [(sham:type:struct md fields types)
      `(struct ,(for/list [(f fields) (t types)] `(,f ,(print-sham-type t))))]
+    [(sham:type:array md of size)
+     `(array ,(print-sham-type of) ,size)]
     [(sham:type:function md args ret)
      `(,@(map print-sham-type args) ,(print-sham-type ret))]
     [(sham:type:pointer md to) `(* ,(print-sham-type to))]))
@@ -324,12 +334,12 @@
                        check-stmt
                        check-type))
 
-  (define (basic-function-info) (void))
-  (define (basic-module-info) (void))
-  (define (basic-type-info) (void))
+  (define (empty-function-info)  (fninfo-empty))
+  (define (empty-module-info) (empty-mod-env-info))
+  (define (empty-type-info) (void))
 
   (define-syntax-rule (sham$def:type id t)
-    (sham:def:type (basic-type-info) (check-sym id) t))
+    (sham:def:type (empty-type-info) (check-sym id) t))
 
   (define (sham:stmt:let ids id-types id-vals stmt);backward compatibility, or short key as well
     (sham:stmt:expr (sham:expr:let ids id-types id-vals stmt (sham:expr:void))))
@@ -409,7 +419,7 @@
     (syntax-parse stx
       [(_ (name:id (args:id t:expr) ... rett:id) stmt:expr)
        #'(sham:def:function
-          (basic-function-info) (check-sym name)
+          (empty-function-info) (check-sym name)
           (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
           (check-stmt stmt))]
       [(_ (name:id info:expr (args:id t:expr) ... rett:id) stmt:expr)
@@ -424,7 +434,7 @@
           (check-stmt stmt))]
       [(_ (name:id rett:id) stmt:expr)
        #'(sham:def:function
-          (basic-function-info)
+          (empty-function-info)
           (check-sym name)
           '() '() (sham$tref rett)
           (check-stmt stmt))])))
