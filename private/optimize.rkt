@@ -10,9 +10,11 @@
 
 (define (optimize-module mod-env)
   (define all-function-info (env-get-info-key mod-env per-function-info-key))
-  (map (curryr do-function-info mod-env) all-function-info)
-  (define module-passes (env-get-info-key mod-env module-pass-info-key))
-  (run-module-passes (env-get-module mod-env) module-passes))
+  (for ([(key val) (in-hash all-function-info)])
+    (do-function-info key val mod-env)))
+  ;; (define module-passes (env-get-info-key mod-env module-pass-info-key))
+  ;; (run-module-passes (env-get-module mod-env) module-passes)
+
 
 (define (run-module-passes jit-mod passes)
   (define mpm (LLVMCreatePassManager))
@@ -23,24 +25,22 @@
       (LLVMRunPassManager mpm jit-mod)
       (LLVMDisposePassManager mpm)))
 
-(define (do-function-info fname-info mod-env)
-  (match-define (cons fname finfo) fname-info)
+(define (do-function-info fname finfo mod-env)
   (define jit-mod (env-get-module mod-env))
   (define context (env-get-context mod-env))
   (define envf (env-lookup fname mod-env))
   (define lf (env-jit-function-ref envf))
   (define (add-attributes attrs index)
     (for ([attr attrs])
-      (LLVMAddAttributeAtIndex lf  (lookup-attribute attr context))))
+      (LLVMAddAttributeAtIndex lf index (lookup-attribute attr context))))
 
   (for ([(key val) (in-hash finfo)])
     (match key
-      [fn-pass-key (run-function-pass lf jit-mod val)]
       ['fn (add-attributes val function-attribute-index)]
       ['ret (add-attributes val 0)]
-      [`(arg ,n) (add-attributes val 0)]
+      [`(arg ,n) (add-attributes val n)]
+      ['pass (run-function-pass lf jit-mod val)]
       [else (printf "for now doing nothing for this key in function info" key)])))
-
 
 (define (run-function-pass f jit-mod passes)
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
