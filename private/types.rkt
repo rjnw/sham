@@ -26,7 +26,12 @@
      (create-function-type (map (curryr compile-type env) args)
                            (compile-type ret env))]
     [(sham:type:pointer _ to)
-     (create-pointer-type (compile-type to env))]))
+     (create-pointer-type (compile-type to env))]
+    [(sham:type:array _ of size)
+     (create-array-type (compile-type of env) size)]
+    [(sham:type:vector _ of size)
+     (create-vector-type (compile-type of env) size)]))
+
 
 ;input internal-type
 (define (create-function-type args ret)
@@ -47,6 +52,16 @@
   (internal-type
    (create-racket-struct-type types)
    (create-jit-struct-type types)))
+
+(define (create-array-type type size) ;; size should be a nat
+  (define jit-array-type (LLVMArrayType (internal-type-jit type) size))
+  (define racket-array-type (_array/list (internal-type-racket type) size))
+  (internal-type racket-array-type jit-array-type))
+
+(define (create-vector-type type size) ;; size should be a nat
+  (define jit-vector-type (LLVMVectorType (internal-type-jit type) size))
+  (define racket-vector-type (_array/vector (internal-type-racket type) size))
+  (internal-type racket-vector-type jit-vector-type))
 
 (define (create-pointer-type type)
   (define (create-racket-pointer-type type)
@@ -81,7 +96,7 @@
        (i128 ,(LLVMInt128TypeInContext context) ,_ullong)
        (f32 ,(LLVMFloatTypeInContext context) ,_float)
        (f64 ,(LLVMDoubleTypeInContext context) ,_double)
-      (void ,(LLVMVoidTypeInContext context) ,_void))))
+       (void ,(LLVMVoidTypeInContext context) ,_void))))
   (env-extend 'void* type-void* new-env))
 
 
