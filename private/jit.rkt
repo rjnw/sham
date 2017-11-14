@@ -202,8 +202,15 @@
            (define rand-values (map (curryr build-expression env) rands))
            (build-app rator rand-values env)]
           [(sham:expr:fl-value md value t) (LLVMConstReal (build-llvm-type t env) value)]
-          [(sham:expr:si-value md value t) (LLVMConstInt (build-llvm-type t env) (cast value _sint64 _uint64) #f)]
+          [(sham:expr:si-value md value t)
+           (LLVMConstInt (build-llvm-type t env) (cast value _sint64 _uint64) #f)]
           [(sham:expr:ui-value md value t) (LLVMConstInt (build-llvm-type t env) value #f)]
+          [(sham:expr:struct-value md vals)
+           (LLVMConstStruct (map (curryr build-expression env) vals))]
+          [(sham:expr:array-value md vals t)
+           (LLVMConstArray (build-llvm-type t env) (map (curryr build-expression env) vals))]
+          [(sham:expr:vector-value md vals t)
+           (LLVMConstVector (build-llvm-type t env) (map (curryr build-expression env) vals))]
           [(sham:expr:sizeof md type)
            (define llvm-type (build-llvm-type type env))
            (LLVMConstInt (internal-type-jit (env-type-prim (env-lookup 'i32 env)))
@@ -247,7 +254,7 @@
            (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
                                              (map LLVMTypeOf rand-values) #f))
            (define fn-value (LLVMAddFunction jit-module s fn-type))
-           (add-ffi-mapping! id (list lib-id fn-value))
+           (add-ffi-mapping! id (cons lib-id fn-value))
            (LLVMBuildCall builder fn-value rand-values (substring s 0 3))]
           [(sham:rator:racket id rkt-fun type)
            (define s (symbol->string id))
