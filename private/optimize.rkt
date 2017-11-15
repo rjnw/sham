@@ -1,6 +1,7 @@
 #lang racket
 (require "llvm/ffi/all.rkt"
          "llvm/pass-table.rkt"
+         "llvm/adjunct.rkt"
          "mod-env-info.rkt"
          "fun-info.rkt"
          "type-info.rkt"
@@ -11,9 +12,10 @@
 (define (optimize-module mod-env)
   (define all-function-info (env-get-info-key mod-env per-function-info-key))
   (for ([(key val) (in-hash all-function-info)])
-    (do-function-info key val mod-env)))
-  ;; (define module-passes (env-get-info-key mod-env module-pass-info-key))
-  ;; (run-module-passes (env-get-module mod-env) module-passes)
+    (do-function-info key val mod-env))
+  ;(LLVMRunOurModulePasses (env-get-module mod-env))
+  (basic-optimize-module mod-env))
+
 
 
 (define (run-module-passes jit-mod passes)
@@ -50,29 +52,29 @@
       (LLVMRunFunctionPassManager fpm (env-jit-function-ref f))
     (LLVMDisposePassManager fpm)))
 
-;; (define (jit-optimize-function mod-env #:opt-level [level 1])
-;;   (define jit-mod (env-get-module mod-env))
-;;   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
-;;   (define fpmb (LLVMPassManagerBuilderCreate))
-;;   (LLVMPassManagerBuilderSetOptLevel fpmb level)
-;;   (LLVMPassManagerBuilderPopulateFunctionPassManager fpmb fpm)
-;;   (for [(m mod-env)]
-;;     (when (env-jit-function? (cdr m))
-;;       (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
-;;   (LLVMDisposePassManager fpm)
-;;   (LLVMPassManagerBuilderDispose fpmb))
+(define (basic-optimize-function mod-env #:opt-level [level 1])
+  (define jit-mod (env-get-module mod-env))
+  (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
+  (define fpmb (LLVMPassManagerBuilderCreate))
+  (LLVMPassManagerBuilderSetOptLevel fpmb level)
+  (LLVMPassManagerBuilderPopulateFunctionPassManager fpmb fpm)
+  (for [(m mod-env)]
+    (when (env-jit-function? (cdr m))
+      (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
+  (LLVMDisposePassManager fpm)
+  (LLVMPassManagerBuilderDispose fpmb))
 
 
 ;;we don't want rely on llvm's basic optimization levels anymore
 ;; as they are based on c style languages. need to figure out our own
-;; (define (jit-optimize-module mod-env #:opt-level [level 1])
-;;   (define jit-mod (env-get-module mod-env))
-;;   (define mpm (LLVMCreatePassManager))
-;;   (define pmb (LLVMPassManagerBuilderCreate))
-;;   (LLVMPassManagerBuilderSetOptLevel pmb level)
-;;   (LLVMPassManagerBuilderSetSizeLevel pmb 100)
-;;   (LLVMPassManagerBuilderPopulateModulePassManager pmb mpm)
-;;   (begin0
-;;       (LLVMRunPassManager mpm jit-mod)
-;;     (LLVMDisposePassManager mpm)
-;;     (LLVMPassManagerBuilderDispose pmb)))
+(define (basic-optimize-module mod-env #:opt-level [level 3])
+  (define jit-mod (env-get-module mod-env))
+  (define mpm (LLVMCreatePassManager))
+  (define pmb (LLVMPassManagerBuilderCreate))
+  (LLVMPassManagerBuilderSetOptLevel pmb level)
+  (LLVMPassManagerBuilderSetSizeLevel pmb 100)
+  (LLVMPassManagerBuilderPopulateModulePassManager pmb mpm)
+  (begin0
+      (LLVMRunPassManager mpm jit-mod)
+    (LLVMDisposePassManager mpm)
+    (LLVMPassManagerBuilderDispose pmb)))
