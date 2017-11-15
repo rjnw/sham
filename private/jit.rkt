@@ -46,12 +46,12 @@
   (LLVMVerifyModule jit-mod 'LLVMPrintMessageAction #f))
 
 (define (compile-module m [module-name "module"] [context global-jit-context])
-  (when (sham-diagnose)
-    (define (diag-handler dinfo voidp)
-      (define diag-desc (LLVMGetDiagInfoDescription dinfo))
-      (printf "\t llvm-diag: ~a\n" (cast diag-desc _pointer _string))
-      (LLVMDisposeMessage diag-desc))
-    (LLVMContextSetDiagnosticHandler context diag-handler #f))
+  ;; (when (sham-diagnose)
+  ;;   (define (diag-handler dinfo voidp)
+  ;;     (define diag-desc (LLVMGetDiagInfoDescription dinfo))
+  ;;     (printf "\t llvm-diag: ~a\n" (cast diag-desc _pointer _string))
+  ;;     (LLVMDisposeMessage diag-desc))
+  ;;   (LLVMContextSetDiagnosticHandler context diag-handler #f))
 
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
 

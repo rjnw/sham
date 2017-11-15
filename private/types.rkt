@@ -46,7 +46,7 @@
 
 (define (create-struct-type types)
   (define (create-racket-struct-type types)
-    (make-cstruct-type (map internal-type-racket types)))
+    _pointer)
   (define (create-jit-struct-type types)
     (LLVMStructType (map internal-type-jit types) #t))
   (internal-type
