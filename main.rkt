@@ -7,6 +7,7 @@
          "private/fun-info.rkt"
          "private/dump.rkt"
          "private/optimize.rkt"
+         "private/utils.rkt"
          "private/init.rkt")
 
 
@@ -19,4 +20,5 @@
   "private/fun-info.rkt"
   "private/dump.rkt"
   "private/optimize.rkt"
-  "private/init.rkt"))
+  "private/init.rkt")
+ sham-diagnose)
