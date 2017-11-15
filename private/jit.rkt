@@ -266,8 +266,12 @@
           [(sham:rator:symbol sym)
            (match (env-lookup sym env)
              [(env-jit-function ref type)
-              (LLVMBuildCall builder ref rand-values
-                             (substring (symbol->string sym) 0 3))]
+              (define call-name
+                (if (equal? (LLVMGetReturnType (internal-type-jit (env-type-prim type)))
+                            (LLVMVoidType))
+                    ""
+                    (substring (symbol->string sym) 0 3)))
+              (LLVMBuildCall builder ref rand-values call-name)]
              [(env-jit-intr-function appbuilder)
               (appbuilder builder rand-values)]
              [else (error "cannot figure out how to apply: ~a" rator)])]))

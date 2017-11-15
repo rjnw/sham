@@ -55,12 +55,13 @@
 
 (define (create-array-type type size) ;; size should be a nat
   (define jit-array-type (LLVMArrayType (internal-type-jit type) size))
-  (define racket-array-type (_array/list (internal-type-racket type) size))
+  (define racket-array-type _pointer);; (_array/list (internal-type-racket type) size)
+
   (internal-type racket-array-type jit-array-type))
 
 (define (create-vector-type type size) ;; size should be a nat
   (define jit-vector-type (LLVMVectorType (internal-type-jit type) size))
-  (define racket-vector-type (_array/vector (internal-type-racket type) size))
+  (define racket-vector-type _pointer);(_array/vector (internal-type-racket type) size))
   (internal-type racket-vector-type jit-vector-type))
 
 (define (create-pointer-type type)
