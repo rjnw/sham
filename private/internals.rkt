@@ -90,11 +90,16 @@
                                     name)))
                   env)))
   (define (register-specials env)
-    (env-extend 'store!
-                (env-jit-intr-function
-                 (lambda (jit-builder args [name "v"])
-                   (LLVMBuildStore jit-builder (first args) (second args))))
-                env))
+    (define envs
+      (env-extend 'store!
+                  (env-jit-intr-function
+                   (lambda (jit-builder args [name "v"])
+                     (LLVMBuildStore jit-builder (first args) (second args))))
+                  env))
+    (env-extend 'free (env-jit-intr-function
+                       (lambda (jit-builder args [name "v"])
+                         (LLVMBuildFree jit-builder (first args)))) envs))
+
   (define (register-internals intrs reg env)
     (for/fold ([env env])
               ([intr intrs])
@@ -162,8 +167,8 @@
     (sextorbitcast ,LLVMBuildSExtOrBitCast)
     (ptrcast  ,LLVMBuildPointerCast)
     (intcast  ,LLVMBuildIntCast)
-    (fpcast   ,LLVMBuildFPCast)
-    ))
+    (fpcast   ,LLVMBuildFPCast)))
+
 
 (define unary-internals
   `((neg ,LLVMBuildNeg)
@@ -175,9 +180,8 @@
     (load ,LLVMBuildLoad)
     (malloc ,LLVMBuildMalloc)
 
-    (alloca ,LLVMBuildAlloca)
+    (alloca ,LLVMBuildAlloca)))
 
-    (free ,LLVMBuildFree)))
 
 (module+ test
   (display (register-internal-instructions (empty-env))))

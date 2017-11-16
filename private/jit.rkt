@@ -250,6 +250,9 @@
                    ref)))
            (LLVMBuildCall builder ref rand-values (substring s 0 3))]
           [(sham:rator:external lib-id id ret-type)
+           #:when (hash-has-key? ffi-mappings id)
+           (LLVMBuildCall builder (cdr (hash-ref ffi-mappings id)) rand-values "e")]
+          [(sham:rator:external lib-id id ret-type)
            (define s (symbol->string id))
            (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
                                              (map LLVMTypeOf rand-values) #f))

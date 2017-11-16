@@ -13,8 +13,8 @@
   (define all-function-info (env-get-info-key mod-env per-function-info-key))
   (for ([(key val) (in-hash all-function-info)])
     (do-function-info key val mod-env))
-  (LLVMRunOurModulePasses (env-get-module mod-env)))
-  ;(basic-optimize-module mod-env))
+  (LLVMRunOurModulePasses (env-get-module mod-env))
+  (basic-optimize-module mod-env))
 
 
 
