@@ -17,7 +17,8 @@
 (define (create-initial-environment context)
   (register-jit-internals (register-initial-types (empty-env) context) context))
 
-(define (initialize-jit! mod-env #:opt-level [opt-level 3]) ;; hmm this is not affecting performance at all, weird
+(define (initialize-jit! mod-env #:opt-level [opt-level 3])
+  ;; hmm this is not affecting performance at all, weird
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
   (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
   (define-values (mcjit status err)

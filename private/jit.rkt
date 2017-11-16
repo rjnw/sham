@@ -56,16 +56,17 @@
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
 
   (LLVMSetDataLayout
-   jit-module
+   jit-module ;"e-m:e-i64:64-f80:128-n8:16:32:64-S128"
    (string-join
     '("e" "m:e" "p:64:64:64"
           "i1:8:8" "i8:8:8" "i16:16:16" "i32:32:32" "i64:64:64" ;;integer types alignment
           "f32:32:32" "f64:64:64" "f128:128:128" ;;floating types alignment
           "v64:64:64" "v128:128:128" ;; vector type alignment
           "a:0:64" "s0:64:64" "n8:16:32:64" ;; a aggregate alignment
-          "S128") ;stack alignment
+      "S128"
+      ) ;stack alignment
     "-"))
-  (LLVMSetTarget jit-module "x86_64-pc-linux-gnu")
+  (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu")
   (define builder (LLVMCreateBuilderInContext context))
   (define function-info-map (make-hash)) (define add-function-info! (curry hash-set! function-info-map))
   (define type-info-map (make-hash)) (define add-type-info! (curry hash-set! type-info-map))
@@ -334,201 +335,190 @@
          (,rkt-mapping-key       . ,rkt-mappings))))]))
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-(module+ test
-  (define module-env
-    (compile-module
-     (sham:module
-      (void)
-      (list
-       (sham:def:function
-        (void)
-        'testf (list 'a) (list (sham:type:ref 'i32)) (sham:type:ref 'void)
-        (sham:stmt:block
-         (list
-          (sham:stmt:expr (sham:expr:app (sham:rator:racket 'test
-                                                            (λ (a) (printf "got a: ~a" a))
-                                                            (sham:type:function (list (sham:type:ref 'i32))
-                                                                                (sham:type:ref 'void)))
-                                         (list (sham:expr:var 'a))))
-          (sham:stmt:return (sham:expr:void)))))))))
-  (initialize-jit! module-env)
-  (jit-dump-module module-env)
-  (define t (jit-get-function 'testf module-env)))
-
-
-;; disabling tests for now
 ;; (module+ test
-;;   (require racket/unsafe/ops)
-;;   (require rackunit)
-;;   (require disassemble)
-;;   (require "../disassemble/disassemble/main.rkt")
-
-;;   (define i32 (sham:type:ref 'i32))
-;;   (define i64 (sham:type:ref 'i64))
-;;   (define icmp-eq (sham:rator:symbol 'icmp-eq))
-;;   (define urem (sham:rator:symbol 'urem))
-;;   (define (build-app rator . rands)
-;;     (sham:expr:app rator rands))
-;;   (define (ui32 v)
-;;     (sham:expr:ui-value v i32))
-;;   (define ret sham:stmt:return)
-;;   (define v sham:expr:var)
-;;   (define rs sham:rator:symbol)
-;;   (define (defn n args types ret-type stmt) (sham:def:function n '() '() args types ret-type stmt))
 ;;   (define module-env
 ;;     (compile-module
 ;;      (sham:module
-;;       '((passes . (AlwaysInliner))
-;;         (ffi-libs . ((libc . ("/usr/lib/libc" "6")))))
-;;        (list
-;;         (sham:def:type 'int i32)
-;;         (sham:def:type 'int* (sham:type:pointer i32))
-;;         (sham:def:type 'bc (sham:type:struct '(b c) (list i32 i32)))
-;;         (sham:def:type 'pbc (sham:type:pointer (sham:type:ref 'bc)))
-;;         (sham:def:type 'ui (sham:type:struct '(bc1 bc2) (list (sham:type:ref 'pbc)
-;;                                                               (sham:type:ref 'pbc))))
-
-;;         (sham:def:global 'constant1 i32)
-;;         (sham:def:function 'setglobal '() '() '() '() i32
-;;                            (sham:stmt:block
-;;                             (list
-;;                              ;; (sham:stmt:set! (sham:expr:global 'constant1)
-;;                              ;;                 ;(build-app (sham:rator:symbol 'fact) (sham:expr:ui-value 5 i32))
-;;                              ;;                 (sham:expr:ui-value 1 i32)
-;;                              ;;                 )
-;;                              (sham:stmt:set! (sham:expr:var 'constant1)
-;;                                              (build-app (sham:rator:symbol 'fact) (sham:expr:ui-value 5 i32)))
-;;                              (sham:stmt:return (sham:expr:ui-value 1 i32)))))
-;;         (sham:def:function 'const1 '() '() '() '() i32
-;;                            (sham:stmt:block
-;;                             (list
-;;                              (sham:stmt:set! (sham:expr:var 'constant1)
-;;                                              (sham:expr:ui-value 2 i32))
-;;                              (sham:stmt:return (sham:expr:var 'constant1)))))
-;;         (sham:def:function 'id '() '() '(x) (list i32) i32
-;;                            (ret (v 'x)))
-
-;;         (defn
-;;          'even? '(x) (list i32) i32
-;;          (sham:stmt:if (build-app icmp-eq (build-app urem (sham:expr:var 'x) (ui32 2))
-;;                                   (ui32 0))
-;;                        (ret (ui32 1))
-;;                        (ret (ui32 0))))
-
-;;         (defn
-;;          'meven? '(x) (list i32) i32
-;;          (sham:stmt:if (build-app icmp-eq (v 'x) (ui32 0))
-;;                        (ret (ui32 1))
-;;                        (ret (build-app (rs 'modd?)
-;;                                        (build-app (rs 'sub) (v 'x) (ui32 1))))))
-;;         (defn
-;;          'modd?  '(x) (list i32) i32
-;;          (sham:stmt:if (build-app icmp-eq (v 'x) (ui32 0))
-;;                        (ret (ui32 0))
-;;                        (ret (build-app (rs 'meven?)
-;;                                        (build-app (rs 'sub) (v 'x) (ui32 1))))))
-
-;;         (defn 'fact '(x) (list i32) i32
-;;           (sham:stmt:if (build-app icmp-eq (v 'x) (ui32 0))
-;;                         (ret (ui32 1))
-;;                         (ret (build-app (rs 'mul)
-;;                                         (v 'x)
-;;                                         (build-app (rs 'fact)
-;;                                                    (build-app (rs 'sub)
-;;                                                               (v 'x) (ui32 1)))))))
-
-;;         (defn 'factr '(x) (list i32) i32
-;;           (sham:stmt:let
-;;            '(result i) (list i32 i32) (list (ui32 1) (ui32 1))
-;;            (sham:stmt:block
-;;             (list
-;;              (sham:stmt:while
-;;               (build-app (rs 'icmp-ule) (v 'i) (v 'x))
-;;               (sham:stmt:block
-;;                (list
-;;                 (sham:stmt:set! (v 'result)
-;;                                 (build-app (rs 'mul-nuw)
-;;                                            (v 'result) (v 'i)))
-;;                 (sham:stmt:set! (v 'i)
-;;                                 (build-app (rs 'add-nuw) (v 'i) (ui32 1))))))
-;;              (ret (v 'result))))))
-
-;;         (defn 'sum-array '(arr size) (list (sham:type:ref 'int*) i32) i32
-;;           (sham:stmt:let
-;;            '(i sum) (list i32 i32) (list (ui32 0) (ui32 0))
-;;            (sham:stmt:block
-;;             (list
-;;              (sham:stmt:while
-;;               (build-app (rs 'icmp-ult) (v 'i) (v 'size))
-;;               (sham:stmt:block
-;;                (list
-;;                 (sham:stmt:let '(arri) (list (sham:type:ref 'int*))
-;;                                (list (sham:expr:gep (v 'arr)
-;;                                                    (list (v 'i))))
-;;                                (sham:stmt:set! (v 'sum)
-;;                                                (build-app (rs 'add)
-;;                                                           (v 'sum)
-;;                                                           (build-app (rs 'load) (v 'arri)))))
-;;                 (sham:stmt:set! (v 'i) (build-app (rs 'add) (v 'i) (ui32 1))))))
-;;              (ret (v 'sum))))))
-;;         (defn 'if-void-test '() '() i32
-;;           (sham:stmt:block
-;;            (list
-;;             (sham:stmt:if (build-app icmp-eq (ui32 0) (ui32 0))
-;;                           (sham:stmt:exp-stmt (sham:expr:void-value)
-;;                                               (sham:stmt:void))
-;;                           (sham:stmt:return (ui32 1)))
-;;             (ret (ui32 0)))))
-;;         (defn 'random '() '() i32
-;;           (ret (sham:expr:app (sham:rator:external 'libc 'random i32) '())))
-;;         (defn 'test '() '() (sham:type:ref 'void*)
-;;           (ret (sham:expr:external 'libc 'random (sham:type:ref 'void*))))
-;;         (defn 'malloc-test '() '() i32
-;;           (sham:stmt:let '(ptr)
-;;                          (list (sham:type:ref 'int*))
-;;                          (list (build-app (rs 'malloc) (sham:expr:type (sham:type:ref 'int))))
-;;                          (sham:stmt:block
-;;                           (list
-;;                            (sham:stmt:exp-stmt (build-app (rs 'store!) (ui32 42) (v 'ptr))
-;;                                                (sham:stmt:void))
-;;                            (ret (build-app (rs 'load) (v 'ptr)))))))))))
-
-;;   ;; (jit-dump-module module-env)
-
-;;   (jit-optimize-module module-env #:opt-level 3)
+;;       (void)
+;;       (list
+;;        (sham:def:function
+;;         (void)
+;;         'testf (list 'a) (list (sham:type:ref 'i32)) (sham:type:ref 'void)
+;;         (sham:stmt:block
+;;          (list
+;;           (sham:stmt:expr (sham:expr:app (sham:rator:racket 'test
+;;                                                             (λ (a) (printf "got a: ~a" a))
+;;                                                             (sham:type:function (list (sham:type:ref 'i32))
+;;                                                                                 (sham:type:ref 'void)))
+;;                                          (list (sham:expr:var 'a))))
+;;           (sham:stmt:return (sham:expr:void)))))))))
+;;   (initialize-jit! module-env #:opt-level 3)
 ;;   (jit-dump-module module-env)
-;;   (printf "verifying module: ~a\n" (jit-verify-module module-env))
-;;   (define cenv (initialize-jit module-env #:opt-level 3))
+;;   (define t (jit-get-function 'testf module-env)))
 
-;;   (define factr (jit-get-function 'factr cenv))
-;;   (define fact (jit-get-function 'fact cenv))
-;;   (define even? (jit-get-function 'even? cenv))
-;;   (define meven? (jit-get-function 'meven? cenv))
-;;   (define malloc-test (jit-get-function 'malloc-test cenv))
-;;   (define sum-array (jit-get-function 'sum-array cenv))
-;;   (define r (jit-get-function 'random cenv))
-;;   (define test (jit-get-function 'test cenv))
-;;   ;; (disassemble-ffi-function (jit-get-function-ptr 'random cenv)
-;;   ;;                           #:size 70)
-;;   (printf "running tests\n")
-;;   (check-eq? (fact 5) 120)
-;;   (check-eq? (factr 5) 120)
-;;   (check-eq? (even? 42) 1)
-;;   (check-eq? (meven? 21) 0)
-;;   (check-eq? (malloc-test) 42)
-;;   (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6)
-;;   (printf "random-value: ~a\n" (r)))
+
+;; disabling tests for now
+(module+ test
+  (require racket/unsafe/ops)
+  (require rackunit)
+  (require disassemble)
+  (require "optimize.rkt")
+  (require (submod sham/ast utils))
+
+  (define i32 (sham:type:ref 'i32))
+  (define i64 (sham:type:ref 'i64))
+  (define icmp-eq (sham:rator:symbol 'icmp-eq))
+  (define urem (sham:rator:symbol 'urem))
+  (define (build-app rator . rands)
+    (sham:expr:app rator rands))
+  (define (ui32 v)
+    (sham:expr:ui-value v i32))
+  (define ret sham:stmt:return)
+  (define v sham:expr:var)
+  (define rs sham:rator:symbol)
+  (define (defn n args types ret-type stmt) (sham:def:function (make-hash) n args types ret-type stmt))
+  (define module-env
+    (compile-module
+     (sham:module
+      (empty-module-info)
+       (list
+        (sham$def:type 'int i32)
+        (sham$def:type 'int* (sham:type:pointer i32))
+        (sham$def:type 'bc (sham:type:struct '(b c) (list i32 i32)))
+        (sham$def:type 'pbc (sham:type:pointer (sham:type:ref 'bc)))
+        (sham$def:type 'ui (sham:type:struct '(bc1 bc2) (list (sham:type:ref 'pbc)
+                                                              (sham:type:ref 'pbc))))
+
+        (sham:def:global '() 'constant1 i32)
+        (sham:def:function (make-hash) 'setglobal '() '() i32
+                           (sham:stmt:block
+                            (list
+                             ;; (sham:stmt:set! (sham:expr:global 'constant1)
+                             ;;                 ;(build-app (sham:rator:symbol 'fact) (sham:expr:ui-value 5 i32))
+                             ;;                 (sham:expr:ui-value 1 i32)
+                             ;;                 )
+                             (sham:stmt:set! (sham:expr:var 'constant1)
+                                             (build-app (sham:rator:symbol 'fact) (sham:expr:ui-value 5 i32)))
+                             (sham:stmt:return (sham:expr:ui-value 1 i32)))))
+        (sham:def:function (make-hash) 'const1 '() '() i32
+                           (sham:stmt:block
+                            (list
+                             (sham:stmt:set! (sham:expr:var 'constant1)
+                                             (sham:expr:ui-value 2 i32))
+                             (sham:stmt:return (sham:expr:var 'constant1)))))
+        (sham:def:function (make-hash) 'id '(x) (list i32) i32
+                           (ret (v 'x)))
+
+        (defn
+         'even? '(x) (list i32) i32
+         (sham:stmt:if (build-app icmp-eq (build-app urem (sham:expr:var 'x) (ui32 2))
+                                  (ui32 0))
+                       (ret (ui32 1))
+                       (ret (ui32 0))))
+
+        (defn
+         'meven? '(x) (list i32) i32
+         (sham:stmt:if (build-app icmp-eq (v 'x) (ui32 0))
+                       (ret (ui32 1))
+                       (ret (build-app (rs 'modd?)
+                                       (build-app (rs 'sub) (v 'x) (ui32 1))))))
+        (defn
+         'modd?  '(x) (list i32) i32
+         (sham:stmt:if (build-app icmp-eq (v 'x) (ui32 0))
+                       (ret (ui32 0))
+                       (ret (build-app (rs 'meven?)
+                                       (build-app (rs 'sub) (v 'x) (ui32 1))))))
+
+        (defn 'fact '(x) (list i32) i32
+          (sham:stmt:if (build-app icmp-eq (v 'x) (ui32 0))
+                        (ret (ui32 1))
+                        (ret (build-app (rs 'mul)
+                                        (v 'x)
+                                        (build-app (rs 'fact)
+                                                   (build-app (rs 'sub)
+                                                              (v 'x) (ui32 1)))))))
+
+        (defn 'factr '(x) (list i32) i32
+          (sham:stmt:let
+           '(result i) (list i32 i32) (list (ui32 1) (ui32 1))
+           (sham:stmt:block
+            (list
+             (sham:stmt:while
+              (build-app (rs 'icmp-ule) (v 'i) (v 'x))
+              (sham:stmt:block
+               (list
+                (sham:stmt:set! (v 'result)
+                                (build-app (rs 'mul-nuw)
+                                           (v 'result) (v 'i)))
+                (sham:stmt:set! (v 'i)
+                                (build-app (rs 'add-nuw) (v 'i) (ui32 1))))))
+             (ret (v 'result))))))
+
+        (defn 'sum-array '(arr size) (list (sham:type:ref 'int*) i32) i32
+          (sham:stmt:let
+           '(i sum) (list i32 i32) (list (ui32 0) (ui32 0))
+           (sham:stmt:block
+            (list
+             (sham:stmt:while
+              (build-app (rs 'icmp-ult) (v 'i) (v 'size))
+              (sham:stmt:block
+               (list
+                (sham:stmt:let '(arri) (list (sham:type:ref 'int*))
+                               (list (sham:expr:gep (v 'arr)
+                                                   (list (v 'i))))
+                               (sham:stmt:set! (v 'sum)
+                                               (build-app (rs 'add)
+                                                          (v 'sum)
+                                                          (build-app (rs 'load) (v 'arri)))))
+                (sham:stmt:set! (v 'i) (build-app (rs 'add) (v 'i) (ui32 1))))))
+             (ret (v 'sum))))))
+        (defn 'if-void-test '() '() i32
+          (sham:stmt:block
+           (list
+            (sham:stmt:if (build-app icmp-eq (ui32 0) (ui32 0))
+                          (sham:stmt:expr (sham:expr:void))
+                          (sham:stmt:return (ui32 1)))
+            (ret (ui32 0)))))
+        ;; (defn 'random '() '() i32
+        ;;   (ret (sham:expr:app (sham:rator:external 'libc 'random i32) '())))
+        ;; (defn 'test '() '() (sham:type:ref 'void*)
+        ;;   (ret (sham:expr:external 'libc 'random (sham:type:ref 'void*))))
+        (defn 'malloc-test '() '() i32
+          (sham:stmt:let '(ptr)
+                         (list (sham:type:ref 'int*))
+                         (list (build-app (rs 'malloc) (sham:expr:type (sham:type:ref 'int))))
+                         (sham:stmt:block
+                          (list
+                           (sham:stmt:expr (build-app (rs 'store!) (ui32 42) (v 'ptr)))
+                           (ret (build-app (rs 'load) (v 'ptr)))))))))))
+
+  ;; (jit-dump-module module-env)
+
+  ;(optimize-module module-env #:opt-level 3)
+  (jit-dump-module module-env)
+  (printf "verifying module: ~a\n" (jit-verify-module module-env))
+  ;(jit-dump-function  module-env 'factr)
+  (initialize-jit! module-env #:opt-level 1)
+  ;(jit-write-module module-env "test.ll")
+  (printf "done")
+  (define factr (jit-get-function 'factr module-env))
+  (define fact (jit-get-function 'fact module-env))
+
+  (define even? (jit-get-function 'even? module-env))
+
+  (define meven? (jit-get-function 'meven? module-env))
+  (define malloc-test (jit-get-function 'malloc-test module-env))
+  (define sum-array (jit-get-function 'sum-array module-env))
+  ;; (define r (jit-get-function 'random module-env))
+  ;; (define test (jit-get-function 'test cenv))
+  (disassemble-ffi-function (jit-get-function-ptr 'factr module-env)
+                            #:size 200)
+  (printf "running tests\n")
+  (check-eq? (fact 5) 120)
+  (check-eq? (factr 5) 120)
+  (check-eq? (even? 42) 1)
+  (check-eq? (meven? 21) 0)
+  (check-eq? (malloc-test) 42)
+  (check-eq? (sum-array (list->cblock '(1 2 3) _uint) 3) 6)
+  ;; (printf "random-value: ~a\n" (r))
+  )

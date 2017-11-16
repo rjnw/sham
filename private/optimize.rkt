@@ -9,12 +9,12 @@
 
 (provide optimize-module)
 
-(define (optimize-module mod-env)
+(define (optimize-module mod-env #:opt-level [level 3])
   (define all-function-info (env-get-info-key mod-env per-function-info-key))
   (for ([(key val) (in-hash all-function-info)])
     (do-function-info key val mod-env))
   (LLVMRunOurModulePasses (env-get-module mod-env))
-  (basic-optimize-module mod-env))
+  (basic-optimize-module mod-env #:opt-level level))
 
 
 
