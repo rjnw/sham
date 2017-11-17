@@ -418,17 +418,18 @@
 
   (define-syntax (sham$define stx)
     (syntax-parse stx
+      [(_ #:info info:expr (name:id  (args:id t:expr) ... rett:id) stmt:expr)
+       #'(sham:def:function
+          info (check-sym name)
+          (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
+          (check-stmt stmt))]
       [(_ (name:id (args:id t:expr) ... rett:id) stmt:expr)
        #'(sham:def:function
           (empty-function-info) (check-sym name)
           (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
           (check-stmt stmt))]
-      [(_ (name:id info:expr (args:id t:expr) ... rett:id) stmt:expr)
-       #'(sham:def:function
-          info (check-sym name)
-          (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
-          (check-stmt stmt))]
-      [(_ (name:id info:expr rett:id) stmt:expr)
+      
+      [(_ #:info info:expr (name:id  rett:id) stmt:expr)
        #'(sham:def:function
           info (check-sym name)
           '() '() (sham$tref rett)

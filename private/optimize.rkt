@@ -16,8 +16,6 @@
   (LLVMRunOurModulePasses (env-get-module mod-env))
   (basic-optimize-module mod-env #:opt-level level))
 
-
-
 (define (run-module-passes jit-mod passes)
   (define mpm (LLVMCreatePassManager))
   (for ([pass passes])

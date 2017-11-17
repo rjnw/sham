@@ -61,3 +61,6 @@
 (define (mod-info-add-ffi-libs info . libs) ;libs is (cons libname ("libid" args))
   (define orig-libs (get-info-key info ffi-lib-key '()))
   (set-info-key! info ffi-lib-key (append orig-libs libs)))
+
+(define (mod-info-add-passes info . passes)
+  (set-info-key! info module-pass-info-key (append passes (hash-ref info module-pass-info-key '()))))

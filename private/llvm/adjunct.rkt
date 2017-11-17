@@ -25,9 +25,8 @@
   (get-ffi-obj "LLVMCreateCurrentTargetMachineRef"
                adjunct-lib
                (_fun -> LLVMTargetMachineRef)))
-;; (define LLVMRunOurModulePasses
-;;   (get-ffi-obj "LLVMRunOurModulePasses"
-;;                adjunct-lib
-;;                (_fun LLVMModuleRef -> LLVMBool)))
 
-(define (LLVMRunOurModulePasses x) #f)
+(define LLVMRunOurModulePasses
+  (get-ffi-obj "LLVMRunOurModulePasses"
+               adjunct-lib
+               (_fun LLVMModuleRef -> LLVMBool)))
