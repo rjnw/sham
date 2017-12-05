@@ -35,12 +35,12 @@
     (hash-set! info key val))
   info)
 
-(define (get-info-key info key [failure-result (void)])
+(define (get-info-key info key [failure-result #f])
   (hash-ref info key failure-result))
 (define (set-info-key! info key val)
   (hash-set! info key val))
 
-(define (env-get-info-key mod-env key [failure-result (void)])
+(define (env-get-info-key mod-env key [failure-result #f])
   (get-info-key (env-get-info mod-env) key failure-result))
 
 (define (env-set-info-key! mod-env key val)

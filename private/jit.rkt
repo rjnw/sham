@@ -33,7 +33,10 @@
   (cast fptr _pointer f-type))
 
 (define (orc-function-ptr f-sym mod)
-  (cast (LLVMOrcGetSymbolAddress (env-get-orc mod) (symbol->string f-sym)) _uint64 _pointer))
+  (define-values (error-code target-address)
+    (LLVMOrcGetSymbolAddress (env-get-orc mod) (symbol->string f-sym)))
+  (printf "error code: ~a\n" error-code)
+  (cast target-address _uint64 _pointer))
 
 (define (jit-get-function-ptr f-sym mod)
   (when (not (env-contains? f-sym mod))
@@ -490,7 +493,10 @@
                         (sham:stmt:block
                          (list
                           (sham:stmt:expr (build-app (rs 'store!) (ui32 42) (v 'ptr)))
-                          (ret (build-app (rs 'load) (v 'ptr)))))))))))
+                          (ret (build-app (rs 'load) (v 'ptr)))))))
+       ))))
+  (optimize-module module-env #:opt-level 3)
   (initialize-orc! module-env)
-
-  )
+  ;; (initialize-jit! module-env)
+  (define factr (jit-get-function 'factr module-env))
+  (disassemble-ffi-function (jit-get-function-ptr 'factr module-env) #:size 200))

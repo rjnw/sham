@@ -37,14 +37,17 @@
 (define-llvm LLVMOrcSetIndirectStubPointer
   (_fun LLVMOrcJITStackRef _string LLVMOrcTargetAddress -> LLVMOrcErrorCode))
 (define-llvm LLVMOrcAddEagerlyCompiledIR
-  (_fun LLVMOrcJITStackRef (_ptr o LLVMOrcModuleHandle)
+  (_fun LLVMOrcJITStackRef (module-handle : (_ptr o LLVMOrcModuleHandle))
         LLVMSharedModuleRef _pointer _pointer
-        -> LLVMOrcErrorCode -> (values LLVMOrcErrorCode LLVMOrcModuleHandle)))
+        -> (error-code : LLVMOrcErrorCode)
+        -> (values error-code module-handle)))
 (define-llvm LLVMOrcAddLazilyCompiledIR
   (_fun LLVMOrcJITStackRef LLVMModuleRef LLVMOrcSymbolResolverFn _pointer
         -> LLVMOrcModuleHandle))
 ;; TODO add object.h
 ; (define-llvm LLVMOrcAddObjectFile (_fun LLVMOrcJITStackRef LLVMObjectFileRef LLVMOrcSymbolResolverFn _pointer -> LLVMOrcModuleHandle))
 (define-llvm LLVMOrcGetSymbolAddress
-  (_fun LLVMOrcJITStackRef _string -> LLVMOrcTargetAddress))
+  (_fun LLVMOrcJITStackRef (target-address : (_ptr o LLVMOrcTargetAddress)) _string
+        -> (error-code : LLVMOrcTargetAddress)
+        -> (values error-code target-address)))
 (define-llvm LLVMOrcDisposeInstance (_fun LLVMOrcJITStackRef -> _void))

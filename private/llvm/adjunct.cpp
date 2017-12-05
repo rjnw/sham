@@ -73,8 +73,7 @@ extern "C" {
 					     (LLVMCreateCurrentTargetMachine ()));
   }
 
-  LLVMBool LLVMCreateMCJITCompilerForModuleWithTarget(
-						      LLVMExecutionEngineRef *outJIT, LLVMModuleRef moduleRef,
+  LLVMBool LLVMCreateMCJITCompilerForModuleWithTarget(LLVMExecutionEngineRef *outJIT, LLVMModuleRef moduleRef,
 						      LLVMMCJITCompilerOptions *options, char **outError) {
     TargetOptions targetOptions;
     targetOptions.EnableFastISel = options->EnableFastISel;
