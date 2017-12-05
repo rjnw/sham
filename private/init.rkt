@@ -7,6 +7,7 @@
          "types.rkt"
          "env.rkt"
          "rator.rkt")
+(require ffi/unsafe)
 (provide (all-defined-out))
 
 (llvm-initialize-all)
@@ -31,7 +32,13 @@
         (add-rkt-mappings mod-env)))
   (void))
 
-(define (initialize-orc-jit mod-env)
+(define (initialize-orc! mod-env)
   (define orc (LLVMOrcCreateInstance (LLVMCreateCurrentTargetMachineRef)))
+  (define ms (LLVMOrcMakeSharedModule (env-get-module mod-env)))
+  (define (null-symbol-resolver name orc) 0)
+  (LLVMOrcAddEagerlyCompiledIR orc (env-get-module mod-env)
+                               #f ;; (function-ptr null-symbol-resolver LLVMOrcSymbolResolverFn)
+                               orc)
+  (LLVMOrcDisposeSharedModuleRef ms)
   (env-add-orc! mod-env orc))
-;; (LLVMOrcAddEagerlyCompiledIR orc (jit-get-module mod-env) symbolResolver orc)
+
