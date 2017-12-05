@@ -66,17 +66,20 @@
    jit-module
    (string-join
     '("e" "m:e" "p:64:64:64"
-          "i1:8:8" "i8:8:8" "i16:16:16" "i32:32:32" "i64:64:64" ;;integer types alignment
+          "i1:8:8" "i8:8:8" "i16:16:16" "i32:32:32" "i64:64:64"
+          ;;integer types alignment
           "f32:32:32" "f64:64:64" "f128:128:128" ;;floating types alignment
           "v64:64:64" "v128:128:128" ;; vector type alignment
           "a:0:64" "s0:64:64" "n8:16:32:64" ;; a aggregate alignment
           "S128" ;stack alignment
-      )
+          )
     "-"))
   (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu")
   (define builder (LLVMCreateBuilderInContext context))
-  (define function-info-map (make-hash)) (define add-function-info! (curry hash-set! function-info-map))
-  (define type-info-map (make-hash)) (define add-type-info! (curry hash-set! type-info-map))
+  (define function-info-map (make-hash))
+  (define add-function-info! (curry hash-set! function-info-map))
+  (define type-info-map (make-hash))
+  (define add-type-info! (curry hash-set! type-info-map))
   (define intrinsic-map (make-hash))
   (define ffi-mappings (make-hash))
   (define rkt-mappings (make-hash))
@@ -106,6 +109,7 @@
        (env-extend id (env-jit-value value (build-env-type t env)) env)]))
 
   (define (compile-module-define def env module-env)
+
     (define (compile-function-definition name args types ret-type body)
       (define env-function (env-lookup name env))
       (define fref (env-jit-function-ref env-function))
@@ -116,6 +120,27 @@
       (define (new-block n)
         (LLVMAppendBasicBlockInContext (LLVMGetModuleContext jit-module)
                                        fref (symbol->string n)))
+      (define alloca-block (new-block 'alloca))
+      (define entry-block (new-block 'entry))
+      (LLVMPositionBuilderAtEnd builder entry-block)
+      (define (add-alloca type sym)
+        (define curr-block (LLVMGetInsertBlock builder))
+        (LLVMPositionBuilderAtEnd builder alloca-block)
+        (define val (LLVMBuildAlloca builder type (symbol->string sym)))
+        (LLVMPositionBuilderAtEnd builder curr-block)
+        val)
+      (define new-env
+        (for/fold ([env env])
+                  ([arg args]
+                   [type types]
+                   [i (in-range (length args))])
+          (define l-type (build-env-type type env))
+          (define p-arg (LLVMBuildAlloca builder
+                                         (internal-type-jit (env-type-prim l-type))
+                                         (symbol->string arg)))
+          (LLVMBuildStore builder (LLVMGetParam fref i) p-arg)
+          (env-extend arg (env-jit-value p-arg l-type) env)))
+
       (define (build-statement stmt env)
         (match stmt
           [(sham:stmt:set! md lhs v) ;;TODO: right now lhs can only be a var
@@ -199,26 +224,32 @@
                         [id ids]
                         [val vals])
                (define val-type (build-llvm-type id-type env))
-               ;;TIPS: add alloca at the top of function for performance
-               ;; and set lifetime info using metadata
-               (define val-p (LLVMBuildAlloca builder val-type (symbol->string id)))
-               (unless (sham:expr:void? val) (LLVMBuildStore builder (build-expression val env) val-p))
-               (env-extend id (env-jit-value val-p (env-type val-type id-type)) env)))
+               ;; TODO add lifetime metadata at the end of let
+               (define val-p (add-alloca val-type id))
+               (unless (sham:expr:void? val)
+                 (LLVMBuildStore builder (build-expression val env) val-p))
+               (env-extend id
+                           (env-jit-value val-p (env-type val-type id-type))
+                           env)))
            (build-statement st new-env)
            (build-expression ex new-env)]
           [(sham:expr:app md rator rands)
            (define rand-values (map (curryr build-expression env) rands))
            (build-app rator rand-values env)]
-          [(sham:expr:fl-value md value t) (LLVMConstReal (build-llvm-type t env) value)]
+          [(sham:expr:fl-value md value t)
+           (LLVMConstReal (build-llvm-type t env) value)]
           [(sham:expr:si-value md value t)
            (LLVMConstInt (build-llvm-type t env) (cast value _sint64 _uint64) #f)]
-          [(sham:expr:ui-value md value t) (LLVMConstInt (build-llvm-type t env) value #f)]
+          [(sham:expr:ui-value md value t)
+           (LLVMConstInt (build-llvm-type t env) value #f)]
           [(sham:expr:struct-value md vals)
            (LLVMConstStruct (map (curryr build-expression env) vals))]
           [(sham:expr:array-value md vals t)
-           (LLVMConstArray (build-llvm-type t env) (map (curryr build-expression env) vals))]
+           (LLVMConstArray (build-llvm-type t env)
+                           (map (curryr build-expression env) vals))]
           [(sham:expr:vector-value md vals t)
-           (LLVMConstVector (build-llvm-type t env) (map (curryr build-expression env) vals))]
+           (LLVMConstVector (build-llvm-type t env)
+                            (map (curryr build-expression env) vals))]
           [(sham:expr:sizeof md type)
            (define llvm-type (build-llvm-type type env))
            (LLVMConstInt (internal-type-jit (env-type-prim (env-lookup 'i32 env)))
@@ -238,7 +269,9 @@
                           (symbol->string sym))]
           [(sham:expr:external md lib-id sym t)
            (define value
-             (LLVMAddGlobal jit-module (build-llvm-type t env) (symbol->string sym)))
+             (LLVMAddGlobal jit-module
+                            (build-llvm-type t env)
+                            (symbol->string sym)))
            (add-ffi-mapping! sym (cons lib-id value))
            (LLVMBuildLoad builder value (symbol->string sym))]
           [(sham:expr:global md sym) (env-jit-value-ref (env-lookup sym env))]
@@ -278,7 +311,8 @@
            (match (env-lookup sym env)
              [(env-jit-function ref type)
               (define call-name
-                (if (equal? (LLVMGetReturnType (internal-type-jit (env-type-prim type)))
+                (if (equal? (LLVMGetReturnType
+                             (internal-type-jit (env-type-prim type)))
                             (LLVMVoidType))
                     ""
                     (substring (symbol->string sym) 0 3)))
@@ -286,29 +320,19 @@
              [(env-jit-intr-function appbuilder)
               (appbuilder builder rand-values)]
              [else (error "cannot figure out how to apply: ~a" rator)])]))
-      (define entry-block (new-block 'entry))
-      (LLVMPositionBuilderAtEnd builder entry-block)
-      (define new-env
-        (for/fold ([env env])
-                  ([arg args]
-                   [type types]
-                   [i (in-range (length args))])
-          (define l-type (build-env-type type env))
-          (define p-arg (LLVMBuildAlloca builder
-                                         (internal-type-jit (env-type-prim l-type))
-                                         (symbol->string arg)))
-          (LLVMBuildStore builder (LLVMGetParam fref i) p-arg)
-          (env-extend arg (env-jit-value p-arg l-type) env)))
-
       (build-statement body new-env)
+      (LLVMPositionBuilderAtEnd builder alloca-block)
+      (LLVMBuildBr builder entry-block)
       env-function)
+
     ;; TODO return values of name and obj
     (match def
       [(sham:def:type info type-name t)
        ;types are created in register phase
        ; something for recursive struct types to be done
        ;; TODO for struct switch to creating empty struct type
-       ;and then adding fields here, for now we can use opaque pointer and then cast everytime HACK!!
+       ;and then adding fields here,
+       ;; for now we can use opaque pointer and then cast everytime HACK!!
        (add-type-info! type-name info)
        (env-extend type-name (env-lookup type-name env) module-env)]
       [(sham:def:function info function-name args types ret-type body)
@@ -499,4 +523,4 @@
   (initialize-orc! module-env)
   ;; (initialize-jit! module-env)
   (define factr (jit-get-function 'factr module-env))
-  (disassemble-ffi-function (jit-get-function-ptr 'factr module-env) #:size 200))
+  (disassemble-ffi-function (jit-get-function-ptr 'factr module-env) #:size 100))
