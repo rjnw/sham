@@ -520,7 +520,9 @@
                           (ret (build-app (rs 'load) (v 'ptr)))))))
        ))))
   (optimize-module module-env #:opt-level 3)
+  (jit-dump-module module-env)
   (initialize-orc! module-env)
+
   ;; (initialize-jit! module-env)
   (define factr (jit-get-function 'factr module-env))
   (disassemble-ffi-function (jit-get-function-ptr 'factr module-env) #:size 100))

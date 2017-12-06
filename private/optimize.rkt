@@ -7,14 +7,17 @@
          "type-info.rkt"
          "env.rkt")
 
-(provide optimize-module)
+(provide optimize-module
+         basic-optimize-module)
 
 (define (optimize-module mod-env #:opt-level [level 3])
   (define all-function-info (env-get-info-key mod-env per-function-info-key))
   (for ([(key val) (in-hash all-function-info)])
     (do-function-info key val mod-env))
   (LLVMRunOurModulePasses (env-get-module mod-env))
-  (basic-optimize-module mod-env #:opt-level level))
+  ;; (basic-optimize-module mod-env #:opt-level level)
+  )
+
 
 (define (run-module-passes jit-mod passes)
   (define mpm (LLVMCreatePassManager))
