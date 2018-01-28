@@ -12,12 +12,12 @@
 
 (define (optimize-module mod-env #:opt-level [level 3])
   (define all-function-info (env-get-info-key mod-env per-function-info-key))
+
   (for ([(key val) (in-hash all-function-info)])
     (do-function-info key val mod-env))
   (LLVMRunOurModulePasses (env-get-module mod-env))
-  ;; (basic-optimize-module mod-env #:opt-level level)
-  )
-
+  (basic-optimize-module mod-env #:opt-level level)
+  (run-module-passes (env-get-module mod-env) (get-module-passes mod-env)))
 
 (define (run-module-passes jit-mod passes)
   (define mpm (LLVMCreatePassManager))
@@ -26,7 +26,7 @@
     (module-pass mpm))
   (begin0
       (LLVMRunPassManager mpm jit-mod)
-      (LLVMDisposePassManager mpm)))
+    (LLVMDisposePassManager mpm)))
 
 (define (do-function-info fname finfo mod-env)
   (define jit-mod (env-get-module mod-env))

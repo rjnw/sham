@@ -1,7 +1,7 @@
 #lang racket
 (require "fun-info.rkt")
 (require "mod-env-info.rkt")
-
+(require "llvm/ffi/all.rkt")
 (provide (all-defined-out))
 
 (struct sham:module ([info #:mutable] defs))
@@ -45,6 +45,7 @@
 (struct sham:expr:fl-value     sham:expr:const (v t))
 (struct sham:expr:si-value     sham:expr:const (v t))
 (struct sham:expr:ui-value     sham:expr:const (v t))
+(struct sham:expr:llvm-value   sham:expr:const (v t))
 (struct sham:expr:struct-value sham:expr:const (vs))
 (struct sham:expr:array-value  sham:expr:const (vs t))
 (struct sham:expr:vector-value sham:expr:const (vs t))
@@ -115,6 +116,7 @@
     [(sham:expr:fl-value md v t) `(float ,v ,(print-sham-type t))]
     [(sham:expr:si-value md v t) `(sint ,v ,(print-sham-type t))]
     [(sham:expr:ui-value md v t) `(uint ,v ,(print-sham-type t))]
+    [(sham:expr:llvm-value md v t) `(llvm-value ,(LLVMPrintValueToString v) ,(print-sham-type t))]
     [(sham:expr:void md) `evoid]
     [(sham:expr:sizeof md t) `(sizeof ,(print-sham-type t))]
     [(sham:expr:type md t) `(%type ,(print-sham-type t))]
@@ -403,6 +405,14 @@
       [(_ i:id) #'(sham$var i)]
       [(_ e:expr) #'(check-expr e)]))
 
+  (define-syntax (sham$let stx)
+    (syntax-parse stx
+      [(_ [(vars types vals) ...] bodys ...)
+       #'(sham:stmt:let (list vars ...)
+                        (list types ...)
+                        (list vals ...)
+                        (sham:stmt:block (list bodys ...)))]))
+
   (define-syntax (sham$rator stx)
     (syntax-parse stx
       #:literals (quote)
@@ -428,11 +438,17 @@
           info (check-sym name)
           (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
           stmt)]
+      [(_ info:expr (name:id  (args:id t:expr) ... rett:id) stmt:expr)
+       #'(sham:def:function
+          info (check-sym name)
+          (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
+          stmt)]
       [(_ (name:id (args:id t:expr) ... rett:id) stmt:expr)
        #'(sham:def:function
           (empty-function-info) (check-sym name)
           (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
           stmt)]
+
 
       ;; [(_ #:info info:expr (name:id  rett:id) stmt:expr)
       ;;  #'(sham:def:function
@@ -445,4 +461,12 @@
       ;;     (check-sym name)
       ;;     '() '() (sham$tref rett)
       ;;     (check-stmt stmt))]
-      )))
+      ))
+  (define-syntax (sham$def-function stx)
+    (syntax-parse stx
+      [(_ info (name (args types) ...) ret-type stmts ...)
+       #'(sham:def:function
+        info name
+        (list args ...) (list types ...)
+        ret-type
+        (sham$block stmts ...))])))

@@ -64,3 +64,6 @@
 
 (define (mod-info-add-passes info . passes)
   (set-info-key! info module-pass-info-key (append passes (hash-ref info module-pass-info-key '()))))
+
+(define (get-module-passes mod-env)
+  (env-get-info-key mod-env module-pass-info-key '()))

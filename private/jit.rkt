@@ -35,7 +35,7 @@
 (define (orc-function-ptr f-sym mod)
   (define-values (error-code target-address)
     (LLVMOrcGetSymbolAddress (env-get-orc mod) (symbol->string f-sym)))
-  (printf "error code: ~a\n" error-code)
+  ;; (printf "error code: ~a\n" error-code)
   (cast target-address _uint64 _pointer))
 
 (define (jit-get-function-ptr f-sym mod)
@@ -216,6 +216,7 @@
           [else (error "unknown statement" stmt)]))
 
       (define (build-expression e env)
+
         (match e
           [(sham:expr:let md ids types vals st ex)
            (define new-env
@@ -242,6 +243,7 @@
            (LLVMConstInt (build-llvm-type t env) (cast value _sint64 _uint64) #f)]
           [(sham:expr:ui-value md value t)
            (LLVMConstInt (build-llvm-type t env) value #f)]
+          [(sham:expr:llvm-value md v t) v]
           [(sham:expr:struct-value md vals)
            (LLVMConstStruct (map (curryr build-expression env) vals))]
           [(sham:expr:array-value md vals t)
@@ -440,6 +442,8 @@
        (sham:def:function (make-hash) 'id '(x) (list i32) i32
                           (ret (v 'x)))
 
+       (defn 'c42 '() '() i32
+         (sham:stmt:return (sham:expr:llvm-value (LLVMConstInt (LLVMInt32Type) 42 #f) ui32)))
        (defn
          'even? '(x) (list i32) i32
          (sham:stmt:if (build-app icmp-eq (build-app urem (sham:expr:var 'x) (ui32 2))
