@@ -337,7 +337,8 @@
 (define-llvm LLVMCloneModule (_fun LLVMModuleRef -> LLVMModuleRef))
 
 (define-llvm LLVMGetModuleIdentifier
-  (_fun LLVMModuleRef (len : (_ptr o _size)) -> (ident : _bytes) -> (values ident len)))
+  (_fun LLVMModuleRef (len : (_ptr o _size)) -> (ident : _bytes) ->
+        (vector ident len)))
 
 (define-llvm LLVMSetModuleIdentifier
   (_fun LLVMModuleRef (ident : _string) (len : _size = (string-length ident)) -> _void))
@@ -349,7 +350,12 @@
 (define-llvm LLVMSetTarget (_fun LLVMModuleRef _string -> _void))
 (define-llvm LLVMDumpModule (_fun LLVMModuleRef -> _void))
 ;; Error message needs to be disposed with LLVMDisposeMessage
-(define-llvm LLVMPrintModuleToFile (_fun LLVMModuleRef _string (_ptr o _string) -> LLVMBool))
+;; This didn't seem to work
+(define-llvm LLVMPrintModuleToFile
+  (_fun LLVMModuleRef _string (err-msg : (_ptr o _string))
+        -> (success? : LLVMBool)
+        -> (vector success? err-msg)))
+
 (define-llvm LLVMPrintModuleToString (_fun LLVMModuleRef -> _string))
 
 (define-llvm LLVMSetModuleInlineAsm (_fun LLVMModuleRef _string -> _void))
@@ -1005,13 +1011,13 @@
         (memory-buffer : (_ptr o LLVMMemoryBufferRef))
         (out-message : (_ptr o _string))
         -> (fail : LLVMBool)
-        -> (values memory-buffer out-message fail))
+        -> (vector memory-buffer out-message fail))
   #:wrap (allocator LLVMDisposeMemoryBuffer))
 (define-llvm LLVMCreateMemoryBufferWithSTDIN
   (_fun (memory-buffer : (_ptr o LLVMMemoryBufferRef))
         (out-message : (_ptr o _string))
         -> (fail : LLVMBool)
-        -> (values memory-buffer out-message fail))
+        -> (vector memory-buffer out-message fail))
   #:wrap (allocator LLVMDisposeMemoryBuffer))
 (define-llvm LLVMCreateMemoryBufferWithMemoryRange
   (_fun _string _size _string LLVMBool -> LLVMMemoryBufferRef)

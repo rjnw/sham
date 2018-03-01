@@ -15,4 +15,15 @@
   (LLVMWriteBitcodeToFile (env-get-module mod-env) file-name))
 
 (define (jit-write-module mod-env file-name)
-  (LLVMPrintModuleToFile (env-get-module mod-env) file-name))
+  (match-define (vector error? error-message)
+    (LLVMPrintModuleToFile (env-get-module mod-env) file-name))
+  (when error?
+    (error 'sham/jit-write-module
+           (format
+            (string-join
+            `("couldn't generate llvm module file: ~a"
+              "LLVM: ~a")
+            "\n")
+            file-name
+            error-message)))
+  (void))
