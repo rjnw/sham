@@ -159,6 +159,7 @@
            (define then-block (new-block 'then))
            (define else-block (new-block 'else))
            (define end-block (new-block 'ife))
+           (env-extend '#%break-block end-block env)
 
            (LLVMBuildCondBr builder tst-value then-block else-block)
 
@@ -183,12 +184,35 @@
                (LLVMDeleteBasicBlock end-block)
                (LLVMPositionBuilderAtEnd builder end-block))]
 
+          [(sham:stmt:switch md tst cases default)
+           (define prev-block (LLVMGetInsertBlock builder))
+           (define switch-entry (new-block 'switch-entry))
+           (define switch-default (new-block 'switch-default))
+           (define afterswitch-block (new-block 'afterswitch-block))
+
+           (define tst-value (build-expression tst env))
+
+           (define env (env-extend '#%break-block afterswitch-block env))
+           (LLVMPositionBuilderAtEnd builder switch-default)
+           (build-statement default env)
+           (LLVMBuildBr builder afterswitch-block)
+
+           (define switch (LLVMBuildSwitch builder tst-value switch-default (length cases)))
+
+           (list [(cons val stmt) cases]
+                 (define ve (llvm-expression val))
+                 (define case-block (new-block 'switch-case))
+                 (LLVMPositionBuilderAtEnd case-block)
+                 (build-statement stmt)
+                 (LLVMAddCase switch ve case-block))
+           (LLVMPositionBuilderAtEnd builder switch-default)]
+
           [(sham:stmt:while md tst body)
            (define prev-block (LLVMGetInsertBlock builder))
            (define loop-entry (new-block 'loop-entry))
            (define loop-block (new-block 'loop-block))
            (define afterloop-block (new-block 'afterloop-block))
-
+           (env-extend '#%break-block after-loop-block env)
            (LLVMBuildBr builder loop-entry)
 
            (LLVMPositionBuilderAtEnd builder loop-entry)
@@ -202,6 +226,9 @@
            (LLVMBuildBr builder loop-entry)
 
            (LLVMPositionBuilderAtEnd builder afterloop-block)]
+
+          [(sham:stmt:break md)
+           (LLVMBuildBr builder (env-lookup '#%break-block env))]
 
           [(sham:stmt:return md v)
            (if (sham:expr:void? v)

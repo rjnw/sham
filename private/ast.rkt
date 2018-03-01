@@ -32,6 +32,8 @@
 
 (struct sham:stmt:set!   sham:stmt (lhs val))
 (struct sham:stmt:if     sham:stmt (tst thn els))
+(struct sham:stmt:switch sham:stmt (tst cases default)) ;; cases : (cons expr stmt), default : stmt
+(struct sham:stmt:break  sham:stmt ())
 (struct sham:stmt:while  sham:stmt (tst body))
 (struct sham:stmt:return sham:stmt (val))
 (struct sham:stmt:void   sham:stmt ())
