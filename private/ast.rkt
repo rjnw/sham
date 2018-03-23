@@ -12,6 +12,7 @@
 (struct sham:def:function sham:def (arg-ids arg-types ret-type body))
 (struct sham:def:type     sham:def (type))
 (struct sham:def:global   sham:def (type))
+(struct sham:def:global-string sham:def (str))
 
 (struct sham:ast ([metadata #:auto #:mutable]) #:auto-value (void))
 
@@ -47,6 +48,7 @@
 (struct sham:expr:fl-value     sham:expr:const (v t))
 (struct sham:expr:si-value     sham:expr:const (v t))
 (struct sham:expr:ui-value     sham:expr:const (v t))
+(struct sham:expr:string-value sham:expr:const (v))
 (struct sham:expr:llvm-value   sham:expr:const (v t))
 (struct sham:expr:struct-value sham:expr:const (vs))
 (struct sham:expr:array-value  sham:expr:const (vs t))

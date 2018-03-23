@@ -199,12 +199,13 @@
 
            (define switch (LLVMBuildSwitch builder tst-value switch-default (length cases)))
 
-           (list [(cons val stmt) cases]
-                 (define ve (llvm-expression val))
-                 (define case-block (new-block 'switch-case))
-                 (LLVMPositionBuilderAtEnd case-block)
-                 (build-statement stmt)
-                 (LLVMAddCase switch ve case-block))
+           (for [cs cases]
+             (match-define  (cons val stmt) cs)
+             (define ve (build-expression val))
+             (define case-block (new-block 'switch-case))
+             (LLVMPositionBuilderAtEnd case-block)
+             (build-statement stmt)
+             (LLVMAddCase switch ve case-block))
            (LLVMPositionBuilderAtEnd builder switch-default)]
 
           [(sham:stmt:while md tst body)
@@ -212,7 +213,7 @@
            (define loop-entry (new-block 'loop-entry))
            (define loop-block (new-block 'loop-block))
            (define afterloop-block (new-block 'afterloop-block))
-           (env-extend '#%break-block after-loop-block env)
+           (env-extend '#%break-block afterloop-block env)
            (LLVMBuildBr builder loop-entry)
 
            (LLVMPositionBuilderAtEnd builder loop-entry)
@@ -276,6 +277,8 @@
           [(sham:expr:array-value md vals t)
            (LLVMConstArray (build-llvm-type t env)
                            (map (curryr build-expression env) vals))]
+          [(sham:expr:string-value md str)
+           (LLVMBuildGlobalStringPtr builder str (symbol->string id))]
           [(sham:expr:vector-value md vals t)
            (LLVMConstVector (build-llvm-type t env)
                             (map (curryr build-expression env) vals))]
@@ -549,6 +552,12 @@
                          (list
                           (sham:stmt:expr (build-app (rs 'store!) (ui32 42) (v 'ptr)))
                           (ret (build-app (rs 'load) (v 'ptr)))))))
+       (defn 'string-test '() '() i32
+         (sham:stmt:let '(s1 s2)
+                        (list i8* i8*)
+                        (list (sham:expr:string-value "abc")
+                              (sham:expr:string-value "abc"))
+                        (ret (v 's1))))
        ))))
   (optimize-module module-env #:opt-level 3)
   (jit-dump-module module-env)
