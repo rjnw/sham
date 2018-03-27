@@ -5,7 +5,6 @@
          ffi/unsafe
          racket/runtime-path
          "ffi/lib.rkt"
-         "../lib.rkt"
          "llvm-config.rkt")
 
 (provide adjunct-lib)
@@ -14,13 +13,7 @@
   (bytes->string/utf-8
    (bytes-append #"adjunct" (system-type 'so-suffix))))
 
-#;
-(define adjunct-so-path
-  (build-path (collection-path "sham") "private" "llvm" (string-append "adjunct" (bytes->string/utf-8 (system-type 'so-suffix)))))
-
 (define-runtime-path adjunct-file-path "adjunct.cpp")
-
-#;(build-path (collection-path "sham") "private" "llvm" "adjunct.cpp")
 
 (define (compile-adjunct)
   ;;builds a parameterization barier that should "reset" the compiler

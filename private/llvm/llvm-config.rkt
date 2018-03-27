@@ -1,9 +1,6 @@
-#lang racket/base
+#lang racket
 
 (provide llvm-config)
-(require racket/string
-         "../lib.rkt")
-
 
 (define llvm-config-name
   (let ([cmd (or (getenv "LLVM_CONFIG") "llvm-config")])
@@ -15,6 +12,12 @@
               "\n")))
     cmd))
 
+
+(define (get-out-string process-str)
+  (let* ([out (open-output-string)]
+         [l (process/ports out #f #f process-str)])
+    ((last l) 'wait)
+    (string-trim (get-output-string out))))
+
 (define (llvm-config . a)
-  (get-out-string
-   (string-join (cons llvm-config-name a) " ")))
+  (get-out-string (string-join (cons llvm-config-name a) " ")))
