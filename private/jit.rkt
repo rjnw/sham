@@ -61,7 +61,7 @@
   ;;   (LLVMContextSetDiagnosticHandler context diag-handler #f))
 
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
-  
+
   #;
   (LLVMSetDataLayout
    jit-module
@@ -97,7 +97,7 @@
   (define rkt-mappings (make-hash))
   (define add-rkt-mapping! (curry hash-set! rkt-mappings))
   (define add-ffi-mapping! (curry hash-set! ffi-mappings))
-  
+
   (define (register-module-define stmt env)
     (define (compile-function-declaration env-function-type function-name)
       (define function-type
@@ -156,7 +156,7 @@
                              (symbol->string arg)))
           (LLVMBuildStore builder (LLVMGetParam fref i) p-arg)
           (env-extend arg (env-jit-value p-arg l-type) env)))
-      
+
       (define (build-statement stmt env)
         (match stmt
           [(sham:stmt:set! md lhs v) ;;TODO: right now lhs can only be a var
@@ -214,7 +214,7 @@
 
            (define switch (LLVMBuildSwitch builder tst-value switch-default (length cases)))
 
-           (for [cs cases]
+           (for ([cs cases])
              (match-define  (cons val stmt) cs)
              (define ve (build-expression val))
              (define case-block (new-block 'switch-case))
@@ -293,7 +293,7 @@
            (LLVMConstArray (build-llvm-type t env)
                            (map (curryr build-expression env) vals))]
           [(sham:expr:string-value md str)
-           (LLVMBuildGlobalStringPtr builder str (symbol->string id))]
+           (LLVMBuildGlobalStringPtr builder str (symbol->string (gensym 'str)))]
           [(sham:expr:vector-value md vals t)
            (LLVMConstVector (build-llvm-type t env)
                             (map (curryr build-expression env) vals))]
@@ -439,12 +439,13 @@
 (module+ test
   (require racket/unsafe/ops)
   (require rackunit)
-  (require disassemble)
+  ;; (require disassemble)
   (require "optimize.rkt")
   (require (submod "../ast.rkt" utils))
 
   (define i32 (sham:type:ref 'i32))
   (define i64 (sham:type:ref 'i64))
+  (define i8* (sham:type:pointer (sham:type:ref 'i8)))
   (define icmp-eq (sham:rator:symbol 'icmp-eq))
   (define urem (sham:rator:symbol 'urem))
   (define (build-app rator . rands)
@@ -586,5 +587,5 @@
 
   (initialize-jit! module-env)
   (define factr (jit-get-function 'factr module-env))
-  (disassemble-ffi-function (jit-get-function-ptr 'factr module-env) #:size 100)
+  ;; (disassemble-ffi-function (jit-get-function-ptr 'factr module-env) #:size 100)
   )
