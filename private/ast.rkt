@@ -54,10 +54,14 @@
 (struct sham:expr:array-value  sham:expr:const (vs t))
 (struct sham:expr:vector-value sham:expr:const (vs t))
 
+;; Used for more than just function call
 (struct sham:expr:app      sham:expr (rator rands))
 (struct sham:expr:void     sham:expr ())
 (struct sham:expr:sizeof   sham:expr (t))
+
+;; Used to pass types to intrinsics
 (struct sham:expr:type     sham:expr (t)) ;;only used for malloc and variants
+;; Get element pointer
 (struct sham:expr:gep      sham:expr (ptr indxs))
 (struct sham:expr:var      sham:expr (id))
 (struct sham:expr:global   sham:expr (id))
@@ -67,9 +71,13 @@
 
 (struct sham:rator ())
 
+;; Symbol for definitions
 (struct sham:rator:symbol    sham:rator (id))
+;; LLVM implementation hooks
 (struct sham:rator:intrinsic sham:rator (id ret-type))
+;; Shared object names
 (struct sham:rator:external  sham:rator (id lib-id ret-type))
+;; calls back into racket from generated code
 (struct sham:rator:racket    sham:rator (id rkt-value fun-type))
 
 ;; ;;TODO add debug parameters to printer
@@ -351,6 +359,9 @@
   (define (sham:stmt:let ids id-types id-vals stmt);backward compatibility, or short key as well
     (sham:stmt:expr (sham:expr:let ids id-types id-vals stmt (sham:expr:void))))
   (define sham$slet sham:stmt:let)
+  (define (sham:expr:stmt s)
+    (sham:expr:let '() '() '() s
+                   (sham:expr:void)))
 
   ;simple shorts
   (define sham$set! sham:stmt:set!)

@@ -86,7 +86,7 @@
   (define type-void*
     (env-type (sham:type:pointer 'void)
               (internal-type  _pointer
-                          (LLVMPointerType (LLVMVoidTypeInContext context) 0))))
+                              (LLVMPointerType (LLVMInt8TypeInContext context) 0))))
   (define new-env
     (register-types
      `((i1 ,(LLVMInt1TypeInContext context) ,_uint)
@@ -123,7 +123,9 @@
 
 (module+ test
   (require rackunit)
+  (display 'env0)
   (define env0 (register-initial-types (empty-env) (LLVMGetGlobalContext)))
+  (display 'env0)
   (define f64 (sham:type:ref 'f64))
   (define  i32 (sham:type:ref 'i32))
   (printf "env0: ~a\n" env0)

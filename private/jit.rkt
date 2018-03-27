@@ -61,20 +61,32 @@
   ;;   (LLVMContextSetDiagnosticHandler context diag-handler #f))
 
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
-
+  
+  #;
   (LLVMSetDataLayout
    jit-module
    (string-join
-    '("e" "m:e" "p:64:64:64"
-          "i1:8:8" "i8:8:8" "i16:16:16" "i32:32:32" "i64:64:64"
-          ;;integer types alignment
-          "f32:32:32" "f64:64:64" "f128:128:128" ;;floating types alignment
-          "v64:64:64" "v128:128:128" ;; vector type alignment
-          "a:0:64" "s0:64:64" "n8:16:32:64" ;; a aggregate alignment
-          "S128" ;stack alignment
-          )
+    '("e"
+      "m:e"
+      "p:64:64:64"
+      "i1:8:8"
+      "i8:8:8"
+      "i16:16:16"
+      "i32:32:32"
+      "i64:64:64"
+      ;;integer types alignment
+      "f32:32:32"
+      "f64:64:64"
+      "f128:128:128" ;;floating types alignment
+      "v64:64:64"
+      "v128:128:128" ;; vector type alignment
+      "a:0:64"
+      "s0:64:64"
+      "n8:16:32:64" ;; a aggregate alignment
+      "S128"        ;stack alignment
+      )
     "-"))
-  (LLVMSetTarget jit-module "x86_64-unknown-linux-gnu")
+  (LLVMSetTarget jit-module (LLVMGetDefaultTargetTriple))
   (define builder (LLVMCreateBuilderInContext context))
   (define function-info-map (make-hash))
   (define add-function-info! (curry hash-set! function-info-map))
@@ -85,10 +97,11 @@
   (define rkt-mappings (make-hash))
   (define add-rkt-mapping! (curry hash-set! rkt-mappings))
   (define add-ffi-mapping! (curry hash-set! ffi-mappings))
-
+  
   (define (register-module-define stmt env)
     (define (compile-function-declaration env-function-type function-name)
-      (define function-type (internal-type-jit (env-type-prim env-function-type)))
+      (define function-type
+        (internal-type-jit (env-type-prim env-function-type)))
       (LLVMAddFunction jit-module (symbol->string function-name) function-type))
 
     (match stmt
@@ -104,8 +117,9 @@
          (LLVMAddGlobal jit-module
                         (internal-type-jit (env-type-prim type))
                         (symbol->string id)))
-       (LLVMSetInitializer value
-                           (LLVMConstNull (internal-type-jit (env-type-prim type))))
+       (LLVMSetInitializer
+        value
+        (LLVMConstNull (internal-type-jit (env-type-prim type))))
        (env-extend id (env-jit-value value (build-env-type t env)) env)]))
 
   (define (compile-module-define def env module-env)
@@ -114,7 +128,8 @@
       (define env-function (env-lookup name env))
       (define fref (env-jit-function-ref env-function))
       (define ftype (env-jit-function-type env-function))
-      (define jit-target-data (LLVMCreateTargetData (LLVMGetDataLayout jit-module)))
+      (define jit-target-data
+        (LLVMCreateTargetData (LLVMGetDataLayout jit-module)))
       (define (build-llvm-type t env)
         (internal-type-jit (compile-type t env)))
       (define (new-block n)
@@ -135,12 +150,13 @@
                    [type types]
                    [i (in-range (length args))])
           (define l-type (build-env-type type env))
-          (define p-arg (LLVMBuildAlloca builder
-                                         (internal-type-jit (env-type-prim l-type))
-                                         (symbol->string arg)))
+          (define p-arg
+            (LLVMBuildAlloca builder
+                             (internal-type-jit (env-type-prim l-type))
+                             (symbol->string arg)))
           (LLVMBuildStore builder (LLVMGetParam fref i) p-arg)
           (env-extend arg (env-jit-value p-arg l-type) env)))
-
+      
       (define (build-statement stmt env)
         (match stmt
           [(sham:stmt:set! md lhs v) ;;TODO: right now lhs can only be a var
@@ -153,7 +169,6 @@
               (define global-v (env-jit-value-ref (env-lookup var env)))
               (define rhs-v (build-expression v env))
               (LLVMSetInitializer global-v rhs-v)])]
-
           [(sham:stmt:if md tst thn els)
            (define tst-value (build-expression tst env))
            (define then-block (new-block 'then))
@@ -426,7 +441,7 @@
   (require rackunit)
   (require disassemble)
   (require "optimize.rkt")
-  (require (submod sham/ast utils))
+  (require (submod "../ast.rkt" utils))
 
   (define i32 (sham:type:ref 'i32))
   (define i64 (sham:type:ref 'i64))
@@ -439,7 +454,13 @@
   (define ret sham:stmt:return)
   (define v sham:expr:var)
   (define rs sham:rator:symbol)
-  (define (defn n args types ret-type stmt) (sham:def:function (make-hash) n args types ret-type stmt))
+  (define (defn n args types ret-type stmt)
+    (sham:def:function (make-hash) n args types ret-type stmt))
+
+  (define empty-module-env
+    (compile-module
+     (sham:module (empty-module-info) '())))
+
   (define module-env
     (compile-module
      (sham:module
@@ -561,8 +582,9 @@
        ))))
   (optimize-module module-env #:opt-level 3)
   (jit-dump-module module-env)
-  (initialize-orc! module-env)
+  ;;(initialize-orc! module-env)
 
-  ;; (initialize-jit! module-env)
+  (initialize-jit! module-env)
   (define factr (jit-get-function 'factr module-env))
-  (disassemble-ffi-function (jit-get-function-ptr 'factr module-env) #:size 100))
+  (disassemble-ffi-function (jit-get-function-ptr 'factr module-env) #:size 100)
+  )
