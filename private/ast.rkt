@@ -76,7 +76,7 @@
 ;; LLVM implementation hooks
 (struct sham:rator:intrinsic sham:rator (id ret-type))
 ;; Shared object names
-(struct sham:rator:external  sham:rator (id lib-id ret-type))
+(struct sham:rator:external  sham:rator (lib-id id ret-type))
 ;; calls back into racket from generated code
 (struct sham:rator:racket    sham:rator (id rkt-value fun-type))
 
@@ -462,6 +462,7 @@
        #'(sham:def:function
           (empty-function-info) (check-sym name)
           (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
+<<<<<<< HEAD
           stmt)]
 
 
@@ -480,6 +481,16 @@
   (define-syntax (sham$def-function stx)
     (syntax-parse stx
       [(_ info (name (args types) ...) ret-type stmts ...)
+=======
+          (check-stmt stmt))]
+
+      [(_ #:info info:expr (name:id  rett:id) stmt:expr)
+       #'(sham:def:function
+          info (check-sym name)
+          '() '() (sham$tref rett)
+          (check-stmt stmt))]
+      [(_ (name:id rett:id) stmt:expr)
+>>>>>>> rator for racket internal
        #'(sham:def:function
         info name
         (list args ...) (list types ...)

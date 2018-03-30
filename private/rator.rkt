@@ -36,7 +36,7 @@
    ffi-mapping-key (env-get-info mod-env) ffi-mappings
    (for ([(name lib-v) (in-hash ffi-mappings)])
      (match-define (cons lib-name value) lib-v)
-     (define fptr (get-ffi-pointer (hash-ref lib-map lib-name) (symbol->string name)))
+     (define fptr (get-ffi-pointer (hash-ref lib-map lib-name #f) (symbol->string name)))
      (LLVMAddGlobalMapping mcjit value fptr))))
 
 (define (add-rkt-mappings mod-env)
