@@ -18,8 +18,8 @@
 
 (define-llvm LLVMOrcMakeSharedModule (_fun LLVMModuleRef -> LLVMSharedModuleRef))
 (define-llvm LLVMOrcDisposeSharedModuleRef (_fun LLVMSharedModuleRef -> _void))
-(define-llvm LLVMOrcMakeSharedObjectBuffer
-  (_fun LLVMMemoryBufferRef -> LLVMSharedObjectBufferRef))
+;; (define-llvm LLVMOrcMakeSharedObjectBuffer
+;;   (_fun LLVMMemoryBufferRef -> LLVMSharedObjectBufferRef))
 
 (define-llvm LLVMOrcCreateInstance
   (_fun LLVMTargetMachineRef -> LLVMOrcJITStackRef))
