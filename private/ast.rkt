@@ -462,35 +462,9 @@
        #'(sham:def:function
           (empty-function-info) (check-sym name)
           (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
-<<<<<<< HEAD
-          stmt)]
-
-
-      ;; [(_ #:info info:expr (name:id  rett:id) stmt:expr)
-      ;;  #'(sham:def:function
-      ;;     info (check-sym name)
-      ;;     '() '() (sham$tref rett)
-      ;;     (check-stmt stmt))]
-      ;; [(_ (name:id rett:id) stmt:expr)
-      ;;  #'(sham:def:function
-      ;;     (empty-function-info)
-      ;;     (check-sym name)
-      ;;     '() '() (sham$tref rett)
-      ;;     (check-stmt stmt))]
-      ))
   (define-syntax (sham$def-function stx)
     (syntax-parse stx
       [(_ info (name (args types) ...) ret-type stmts ...)
-=======
-          (check-stmt stmt))]
-
-      [(_ #:info info:expr (name:id  rett:id) stmt:expr)
-       #'(sham:def:function
-          info (check-sym name)
-          '() '() (sham$tref rett)
-          (check-stmt stmt))]
-      [(_ (name:id rett:id) stmt:expr)
->>>>>>> rator for racket internal
        #'(sham:def:function
         info name
         (list args ...) (list types ...)
