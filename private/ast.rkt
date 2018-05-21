@@ -1,487 +1,132 @@
 #lang racket
-(require "fun-info.rkt")
-(require "mod-env-info.rkt")
-(require "llvm/ffi/all.rkt")
+(require "../../rcf/private/compiler.rkt")
 (provide (all-defined-out))
 
-(struct sham:module ([info #:mutable] defs))
+(define-ast sham
+  (def
+    [module        (defs:def ...)]
+    [function      ((arg-ids:terminal.sym arg-types:type) ... ret-type:type body:stmt)]
+    [type          (type:type)]
+    [global        (type:type)]
+    [global-string (str:terminal.string)]
+    #:common-mutable info
+    #:common id:terminal.sym)
+  (ast #:common-auto metadata)
+  (type ast
+        [internal ()]
+        [ref      (to:terminal.sym)]
+        [struct   ((fields:terminal.sym types:type) ...)]
+        [function (args:type ... '-> ret:type)]
+        [pointer  (to:type)]
+        [array    (of:type size:terminal.unsigned-int)]
+        [vector   (of:type size:terminal.unsigned-nt)])
+  (rator ast
+         ;; ;; Symbol for definitions
+         [symbol    id:terminal.sym]
+         ;; ;; LLVM implementation hooks
+         [intrinsic (id:terminal.sym return-type:type)]
+         ;; ;; Shared object names
+         [external  (lib-id:terminal.sym id:terminal.sym ret-type:type)]
+         ;; ;; calls back into racket from generated code
+         [racket    (id:terminal.sym racket-value:terminal.rkt full-type:type)])
+  (stmt ast
+        [set!     (lhs:expr.var val:expr)]
+        [if       (test:expr then:stmt else:stmt)]
+        [switch   (test:expr (check:expr body:stmt) ... default)]
+        [break    ()]
+        [while    (test:expr body:stmt)]
+        [return   (value:expr)]
+        [void     ()]
+        [expr     (e:expr)]
+        [block    (stmts:stmt ...)])
+  (expr ast
+        [app      (rator:expr rands:expr ...)]
+        [void     ()]
+        [sizeof   (t:type)]
+        [etype    (t:type)]
+        [gep      (pointer:expr indexes:expr ...)]
+        [var      id:terminal.sym]
+        [global   (id:terminal.sym)]
+        [external (lib-id:terminal.sym id:terminal.sym t:type)]
+        [let      (((ids:terminal.sym vals:expr types:type)
+                    ...)
+                   stmt:stmt
+                   expr:expr)])
+  (const expr
+         [fl     (value:terminal.float        type:type)]
+         [si     (value:terminal.signed-int   type:type)]
+         [ui     (value:terminal.unsigned-int type:type)]
+         [string (value:terminal.string       type:type)]
+         [llvm   (value:terminal.llvm         type:type)]
+         [struct (value:terminal.struct       type:type)]
+         [array  (value:terminal.array        type:type)]
+         [vector (value:terminal.vector       type:type)])
+  (terminal
+   [float v #:native real?]
+   [signed-int v #:native exact-positive-integer?]
+   [unsigned-int v #:native exact-integer?]
+   [string v #:native string?]
+   [llvm   v]
+   [struct v]
+   [array  v]
+   [vector v]))
 
 
-(struct sham:def    ([info #:mutable] id))
-
-(struct sham:def:function sham:def (arg-ids arg-types ret-type body))
-(struct sham:def:type     sham:def (type))
-(struct sham:def:global   sham:def (type))
-(struct sham:def:global-string sham:def (str))
-
-(struct sham:ast ([metadata #:auto #:mutable]) #:auto-value (void))
-
-
-(struct sham:type sham:ast ())
-
-(struct sham:type:internal sham:type ())
-(struct sham:type:ref      sham:type (to))
-(struct sham:type:struct   sham:type (fields types))
-(struct sham:type:function sham:type (args ret))
-(struct sham:type:pointer  sham:type (to))
-(struct sham:type:array    sham:type (of size))
-(struct sham:type:vector   sham:type (of size))
-
-
-(struct sham:stmt sham:ast ())
-
-
-(struct sham:stmt:set!   sham:stmt (lhs val))
-(struct sham:stmt:if     sham:stmt (tst thn els))
-(struct sham:stmt:switch sham:stmt (tst cases default)) ;; cases : (cons expr stmt), default : stmt
-(struct sham:stmt:break  sham:stmt ())
-(struct sham:stmt:while  sham:stmt (tst body))
-(struct sham:stmt:return sham:stmt (val))
-(struct sham:stmt:void   sham:stmt ())
-(struct sham:stmt:expr   sham:stmt (e))
-(struct sham:stmt:block  sham:stmt (stmts))
-
-
-(struct sham:expr sham:ast ())
-(struct sham:expr:const sham:expr ())
-
-(struct sham:expr:fl-value     sham:expr:const (v t))
-(struct sham:expr:si-value     sham:expr:const (v t))
-(struct sham:expr:ui-value     sham:expr:const (v t))
-(struct sham:expr:string-value sham:expr:const (v))
-(struct sham:expr:llvm-value   sham:expr:const (v t))
-(struct sham:expr:struct-value sham:expr:const (vs))
-(struct sham:expr:array-value  sham:expr:const (vs t))
-(struct sham:expr:vector-value sham:expr:const (vs t))
-
-;; Used for more than just function call
-(struct sham:expr:app      sham:expr (rator rands))
-(struct sham:expr:void     sham:expr ())
-(struct sham:expr:sizeof   sham:expr (t))
-
-;; Used to pass types to intrinsics
-(struct sham:expr:type     sham:expr (t)) ;;only used for malloc and variants
-;; Get element pointer
-(struct sham:expr:gep      sham:expr (ptr indxs))
-(struct sham:expr:var      sham:expr (id))
-(struct sham:expr:global   sham:expr (id))
-(struct sham:expr:external sham:expr (lib-id id t))
-(struct sham:expr:let      sham:expr (ids id-types id-vals stmt expr))
-
-
-(struct sham:rator ())
-
-;; Symbol for definitions
-(struct sham:rator:symbol    sham:rator (id))
-;; LLVM implementation hooks
-(struct sham:rator:intrinsic sham:rator (id ret-type))
-;; Shared object names
-(struct sham:rator:external  sham:rator (lib-id id ret-type))
-;; calls back into racket from generated code
-(struct sham:rator:racket    sham:rator (id rkt-value fun-type))
-
-;; ;;TODO add debug parameters to printer
-(define (print-sham-type t)
-  (match t
-    [(sham:type:internal md) '_]
-    [(sham:type:ref md to) to]
-    [(sham:type:struct md fields types)
-     `(struct ,(for/list [(f fields) (t types)] `(,f ,(print-sham-type t))))]
-    [(sham:type:array md of size)
-     `(array ,(print-sham-type of) ,size)]
-    [(sham:type:function md args ret)
-     `(,@(map print-sham-type args) ,(print-sham-type ret))]
-    [(sham:type:pointer md to) `(* ,(print-sham-type to))]))
-
-(define (print-sham-stmt stmt)
-  (match stmt
-    [(sham:stmt:expr md e) (list (print-sham-expr e))]
-    [(sham:stmt:set! md lhs val)
-     `((set! ,(print-sham-expr lhs) ,(print-sham-expr val)))]
-    [(sham:stmt:if md tst thn els)
-     `((if ,(print-sham-expr tst) ,@(print-sham-stmt thn) ,@(print-sham-stmt els)))]
-    [(sham:stmt:while md tst body)
-     `((while ,(print-sham-expr tst) ,@(print-sham-stmt body)))]
-    [(sham:stmt:return md val) `((return ,(print-sham-expr val)))]
-    [(sham:stmt:expr md l)
-     #:when (sham:expr:let? l)
-     (print-sham-expr l)]
-    [(sham:stmt:block md stmts) (append-map print-sham-stmt stmts)]
-    [(sham:stmt:void md) `(svoid)]))
-
-(define (print-sham-expr e)
-  (match e
-    [(sham:expr:let md ids ts vs st e)
-     #:when (sham:expr:void? e)
-     `(let ,@(map (λ (v) `(,(car v)
-                           ,(print-sham-expr (cdr v))))
-                  (map cons ids vs))
-        ,@(print-sham-stmt st))]
-    [(sham:expr:let md ids ts vs st e)
-     `(let ,@(map (λ (v) `(,(car v)
-                           ,(print-sham-expr (cdr v))))
-                  (map cons ids vs))
-        ,@(print-sham-stmt st)
-        ,(print-sham-expr e))]
-    [(sham:expr:app md rator rands)
-     `(,(print-sham-rator rator) ,@(map print-sham-expr rands))]
-    [(sham:expr:fl-value md v t) `(float ,v ,(print-sham-type t))]
-    [(sham:expr:si-value md v t) `(sint ,v ,(print-sham-type t))]
-    [(sham:expr:ui-value md v t) `(uint ,v ,(print-sham-type t))]
-    [(sham:expr:llvm-value md v t) `(llvm-value ,(LLVMPrintValueToString v) ,(print-sham-type t))]
-    [(sham:expr:void md) `evoid]
-    [(sham:expr:sizeof md t) `(sizeof ,(print-sham-type t))]
-    [(sham:expr:type md t) `(%type ,(print-sham-type t))]
-    [(sham:expr:global md id) `(global ,id)]
-    [(sham:expr:external md lib-id id t) `(external ,id ,lib-id)]
-    [(sham:expr:gep md ptr indxs)
-     `(gep ,(print-sham-expr ptr) ,@(map print-sham-expr indxs))]
-    [(sham:expr:var md v) v]))
-
-(define (print-sham-rator r)
-  (match r
-    [(sham:rator:intrinsic str-id ret-type)
-     str-id]
-    [(sham:rator:symbol s)
-     s]
-    [(sham:rator:racket id val type)
-     `(racket ,id ,(print-sham-type type))]
-    [(sham:rator:external lib-id str-id ret-type)
-     `(external ,lib-id ,str-id)]))
-
-(define (print-sham-def def)
-  (match def
-    [(sham:def:function info id arg-ids arg-types ret-type body)
-     `(define (,id ,@arg-ids)
-        ,@(print-sham-stmt body))]
-    [(sham:def:type info id t)
-     `(define ,id ,(print-sham-type t))]
-    [(sham:def:global info id t)
-     `(global ,id ,(print-sham-type t))]))
-
-(define (print-sham-module mod)
-  (match mod
-    [(sham:module info defs)
-     `(module
-          ,@(map print-sham-def defs))]))
-
-;; (define (sham-type->sexp t)
-;;   (match t
-;;     [(sham:type:internal)
-;;      '_]
-;;     [(sham:type:ref to)
-;;      to]
-;;     [(sham:type:struct fields types)
-;;      `(struct ,(for/list [(f fields) (t types)] `(,f : ,(sham-type->sexp t))))]
-;;     [(sham:type:function args ret)
-;;      `(,@(map sham-type->sexp args) -> ,(sham-type->sexp ret))]
-;;     [(sham:type:pointer to)
-;;      `(* ,(sham-type->sexp to))]))
-
-;; (define (sham-stmt->sexp stmt)
-;;   (match stmt
-;;     [(sham:stmt:set! lhs val)
-;;      `(set! ,(sham-expr->sexp lhs) ,(sham-expr->sexp val))]
-;;     [(sham:stmt:if tst thn els)
-;;      `(if ,(sham-expr->sexp tst) ,(sham-stmt->sexp thn) ,(sham-stmt->sexp els))]
-;;     [(sham:stmt:while tst body)
-;;      `(while ,(sham-expr->sexp tst) ,(sham-stmt->sexp body))]
-;;     [(sham:stmt:return val)
-;;      `(return ,(sham-expr->sexp val))]
-;;     [(sham:stmt:void)
-;;      'svoid]
-;;     [(sham:stmt:expr e)
-;;      `(expr ,(sham-expr->sexp e))]
-;;     [(sham:stmt:block stmts)
-;;      `(block ,@(map sham-stmt->sexp stmts))]))
-
-;; (define (sham-expr->sexp e)
-;;   (match e
-;;     [(sham:expr:let ids ts vs st e)
-;;      `(let ,(for/list [(i ids) (t ts) (v vs)]
-;;               `(,i : ,(sham-type->sexp t) ,(sham-expr->sexp v)))
-;;         ,(sham-stmt->sexp st)
-;;         ,(sham-expr->sexp e))]
-;;     [(sham:expr:app rator rands)
-;;      `(,(sham-rator->sexp rator) ,@(map sham-expr->sexp rands))]
-;;     [(sham:expr:fl-value v t)
-;;      `(%float ,v ,(sham-type->sexp t))]
-;;     [(sham:expr:si-value v t)
-;;      `(%sint ,v ,(sham-type->sexp t))]
-;;     [(sham:expr:ui-value v t)
-;;      `(%uint ,v ,(sham-type->sexp t))]
-;;     [(sham:expr:void)
-;;      'evoid]
-;;     [(sham:expr:sizeof t)
-;;      `(%sizeof ,(sham-type->sexp t))]
-;;     [(sham:expr:type t)
-;;      `(%type ,(sham-type->sexp t))]
-;;     [(sham:expr:global id)
-;;      `(%global ,id)]
-;;     [(sham:expr:external lib-id id t)
-;;      `(%external ,lib-id ,id ,(sham-type->sexp t))]
-;;     [(sham:expr:gep ptr indxs)
-;;      `(%gep ,(sham-expr->sexp ptr) ,@(map sham-expr->sexp indxs))]
-;;     [(sham:expr:var v)
-;;      v]))
-
-;; (define (sham-rator->sexp r)
-;;   (match r
-;;     [(sham:rator:intrinsic str-id ret-type)
-;;      `(intrinsic ,str-id ,(sham-type->sexp ret-type))]
-;;     [(sham:rator:external lib-id str-id ret-type)
-;;      `(external ,lib-id ,str-id ,(sham-type->sexp ret-type))]
-;;     [(sham:rator:symbol s) s]))
-
-;; (define (sham-def->sexp def)
-;;   (match def
-;;     [(sham:def:function id info arg-ids arg-types ret-type body)
-;;      `(define-function ,info
-;;         (,id ,@(for/list [(id arg-ids) (typ arg-types)]
-;;                  `(,id : ,(sham-type->sexp typ)))
-;;              : ,(sham-type->sexp ret-type))
-;;         ,(sham-stmt->sexp body))]
-;;     [(sham:def:type id t)
-;;      `(define-type ,id ,(sham-type->sexp t))]
-;;     [(sham:def:global id type)
-;;      `(define-global ,id ,(sham-type->sexp type))]))
-
-;; (define (sham-ast->sexp ast)
-;;   (match ast
-;;     [(sham:module info defs)
-;;      `(module
-;;           ,info
-;;           ,@(map sham-def->sexp defs))]))
-
-;; ;;;---;;;
-;; (define (sexp->sham-ast sexp)
-;;   (match sexp
-;;     [`(module
-;;           ,info
-;;           ,defs ...)
-;;      (sham:module info (map sexp->sham-def defs))]))
-
-;; (define (sexp->sham-type t)
-;;   (match t
-;;     ['_
-;;      (sham:type:internal)]
-;;     [`(* ,to)
-;;      (sham:type:pointer (sexp->sham-type to))]
-;;     [`(,args ... -> ,ret)
-;;      (sham:type:function (map sexp->sham-type args) (sexp->sham-type ret))]
-;;     [`(struct ((,fields : ,types) ...))
-;;      (sham:type:struct fields (map sexp->sham-type types))]
-;;     [to #:when (symbol? to)
-;;      (sham:type:ref to)]))
-
-;; (define (sexp->sham-stmt sexp)
-;;   (match sexp
-;;     [`(set! ,lhs ,val)
-;;      (sham:stmt:set! (sexp->sham-expr lhs) (sexp->sham-expr val))]
-;;     [`(if ,tst ,thn ,els)
-;;      (sham:stmt:if (sexp->sham-expr tst)
-;;                    (sexp->sham-stmt thn)
-;;                    (sexp->sham-stmt els))]
-;;     [`(while ,tst ,body)
-;;      (sham:stmt:while (sexp->sham-expr tst) (sexp->sham-stmt body))]
-;;     [`(return ,val)
-;;      (sham:stmt:return (sexp->sham-expr val))]
-;;     [`(block ,stmts ...)
-;;      (sham:stmt:block (map sexp->sham-stmt stmts))]
-;;     ['svoid (sham:stmt:void)]))
-
-;; (define (sexp->sham-expr e)
-;;   (match e
-;;     [`(let ((,ids : ,types ,vals) ...) ,stmt ,expr)
-;;      (sham:stmt:let ids (map sexp->sham-type types) (map sexp->sham-expr vals)
-;;                     (sexp->sham-stmt stmt)
-;;                     (sexp->sham-expr expr))]
-
-;;     [`(%float ,v ,t)
-;;      (sham:expr:fl-value v (sexp->sham-type t))]
-;;     [`(%sint ,v ,t)
-;;      (sham:expr:si-value v (sexp->sham-type t))]
-;;     [`(%uint ,v ,t)
-;;      (sham:expr:ui-value v (sexp->sham-type t))]
-;;     ['evoid
-;;      (sham:expr:void)]
-;;     [`(%sizeof ,t)
-;;      (sham:expr:sizeof (sexp->sham-type t))]
-;;     [`(%type ,t)
-;;      (sham:expr:type (sexp->sham-type t))]
-;;     [`(%gep ,ptr ,indxs ...)
-;;      (sham:expr:gep (sexp->sham-expr ptr) (map sexp->sham-expr indxs))]
-;;     [`(,rator ,rands ...)
-;;      (sham:expr:app (sexp->sham-rator rator) (map sexp->sham-expr rands))]
-;;     [v #:when (symbol? v)
-;;        (sham:expr:var v)]))
-
-;; (define (sexp->sham-rator r)
-;;   (match r
-;;     [`(intrinsic ,str-id ,ret-type)
-;;      (sham:rator:intrinsic str-id (sexp->sham-type ret-type))]
-;;     [`(external ,lib-id ,str-id ,ret-type)
-;;      (sham:rator:external lib-id str-id (sexp->sham-type ret-type))]
-;;     [s #:when (symbol? s)
-;;        (sham:rator:symbol s)]))
-
-;; (define (sexp->sham-def def)
-;;   (match def
-;;     [`(define-function (passes ,passes ...)
-;;         (attrs ,attrs ...)
-;;         (,id (,arg-ids : ,arg-types) ... : ,ret-type)
-;;         ,body)
-;;      (sham:def:function id passes attrs arg-ids (map sexp->sham-type arg-types)
-;;                         (sexp->sham-type  ret-type)
-;;                         (sexp->sham-stmt body))]
-;;     [`(define-type ,id ,t)
-;;      (sham:def:type id (sexp->sham-type t))]))
-
-
-;; ;;utils
-(module* utils #f
-  (provide (except-out (all-defined-out)
-                       define-bind-sym-checker
-                       check-sym
-                       check-expr
-                       is-list-stmt?
-                       check-list-stmt
-                       check-stmt
-                       check-type))
-
-  (define (empty-function-info)  (fninfo-empty))
-  (define (empty-module-info) (empty-mod-env-info))
-  (define (empty-type-info) (void))
-
-  (define-syntax-rule (sham$def:type id t)
-    (sham:def:type (empty-type-info) (check-sym id) t))
-
-  (define (sham:stmt:let ids id-types id-vals stmt);backward compatibility, or short key as well
-    (sham:stmt:expr (sham:expr:let ids id-types id-vals stmt (sham:expr:void))))
-  (define sham$slet sham:stmt:let)
-  (define (sham:expr:stmt s)
-    (sham:expr:let '() '() '() s
-                   (sham:expr:void)))
-
-  ;simple shorts
-  (define sham$set! sham:stmt:set!)
-  (define sham$if sham:stmt:if)
-  (define sham$while sham:stmt:while)
-  (define sham$return sham:stmt:return)
-  (define sham$svoid (sham:stmt:void))
-  (define sham$stexpr sham:stmt:expr)
-
-  (define sham$flv sham:expr:fl-value)
-  (define sham$siv sham:expr:si-value)
-  (define sham$uiv sham:expr:ui-value)
-  (define sham$evoid (sham:expr:void))
-  (define sham$sizeof sham:expr:sizeof)
-  (define-syntax-rule (sham$etype t)
-    (sham:expr:type (sham$tref t)))
-  (define sham$gep sham:expr:gep)
-  (define sham$global sham:expr:global) ;; maybe copy the var macro here as well
-  (define sham$external sham:expr:external)
-  ;; (define sham$let sham:expr:let)
-
-  (define sham$ri sham:rator:intrinsic)
-  (define sham$re sham:rator:external)
-
-  (require (for-syntax syntax/parse))
-
-  ; a little complicated shorts, but should make my life easier
-  (define-syntax-rule (define-bind-sym-checker mid astf astf?)
-    (define-syntax (mid stx)
-      (define (check-if-symbol e)
-        #`(cond
-            [(symbol? #,e) (astf #,e)]
-            [(astf? #,e) #,e] ;this will allow (sham$rs (sham$rs (... 'a))), don't know if we want that?
-            [else (error "invalid input for: " (object-name astf) #,e)]))
-      (syntax-parse stx
-        [(_ i:id)
-         (if (identifier-binding #'i) (check-if-symbol #'i) #'(astf 'i))]
-        [(_ e:expr) (check-if-symbol #'e)])))
-
-  ;; (define-bind-sym-checker sham$rator sham:rator:symbol sham:rator?)
-  (define-bind-sym-checker sham$rs sham:rator:symbol sham:rator:symbol?)
-  (define-bind-sym-checker sham$var sham:expr:var sham:expr:var?)
-
-  (define-bind-sym-checker sham$tref sham:type:ref sham:type?)
-  (define-bind-sym-checker check-sym identity symbol?)
-  (define-bind-sym-checker check-expr sham:expr:var sham:expr?)
-
-  (define  (is-list-stmt? l) (if (andmap sham:stmt? l) l (error "not a list of statements")))
-  (define-bind-sym-checker check-list-stmt is-list-stmt? is-list-stmt?)
-
-  (define-bind-sym-checker check-stmt (const (error "not a statement")) sham:stmt?)
-  (define-bind-sym-checker check-type (const (error "not a type")) sham:type?)
-
-  (define-syntax (sham$expr stx)
-    (syntax-parse stx
-      [(_ i:id) #'(sham$var i)]
-      [(_ e:expr) #'(check-expr e)]))
-
-  (define-syntax (sham$let stx)
-    (syntax-parse stx
-      [(_ [(vars types vals) ...] bodys ...)
-       #'(sham:stmt:let (list vars ...)
-                        (list types ...)
-                        (list vals ...)
-                        (sham:stmt:block (list bodys ...)))]))
-
-  (define-syntax (sham$rator stx)
-    (syntax-parse stx
-      #:literals (quote)
-      [(_ (quote a)) #'(sham:rator:symbol (quote a))]
-      [(_ (i:expr li:expr t:expr)) #'(sham$re (check-sym i) (check-sym li) (check-type t))]
-      [(_ (i:expr t:expr))  #'(sham$ri (check-sym i) (check-type t))]
-      [(_ i:id)  #'(sham$rs i)]
-      [(_ e:expr)  #'(check-rator e)]))
-
-  (define-syntax (sham$app stx) ;;TODO move the rator parsing to sham$rator
-    (syntax-parse stx
-      [(_ rator:expr rands:expr ...)
-       #'(sham:expr:app (sham$rator rator) (list (sham$expr rands) ...))]))
-
-  (define-syntax (sham$block stx)
-    (syntax-case stx ()
-      [(_ s ...) #'(sham:stmt:block (list (check-stmt s) ...))]))
-
-  (define-syntax (sham$define stx)
-    (syntax-parse stx
-      [(_ #:info info:expr (name:id  (args:id t:expr) ... rett:id) stmt:expr)
-       #'(sham:def:function
-          info (check-sym name)
-          (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
-          stmt)]
-      [(_ info:expr (name:id  (args:id t:expr) ... rett:id) stmt:expr)
-       #'(sham:def:function
-          info (check-sym name)
-          (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
-          stmt)]
-      [(_ (name:id (args:id t:expr) ... rett:id) stmt:expr)
-       #'(sham:def:function
-          (empty-function-info) (check-sym name)
-          (list (check-sym args) ...) (list (sham$tref t) ...) (sham$tref rett)
-          stmt)]
-
-
-      ;; [(_ #:info info:expr (name:id  rett:id) stmt:expr)
-      ;;  #'(sham:def:function
-      ;;     info (check-sym name)
-      ;;     '() '() (sham$tref rett)
-      ;;     (check-stmt stmt))]
-      ;; [(_ (name:id rett:id) stmt:expr)
-      ;;  #'(sham:def:function
-      ;;     (empty-function-info)
-      ;;     (check-sym name)
-      ;;     '() '() (sham$tref rett)
-      ;;     (check-stmt stmt))]
-      ))
-  (define-syntax (sham$def-function stx)
-    (syntax-parse stx
-      [(_ info (name (args types) ...) ret-type stmts ...)
-       #'(sham:def:function
-        info name
-        (list args ...) (list types ...)
-        ret-type
-        (sham$block stmts ...))])))
+;; generated structs
+#;((struct sham:def:module sham:def (defs:def))
+   (struct sham:def:function sham:def (arg-ids:terminal.sym arg-types:type ret-type:type body:stmt))
+   (struct sham:def:type sham:def (type:type))
+   (struct sham:def:global sham:def (type:type))
+   (struct sham:def:global-string sham:def (str:terminal.string))
+   (struct sham:ast ((metadata #:auto)))
+   (struct sham:ast:type sham:ast ())
+   (struct sham:ast:type:internal sham:ast:type ())
+   (struct sham:ast:type:ref sham:ast:type (to:terminal.sym))
+   (struct sham:ast:type:struct sham:ast:type (fields:terminal.sym types:type))
+   (struct sham:ast:type:function sham:ast:type (args:type ret:type))
+   (struct sham:ast:type:pointer sham:ast:type (to:type))
+   (struct sham:ast:type:array sham:ast:type (of:type size:terminal.unsigned-int))
+   (struct sham:ast:type:vector sham:ast:type (of:type size:terminal.unsigned-nt))
+   (struct sham:ast:rator sham:ast ())
+   (struct sham:ast:rator:symbol sham:ast:rator (id:terminal.sym))
+   (struct sham:ast:rator:intrinsic sham:ast:rator (id:terminal.sym return-type:type))
+   (struct sham:ast:rator:external sham:ast:rator (lib-id:terminal.sym id:terminal.sym ret-type:type))
+   (struct sham:ast:rator:racket sham:ast:rator (id:terminal.sym racket-value:terminal.rkt full-type:type))
+   (struct sham:ast:stmt sham:ast ())
+   (struct sham:ast:stmt:set! sham:ast:stmt (lhs:expr.var val:expr))
+   (struct sham:ast:stmt:if sham:ast:stmt (test:expr then:stmt else:stmt))
+   (struct sham:ast:stmt:switch sham:ast:stmt (test:expr check:expr body:stmt default))
+   (struct sham:ast:stmt:break sham:ast:stmt ())
+   (struct sham:ast:stmt:while sham:ast:stmt (test:expr body:stmt))
+   (struct sham:ast:stmt:return sham:ast:stmt (value:expr))
+   (struct sham:ast:stmt:void sham:ast:stmt ())
+   (struct sham:ast:stmt:expr sham:ast:stmt (e:expr))
+   (struct sham:ast:stmt:block sham:ast:stmt (stmts:stmt))
+   (struct sham:ast:expr sham:ast ())
+   (struct sham:ast:expr:app sham:ast:expr (rator:expr rands:expr))
+   (struct sham:ast:expr:void sham:ast:expr ())
+   (struct sham:ast:expr:sizeof sham:ast:expr (t:type))
+   (struct sham:ast:expr:etype sham:ast:expr (t:type))
+   (struct sham:ast:expr:gep sham:ast:expr (pointer:expr indexes:expr))
+   (struct sham:ast:expr:var sham:ast:expr (id:terminal.sym))
+   (struct sham:ast:expr:global sham:ast:expr (id:terminal.sym))
+   (struct sham:ast:expr:external sham:ast:expr (lib-id:terminal.sym id:terminal.sym t:type))
+   (struct sham:ast:expr:let sham:ast:expr (ids:terminal.sym vals:expr types:type stmt:stmt expr:expr))
+   (struct sham:ast:expr:const sham:ast:expr ())
+   (struct sham:ast:expr:const:fl sham:ast:expr:const (value:terminal.float type:type))
+   (struct sham:ast:expr:const:si sham:ast:expr:const (value:terminal.signed-int type:type))
+   (struct sham:ast:expr:const:ui sham:ast:expr:const (value:terminal.unsigned-int type:type))
+   (struct sham:ast:expr:const:string sham:ast:expr:const (value:terminal.string type:type))
+   (struct sham:ast:expr:const:llvm sham:ast:expr:const (value:terminal.llvm type:type))
+   (struct sham:ast:expr:const:struct sham:ast:expr:const (value:terminal.struct type:type))
+   (struct sham:ast:expr:const:array sham:ast:expr:const (value:terminal.array type:type))
+   (struct sham:ast:expr:const:vector sham:ast:expr:const (value:terminal.vector type:type))
+   (struct sham:terminal ())
+   (struct sham:terminal:float sham:terminal (v))
+   (struct sham:terminal:signed-int sham:terminal (v))
+   (struct sham:terminal:unsigned-int sham:terminal (v))
+   (struct sham:terminal:string sham:terminal (v))
+   (struct sham:terminal:llvm sham:terminal (v))
+   (struct sham:terminal:struct sham:terminal (v))
+   (struct sham:terminal:array sham:terminal (v))
+   (struct sham:terminal:vector sham:terminal (v)))
