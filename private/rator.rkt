@@ -2,7 +2,7 @@
 
 (require ffi/unsafe (prefix-in foreign: '#%foreign))
 
-(require "mod-env-info.rkt"
+(require "module-env.rkt"
          "llvm/ffi/all.rkt")
 
 (provide add-ffi-mappings add-rkt-mappings)

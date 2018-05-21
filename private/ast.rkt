@@ -11,7 +11,7 @@
     [global-string (str:terminal.string)]
     #:common-mutable info
     #:common id:terminal.sym)
-  (ast #:common-auto metadata)
+  (ast #:common-auto-mutable metadata)
   (type ast
         [internal ()]
         [ref      (to:terminal.sym)]
@@ -56,7 +56,7 @@
          [fl     (value:terminal.float        type:type)]
          [si     (value:terminal.signed-int   type:type)]
          [ui     (value:terminal.unsigned-int type:type)]
-         [string (value:terminal.string       type:type)]
+         [string (value:terminal.string)]
          [llvm   (value:terminal.llvm         type:type)]
          [struct (value:terminal.struct       type:type)]
          [array  (value:terminal.array        type:type)]

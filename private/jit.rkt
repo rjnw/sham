@@ -9,7 +9,7 @@
          "init.rkt"
          "types.rkt"
          "ast.rkt"
-         "mod-env-info.rkt"
+         "module-env.rkt"
          "rator.rkt"
          "dump.rkt"
          "utils.rkt")
@@ -108,7 +108,7 @@
       [(sham:def:type info type-name t)
        (env-extend type-name (build-env-type t env) env)]
       [(sham:def:function info function-name args types ret-type body)
-       (define type (build-env-type (sham:type:function types ret-type) env))
+       (define type (build-env-type (sham:ast:type:function types ret-type) env))
        (define function-obj (compile-function-declaration type function-name))
        (env-extend function-name (env-jit-function function-obj type) env)]
       [(sham:def:global info id t)
@@ -159,17 +159,17 @@
 
       (define (build-statement stmt env)
         (match stmt
-          [(sham:stmt:set! md lhs v) ;;TODO: right now lhs can only be a var
+          [(sham:ast:stmt:set! md lhs v) ;;TODO: right now lhs can only be a var
            (match lhs
-             [(sham:expr:var md var)
+             [(sham:ast:expr:var md var)
               (define lhs-v (env-jit-value-ref (env-lookup var env)))
               (define rhs-v (build-expression v env))
               (LLVMBuildStore builder rhs-v lhs-v)]
-             [(sham:expr:global md var)
+             [(sham:ast:expr:global md var)
               (define global-v (env-jit-value-ref (env-lookup var env)))
               (define rhs-v (build-expression v env))
               (LLVMSetInitializer global-v rhs-v)])]
-          [(sham:stmt:if md tst thn els)
+          [(sham:ast:stmt:if md tst thn els)
            (define tst-value (build-expression tst env))
            (define then-block (new-block 'then))
            (define else-block (new-block 'else))
@@ -199,7 +199,7 @@
                (LLVMDeleteBasicBlock end-block)
                (LLVMPositionBuilderAtEnd builder end-block))]
 
-          [(sham:stmt:switch md tst cases default)
+          [(sham:ast:stmt:switch md tst checks cases default)
            (define prev-block (LLVMGetInsertBlock builder))
            (define switch-entry (new-block 'switch-entry))
            (define switch-default (new-block 'switch-default))
@@ -214,8 +214,9 @@
 
            (define switch (LLVMBuildSwitch builder tst-value switch-default (length cases)))
 
-           (for ([cs cases])
-             (match-define  (cons val stmt) cs)
+           (for ([val checks]
+                 [stmt cases])
+             ;; (match-define  (cons val stmt) cs)
              (define ve (build-expression val))
              (define case-block (new-block 'switch-case))
              (LLVMPositionBuilderAtEnd case-block)
@@ -223,7 +224,7 @@
              (LLVMAddCase switch ve case-block))
            (LLVMPositionBuilderAtEnd builder switch-default)]
 
-          [(sham:stmt:while md tst body)
+          [(sham:ast:stmt:while md tst body)
            (define prev-block (LLVMGetInsertBlock builder))
            (define loop-entry (new-block 'loop-entry))
            (define loop-block (new-block 'loop-block))
@@ -243,25 +244,24 @@
 
            (LLVMPositionBuilderAtEnd builder afterloop-block)]
 
-          [(sham:stmt:break md)
+          [(sham:ast:stmt:break md)
            (LLVMBuildBr builder (env-lookup '#%break-block env))]
 
-          [(sham:stmt:return md v)
-           (if (sham:expr:void? v)
+          [(sham:ast:stmt:return md v)
+           (if (sham:ast:expr:void? v)
                (LLVMBuildRetVoid builder)
                (LLVMBuildRet builder (build-expression v env)))]
 
-          [(sham:stmt:block md stmts)
+          [(sham:ast:stmt:block md stmts)
            (for ([stmt stmts])
              (build-statement stmt env))]
-          [(sham:stmt:void md) (void)]
-          [(sham:stmt:expr md e) (build-expression e env)]
+          [(sham:ast:stmt:void md) (void)]
+          [(sham:ast:stmt:expr md e) (build-expression e env)]
           [else (error "unknown statement" stmt)]))
 
       (define (build-expression e env)
-
         (match e
-          [(sham:expr:let md ids types vals st ex)
+          [(sham:ast:expr:let md ids types vals st ex)
            (define new-env
              (for/fold ([env env])
                        ([id-type types]
@@ -270,63 +270,63 @@
                (define val-type (build-llvm-type id-type env))
                ;; TODO add lifetime metadata at the end of let
                (define val-p (add-alloca val-type id))
-               (unless (sham:expr:void? val)
+               (unless (sham:ast:expr:void? val)
                  (LLVMBuildStore builder (build-expression val env) val-p))
                (env-extend id
                            (env-jit-value val-p (env-type val-type id-type))
                            env)))
            (build-statement st new-env)
            (build-expression ex new-env)]
-          [(sham:expr:app md rator rands)
+          [(sham:ast:expr:app md rator rands)
            (define rand-values (map (curryr build-expression env) rands))
            (build-app rator rand-values env)]
-          [(sham:expr:fl-value md value t)
+          [(sham:ast:expr:const:fl md value t)
            (LLVMConstReal (build-llvm-type t env) value)]
-          [(sham:expr:si-value md value t)
+          [(sham:ast:expr:const:si md value t)
            (LLVMConstInt (build-llvm-type t env) (cast value _sint64 _uint64) #f)]
-          [(sham:expr:ui-value md value t)
+          [(sham:ast:expr:const:ui md value t)
            (LLVMConstInt (build-llvm-type t env) value #f)]
-          [(sham:expr:llvm-value md v t) v]
-          [(sham:expr:struct-value md vals)
+          [(sham:ast:expr:const:llvm md v t) v]
+          [(sham:ast:expr:const:struct md vals t)
            (LLVMConstStruct (map (curryr build-expression env) vals))]
-          [(sham:expr:array-value md vals t)
+          [(sham:ast:expr:const:array md vals t)
            (LLVMConstArray (build-llvm-type t env)
                            (map (curryr build-expression env) vals))]
-          [(sham:expr:string-value md str)
+          [(sham:ast:expr:const:string md str)
            (LLVMBuildGlobalStringPtr builder str (symbol->string (gensym 'str)))]
-          [(sham:expr:vector-value md vals t)
+          [(sham:ast:expr:const:vector md vals t)
            (LLVMConstVector (build-llvm-type t env)
                             (map (curryr build-expression env) vals))]
-          [(sham:expr:sizeof md type)
+          [(sham:ast:expr:sizeof md type)
            (define llvm-type (build-llvm-type type env))
            (LLVMConstInt (internal-type-jit (env-type-prim (env-lookup 'i32 env)))
                          (LLVMStoreSizeOfType jit-target-data
                                               llvm-type)
                          #f)]
-          [(sham:expr:type md t) (build-llvm-type t env)]
-          [(sham:expr:void md) (void)]
-          [(sham:expr:gep md ptr indxs)
+          [(sham:ast:expr:etype md t) (build-llvm-type t env)]
+          [(sham:ast:expr:void md) (void)]
+          [(sham:ast:expr:gep md ptr indxs)
            (LLVMBuildGEP builder
                          (build-expression ptr env)
                          (map (curryr build-expression env) indxs)
                          "gep")]
-          [(sham:expr:var md sym)
+          [(sham:ast:expr:var md sym)
            (LLVMBuildLoad builder
                           (env-jit-value-ref (env-lookup sym env))
                           (symbol->string sym))]
-          [(sham:expr:external md lib-id sym t)
+          [(sham:ast:expr:external md lib-id sym t)
            (define value
              (LLVMAddGlobal jit-module
                             (build-llvm-type t env)
                             (symbol->string sym)))
            (add-ffi-mapping! sym (cons lib-id value))
            (LLVMBuildLoad builder value (symbol->string sym))]
-          [(sham:expr:global md sym) (env-jit-value-ref (env-lookup sym env))]
+          [(sham:ast:expr:global md sym) (env-jit-value-ref (env-lookup sym env))]
           [else (error "no matching clause for build-expression" e)]))
 
       (define (build-app rator rand-values env)
         (match rator
-          [(sham:rator:intrinsic str-id ret-type)
+          [(sham:ast:rator:intrinsic md str-id ret-type)
            (define s (symbol->string str-id))
            (define ref
              (if (hash-has-key? intrinsic-map s)
@@ -337,24 +337,24 @@
                    (hash-set! intrinsic-map s ref)
                    ref)))
            (LLVMBuildCall builder ref rand-values (substring s 0 3))]
-          [(sham:rator:external lib-id id ret-type)
+          [(sham:ast:rator:external md lib-id id ret-type)
            #:when (hash-has-key? ffi-mappings id)
            (LLVMBuildCall builder (cdr (hash-ref ffi-mappings id)) rand-values "e")]
-          [(sham:rator:external lib-id id ret-type)
+          [(sham:ast:rator:external md lib-id id ret-type)
            (define s (symbol->string id))
            (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
                                              (map LLVMTypeOf rand-values) #f))
            (define fn-value (LLVMAddFunction jit-module s fn-type))
            (add-ffi-mapping! id (cons lib-id fn-value))
            (LLVMBuildCall builder fn-value rand-values (substring s 0 3))]
-          [(sham:rator:racket id rkt-fun type)
+          [(sham:ast:rator:racket md id rkt-fun type)
            (define s (symbol->string id))
            (define ct (compile-type type env))
            (define fn-type (internal-type-jit ct))
            (define fn-value (LLVMAddFunction jit-module s fn-type))
            (add-rkt-mapping! s (list rkt-fun (internal-type-racket ct) fn-value))
            (LLVMBuildCall builder fn-value rand-values (substring s 0 3))]
-          [(sham:rator:symbol sym)
+          [(sham:ast:rator:symbol md sym)
            (match (env-lookup sym env)
              [(env-jit-function ref type)
               (define call-name
@@ -392,7 +392,7 @@
        (define env-value (env-lookup id env))
        (env-extend id env-value module-env)]))
   (match m
-    [(sham:module info defs)
+    [(sham:def:module info id defs)
      (define env
        (for/fold ([env (create-initial-environment context)])
                  ([def defs])
@@ -436,12 +436,12 @@
 
 
 ;; disabling tests for now
-(module+ test
+#;(module+ test
   (require racket/unsafe/ops)
   (require rackunit)
   ;; (require disassemble)
   (require "optimize.rkt")
-  (require (submod "../ast.rkt" utils))
+  ;; (require (submod "../ast.rkt" utils))
 
   (define i32 (sham:type:ref 'i32))
   (define i64 (sham:type:ref 'i64))

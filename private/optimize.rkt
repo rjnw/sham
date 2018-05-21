@@ -2,8 +2,8 @@
 (require "llvm/ffi/all.rkt"
          "llvm/pass-table.rkt"
          "llvm/adjunct.rkt"
-         "mod-env-info.rkt"
-         "fun-info.rkt"
+         "module-env.rkt"
+         "info.rkt"
          "type-info.rkt"
          "env.rkt")
 

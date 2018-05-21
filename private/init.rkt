@@ -2,7 +2,7 @@
 
 (require "llvm/ffi/all.rkt"
          "llvm/adjunct.rkt"
-         "mod-env-info.rkt"
+         "module-env.rkt"
          "internals.rkt"
          "types.rkt"
          "env.rkt"
@@ -40,4 +40,3 @@
     (LLVMOrcAddEagerlyCompiledIR orc ms (function-ptr null-symbol-resolver LLVMOrcSymbolResolverFn) orc))
   (LLVMOrcDisposeSharedModuleRef ms)
   (env-add-orc! mod-env orc))
-
