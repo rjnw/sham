@@ -19,17 +19,17 @@
 
 (define (compile-type t-obj env)
   (match t-obj
-    [(sham:type:ref _ t) (env-type-prim (env-lookup t env))]
-    [(sham:type:struct _ names types)
+    [(sham:ast:type:ref _ t) (env-type-prim (env-lookup t env))]
+    [(sham:ast:type:struct _ names types)
      (create-struct-type (map (curryr compile-type env) types))]
-    [(sham:type:function _ args ret)
+    [(sham:ast:type:function _ args ret)
      (create-function-type (map (curryr compile-type env) args)
                            (compile-type ret env))]
-    [(sham:type:pointer _ to)
+    [(sham:ast:type:pointer _ to)
      (create-pointer-type (compile-type to env))]
-    [(sham:type:array _ of size)
+    [(sham:ast:type:array _ of size)
      (create-array-type (compile-type of env) size)]
-    [(sham:type:vector _ of size)
+    [(sham:ast:type:vector _ of size)
      (create-vector-type (compile-type of env) size)]))
 
 
@@ -80,11 +80,11 @@
     (for/fold [(env env)]
               [(t types)]
       (env-extend (first t)
-                  (env-type (sham:type:internal)
+                  (env-type (sham:ast:type:internal)
                             (internal-type (third t) (second t)))
                   env)))
   (define type-void*
-    (env-type (sham:type:pointer 'void)
+    (env-type (sham:ast:type:pointer 'void)
               (internal-type  _pointer
                               (LLVMPointerType (LLVMInt8TypeInContext context) 0))))
   (define new-env
@@ -126,24 +126,24 @@
   (display 'env0)
   (define env0 (register-initial-types (empty-env) (LLVMGetGlobalContext)))
   (display 'env0)
-  (define f64 (sham:type:ref 'f64))
-  (define  i32 (sham:type:ref 'i32))
+  (define f64 (sham:ast:type:ref 'f64))
+  (define  i32 (sham:ast:type:ref 'i32))
   (printf "env0: ~a\n" env0)
   (define env1 (env-extend 'double*
-                              (build-env-type (sham:type:pointer f64)  env0)
+                              (build-env-type (sham:ast:type:pointer f64)  env0)
                               env0))
   (define env2 (env-extend 'sp
-                           (build-env-type (sham:type:struct '(a b)
+                           (build-env-type (sham:ast:type:struct '(a b)
                                                              (list i32 i32))
                                            env1)
                            env1))
   (define new-env1 (env-extend 'array-real
-                               (build-env-type (sham:type:struct '(size data) (list i32 i32)) env2)
+                               (build-env-type (sham:ast:type:struct '(size data) (list i32 i32)) env2)
                                env2))
   (pretty-print new-env1)
-  (pretty-display (build-env-type (sham:type:pointer i32) env0))
-  (pretty-display (build-env-type (sham:type:function (list i32) i32) env0))
-  (define new-env (env-extend 'intref (build-env-type (sham:type:ref 'i32) env0) env0))
+  (pretty-display (build-env-type (sham:ast:type:pointer i32) env0))
+  (pretty-display (build-env-type (sham:ast:type:function (list i32) i32) env0))
+  (define new-env (env-extend 'intref (build-env-type (sham:ast:type:ref 'i32) env0) env0))
   (pretty-display (type-native-int? (env-lookup 'i32 new-env)))
   (pretty-display (type-native-int? (env-lookup 'intref new-env)))
   (pretty-display (type-native-int? (env-lookup 'void* new-env)))
