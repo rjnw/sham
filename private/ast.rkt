@@ -11,7 +11,7 @@
     [global-string (str:terminal.string)]
     #:common-mutable info
     #:common id:terminal.sym)
-  (ast #:common-auto-mutable metadata)
+  (ast #:common-auto metadata)
   (type ast
         [internal ()]
         [ref      (to:terminal.sym)]
@@ -32,7 +32,7 @@
   (stmt ast
         [set!     (lhs:expr.var val:expr)]
         [if       (test:expr then:stmt else:stmt)]
-        [switch   (test:expr (check:expr body:stmt) ... default)]
+        [switch   (test:expr (check:expr body:stmt) ... default:expr)]
         [break    ()]
         [while    (test:expr body:stmt)]
         [return   (value:expr)]
@@ -61,15 +61,26 @@
          [struct (value:terminal.struct       type:type)]
          [array  (value:terminal.array        type:type)]
          [vector (value:terminal.vector       type:type)])
-  (terminal
-   [float v #:native real?]
-   [signed-int v #:native exact-positive-integer?]
-   [unsigned-int v #:native exact-integer?]
-   [string v #:native string?]
-   [llvm   v]
-   [struct v]
-   [array  v]
-   [vector v]))
+      (terminal #:terminals
+                [sym symbol?]
+                [float fixnum?]
+                [signed-int exact-integer?]
+                [unsigned-int exact-nonnegative-integer?]
+                [string sham-string?]
+                [llvm llvm?]
+                [struct sham-struct?]
+                [array sham-array?]
+                [vector sham-vector?])
+  ;; (terminal
+  ;;  [float v #:native real?]
+  ;;  [signed-int v #:native exact-positive-integer?]
+  ;;  [unsigned-int v #:native exact-integer?]
+  ;;  [string v #:native string?]
+  ;;  [llvm   v]
+  ;;  [struct v]
+  ;;  [array  v]
+  ;;  [vector v])
+  )
 
 
 ;; generated structs
