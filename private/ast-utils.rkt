@@ -1,0 +1,78 @@
+#lang racket
+
+(require "ast.rkt")
+
+(provide (prefix-out s$: (all-defined-out)))
+
+(define i8  (sham:ast:type:ref 'i8))
+(define i16  (sham:ast:type:ref 'i16))
+(define i32 (sham:ast:type:ref 'i32))
+(define i64 (sham:ast:type:ref 'i64))
+
+(define i8* (sham:ast:type:pointer i8))
+(define i16* (sham:ast:type:pointer i16))
+(define i32* (sham:ast:type:pointer i32))
+(define i64* (sham:ast:type:pointer i64))
+
+(define (ui32 v) (sham:ast:expr:const:ui v i32))
+(define (ui64 v) (sham:ast:expr:const:ui v i64))
+(define (si32 v) (sham:ast:expr:const:si v i32))
+(define (si64 v) (sham:ast:expr:const:si v i64))
+
+(define f32 (sham:ast:type:ref 'f32))
+(define f64 (sham:ast:type:ref 'f64))
+(define f32* (sham:ast:type:pointer f32))
+(define f64* (sham:ast:type:pointer f64))
+(define (fl32 v) (sham:ast:expr:const:fl v f32))
+(define (fl64 v) (sham:ast:expr:const:fl v f64))
+
+(define dmodule sham:def:module)
+(define dfunction sham:def:function)
+(define dtype sham:def:type)
+(define dglobal sham:def:global)
+(define dg-string sham:def:global-string)
+
+(define tref sham:ast:type:ref)
+(define tstruct sham:ast:type:struct)
+(define tfun sham:ast:type:function)
+(define tptr sham:ast:type:pointer)
+(define tarr sham:ast:type:array)
+(define tvec sham:ast:type:vector)
+
+(define set! sham:ast:stmt:set!)
+(define if sham:ast:stmt:if)
+(define switch sham:ast:stmt:switch)
+(define break sham:ast:stmt:break)
+(define while sham:ast:stmt:while)
+(define return sham:ast:stmt:return)
+(define svoid sham:ast:stmt:void)
+(define se sham:ast:stmt:expr)
+(define block sham:ast:stmt:block)
+
+(define app sham:ast:expr:app)
+(define evoid sham:ast:expr:void)
+(define sizeof sham:ast:expr:sizeof)
+(define etype sham:ast:expr:etype)
+(define gep sham:ast:expr:gep)
+(define var sham:ast:expr:var)
+(define v sham:ast:expr:var)
+(define global sham:ast:expr:global)
+(define external sham:ast:expr:external)
+(define let sham:ast:expr:let)
+
+(define rs sham:ast:rator:symbol)
+(define ri sham:ast:rator:intrinsic)
+(define re sham:ast:rator:external)
+(define rr sham:ast:rator:racket)
+
+(define cfl sham:ast:expr:const:fl)
+(define csi sham:ast:expr:const:si)
+(define cui sham:ast:expr:const:ui)
+(define cstring sham:ast:expr:const:string)
+(define cllvm sham:ast:expr:const:llvm)
+(define cstruct sham:ast:expr:const:struct)
+(define carray sham:ast:expr:const:array)
+(define cvector sham:ast:expr:const:vector)
+
+(define (ret v) (sham:ast:stmt:return v))
+(define (ret-void) (sham:ast:stmt:return (sham:ast:expr:void)))

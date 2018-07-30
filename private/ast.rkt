@@ -3,84 +3,84 @@
 (provide (all-defined-out))
 
 (define-ast sham
-  (def
-    [module        (defs:def ...)]
-    [function      ((arg-ids:terminal.sym arg-types:type) ... ret-type:type body:stmt)]
-    [type          (type:type)]
-    [global        (type:type)]
-    [global-string (str:terminal.string)]
-    #:common-mutable info
-    #:common id:terminal.sym)
-  (ast #:common-auto metadata)
-  (type ast
-        [internal ()]
-        [ref      (to:terminal.sym)]
-        [struct   ((fields:terminal.sym types:type) ...)]
-        [function (args:type ... '-> ret:type)]
-        [pointer  (to:type)]
-        [array    (of:type size:terminal.unsigned-int)]
-        [vector   (of:type size:terminal.unsigned-nt)])
-  (rator ast
-         ;; ;; Symbol for definitions
-         [symbol    id:terminal.sym]
-         ;; ;; LLVM implementation hooks
-         [intrinsic (id:terminal.sym return-type:type)]
-         ;; ;; Shared object names
-         [external  (lib-id:terminal.sym id:terminal.sym ret-type:type)]
-         ;; ;; calls back into racket from generated code
-         [racket    (id:terminal.sym racket-value:terminal.rkt full-type:type)])
-  (stmt ast
-        [set!     (lhs:expr.var val:expr)]
-        [if       (test:expr then:stmt else:stmt)]
-        [switch   (test:expr (check:expr body:stmt) ... default:expr)]
-        [break    ()]
-        [while    (test:expr body:stmt)]
-        [return   (value:expr)]
-        [void     ()]
-        [expr     (e:expr)]
-        [block    (stmts:stmt ...)])
-  (expr ast
-        [app      (rator:expr rands:expr ...)]
-        [void     ()]
-        [sizeof   (t:type)]
-        [etype    (t:type)]
-        [gep      (pointer:expr indexes:expr ...)]
-        [var      id:terminal.sym]
-        [global   (id:terminal.sym)]
-        [external (lib-id:terminal.sym id:terminal.sym t:type)]
-        [let      (((ids:terminal.sym vals:expr types:type)
-                    ...)
-                   stmt:stmt
-                   expr:expr)])
-  (const expr
-         [fl     (value:terminal.float        type:type)]
-         [si     (value:terminal.signed-int   type:type)]
-         [ui     (value:terminal.unsigned-int type:type)]
-         [string (value:terminal.string)]
-         [llvm   (value:terminal.llvm         type:type)]
-         [struct (value:terminal.struct       type:type)]
-         [array  (value:terminal.array        type:type)]
-         [vector (value:terminal.vector       type:type)])
-      (terminal #:terminals
-                [sym symbol?]
-                [float fixnum?]
-                [signed-int exact-integer?]
-                [unsigned-int exact-nonnegative-integer?]
-                [string sham-string?]
-                [llvm llvm?]
-                [struct sham-struct?]
-                [array sham-array?]
-                [vector sham-vector?])
-  ;; (terminal
-  ;;  [float v #:native real?]
-  ;;  [signed-int v #:native exact-positive-integer?]
-  ;;  [unsigned-int v #:native exact-integer?]
-  ;;  [string v #:native string?]
-  ;;  [llvm   v]
-  ;;  [struct v]
-  ;;  [array  v]
-  ;;  [vector v])
-  )
+   (def
+     [module        (defs:def ...)]
+     [function      ((arg-ids:terminal.sym arg-types:type) ... ret-type:type body:stmt)]
+     [type          (type:type)]
+     [global        (type:type)]
+     [global-string (str:terminal.string)]
+     #:common-mutable info
+     #:common id:terminal.sym)
+   (ast #:common-auto-mutable metadata)
+   (type ast
+         [internal ()]
+         [ref      (to:terminal.sym)]
+         [struct   ((fields:terminal.sym types:type) ...)]
+         [function (args:type ... '-> ret:type)]
+         [pointer  (to:type)]
+         [array    (of:type size:terminal.unsigned-int)]
+         [vector   (of:type size:terminal.unsigned-nt)])
+   (rator ast
+          ;; ;; Symbol for definitions
+          [symbol    id:terminal.sym]
+          ;; ;; LLVM implementation hooks
+          [intrinsic (id:terminal.sym return-type:type)]
+          ;; ;; Shared object names
+          [external  (lib-id:terminal.sym id:terminal.sym ret-type:type)]
+          ;; ;; calls back into racket from generated code
+          [racket    (id:terminal.sym racket-value:terminal.rkt full-type:type)])
+   (stmt ast
+         [set!     (lhs:expr.var val:expr)]
+         [if       (test:expr then:stmt else:stmt)]
+         [switch   (test:expr (check:expr body:stmt) ... default:expr)]
+         [break    ()]
+         [while    (test:expr body:stmt)]
+         [return   (value:expr)]
+         [void     ()]
+         [expr     (e:expr)]
+         [block    (stmts:stmt ...)])
+   (expr ast
+         [app      (rator:expr rands:expr ...)]
+         [void     ()]
+         [sizeof   (t:type)]
+         [etype    (t:type)]
+         [gep      (pointer:expr indexes:expr ...)]
+         [var      id:terminal.sym]
+         [global   (id:terminal.sym)]
+         [external (lib-id:terminal.sym id:terminal.sym t:type)]
+         [let      (((ids:terminal.sym vals:expr types:type)
+                     ...)
+                    stmt:stmt
+                    expr:expr)])
+   (const expr
+          [fl     (value:terminal.float        type:type)]
+          [si     (value:terminal.signed-int   type:type)]
+          [ui     (value:terminal.unsigned-int type:type)]
+          [string (value:terminal.string)]
+          [llvm   (value:terminal.llvm         type:type)]
+          [struct (value:terminal.struct       type:type)]
+          [array  (value:terminal.array        type:type)]
+          [vector (value:terminal.vector       type:type)])
+   (terminal #:terminals
+             [sym symbol?]
+             [float fixnum?]
+             [signed-int exact-integer?]
+             [unsigned-int exact-nonnegative-integer?]
+             [string sham-string?]
+             [llvm llvm?]
+             [struct sham-struct?]
+             [array sham-array?]
+             [vector sham-vector?])
+   ;; (terminal
+   ;;  [float v #:native real?]
+   ;;  [signed-int v #:native exact-positive-integer?]
+   ;;  [unsigned-int v #:native exact-integer?]
+   ;;  [string v #:native string?]
+   ;;  [llvm   v]
+   ;;  [struct v]
+   ;;  [array  v]
+   ;;  [vector v])
+   )
 
 
 ;; generated structs
@@ -131,13 +131,4 @@
    (struct sham:ast:expr:const:llvm sham:ast:expr:const (value:terminal.llvm type:type))
    (struct sham:ast:expr:const:struct sham:ast:expr:const (value:terminal.struct type:type))
    (struct sham:ast:expr:const:array sham:ast:expr:const (value:terminal.array type:type))
-   (struct sham:ast:expr:const:vector sham:ast:expr:const (value:terminal.vector type:type))
-   (struct sham:terminal ())
-   (struct sham:terminal:float sham:terminal (v))
-   (struct sham:terminal:signed-int sham:terminal (v))
-   (struct sham:terminal:unsigned-int sham:terminal (v))
-   (struct sham:terminal:string sham:terminal (v))
-   (struct sham:terminal:llvm sham:terminal (v))
-   (struct sham:terminal:struct sham:terminal (v))
-   (struct sham:terminal:array sham:terminal (v))
-   (struct sham:terminal:vector sham:terminal (v)))
+   (struct sham:ast:expr:const:vector sham:ast:expr:const (value:terminal.vector type:type)))
