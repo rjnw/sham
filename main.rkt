@@ -3,10 +3,9 @@
 (require "jit.rkt"
          "ast.rkt"
          "private/env.rkt"
-         "private/mod-env-info.rkt"
-         "private/fun-info.rkt"
          "private/dump.rkt"
          "private/optimize.rkt"
+         "private/module-env.rkt"
          "private/utils.rkt"
          "private/init.rkt")
 
@@ -16,9 +15,8 @@
   "ast.rkt"
   "jit.rkt"
   "private/env.rkt"
-  "private/mod-env-info.rkt"
-  "private/fun-info.rkt"
   "private/dump.rkt"
   "private/optimize.rkt"
+  "private/module-env.rkt"
   "private/init.rkt")
  sham-diagnose)
