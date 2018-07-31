@@ -20,10 +20,13 @@
          jit-get-racket-type
          jit-verify-module)
 
+(define diagnose-compile (make-parameter #f))
+(define data-layout (make-parameter #f))
+
 (define (mcjit-function-ptr f-sym mod-env)
   (define mcjit-engine (env-get-mcjit mod-env))
   (unless mcjit-engine
-    (error "jit not initialized, but calling compile-function"))
+    (error "mcjit not initialized"))
   (cast (LLVMGetFunctionAddress mcjit-engine (symbol->string f-sym)) _uint64 _pointer))
 
 (define (jit-get-function f-sym mod)
@@ -52,40 +55,48 @@
   (define jit-mod (env-get-module mod-env))
   (LLVMVerifyModule jit-mod 'LLVMPrintMessageAction #f))
 
+(define (jit-cleanup mod-env)
+  ;; TODO dispose module, cleanup for orc
+  ;; LLVMDisposeModule
+  ;; LLVMOrcDisposeInstance
+  ;; LLVMOrcDisposeSharedModule
+  ;; LLVMOrcRemoveModule
+  (void))
 (define (compile-module m [module-name "module"] [context global-jit-context])
-  ;; (when (sham-diagnose)
-  ;;   (define (diag-handler dinfo voidp)
-  ;;     (define diag-desc (LLVMGetDiagInfoDescription dinfo))
-  ;;     (printf "\t llvm-diag: ~a\n" (cast diag-desc _pointer _string))
-  ;;     (LLVMDisposeMessage diag-desc))
-  ;;   (LLVMContextSetDiagnosticHandler context diag-handler #f))
+  (when (diagnose-compile)
+    (define (diag-handler dinfo voidp)
+      (define diag-desc (LLVMGetDiagInfoDescription dinfo))
+      (printf "\t llvm-diag: ~a\n" (cast diag-desc _pointer _string))
+      (LLVMDisposeMessage diag-desc))
+    (LLVMContextSetDiagnosticHandler context diag-handler #f))
 
   (define jit-module (LLVMModuleCreateWithNameInContext module-name context))
 
-  #;
-  (LLVMSetDataLayout
-   jit-module
-   (string-join
-    '("e"
-      "m:e"
-      "p:64:64:64"
-      "i1:8:8"
-      "i8:8:8"
-      "i16:16:16"
-      "i32:32:32"
-      "i64:64:64"
-      ;;integer types alignment
-      "f32:32:32"
-      "f64:64:64"
-      "f128:128:128" ;;floating types alignment
-      "v64:64:64"
-      "v128:128:128" ;; vector type alignment
-      "a:0:64"
-      "s0:64:64"
-      "n8:16:32:64" ;; a aggregate alignment
-      "S128"        ;stack alignment
-      )
-    "-"))
+  (when (data-layout)
+      (LLVMSetDataLayout
+       jit-module (data-layout)
+       ;; (string-join
+       ;;  '("e"
+       ;;    "m:e"
+       ;;    "p:64:64:64"
+       ;;    "i1:8:8"
+       ;;    "i8:8:8"
+       ;;    "i16:16:16"
+       ;;    "i32:32:32"
+       ;;    "i64:64:64"
+       ;;    ;;integer types alignment
+       ;;    "f32:32:32"
+       ;;    "f64:64:64"
+       ;;    "f128:128:128" ;;floating types alignment
+       ;;    "v64:64:64"
+       ;;    "v128:128:128" ;; vector type alignment
+       ;;    "a:0:64"
+       ;;    "s0:64:64"
+       ;;    "n8:16:32:64" ;; a aggregate alignment
+       ;;    "S128"        ;stack alignment
+       ;;    )
+       ;;  "-")
+       ))
   (LLVMSetTarget jit-module (LLVMGetDefaultTargetTriple))
   (define builder (LLVMCreateBuilderInContext context))
   (define function-info-map (make-hash))
@@ -168,7 +179,8 @@
              [(sham:ast:expr:global md var)
               (define global-v (env-jit-value-ref (env-lookup var env)))
               (define rhs-v (build-expression v env))
-              (LLVMSetInitializer global-v rhs-v)])]
+              (LLVMSetInitializer global-v rhs-v)]
+             [else (error "sham:ast:stmt:set! only supports a variable in lhs.")])]
           [(sham:ast:stmt:if md tst thn els)
            (define tst-value (build-expression tst env))
            (define then-block (new-block 'then))
@@ -216,7 +228,6 @@
 
            (for ([val checks]
                  [stmt cases])
-             ;; (match-define  (cons val stmt) cs)
              (define ve (build-expression val))
              (define case-block (new-block 'switch-case))
              (LLVMPositionBuilderAtEnd case-block)
@@ -257,7 +268,7 @@
              (build-statement stmt env))]
           [(sham:ast:stmt:void md) (void)]
           [(sham:ast:stmt:expr md e) (build-expression e env)]
-          [else (error "unknown statement" stmt)]))
+          [else (error "unknown statement while compiling sham" stmt)]))
 
       (define (build-expression e env)
         (match e
@@ -268,7 +279,7 @@
                         [id ids]
                         [val vals])
                (define val-type (build-llvm-type id-type env))
-               ;; TODO add lifetime metadata at the end of let
+               ;; TODO add llvm lifetime metadata at the end of let
                (define val-p (add-alloca val-type id))
                (unless (sham:ast:expr:void? val)
                  (LLVMBuildStore builder (build-expression val env) val-p))
@@ -322,7 +333,7 @@
            (add-ffi-mapping! sym (cons lib-id value))
            (LLVMBuildLoad builder value (symbol->string sym))]
           [(sham:ast:expr:global md sym) (env-jit-value-ref (env-lookup sym env))]
-          [else (error "no matching clause for build-expression" e)]))
+          [else (error "unknown experssion while compiling sham" e)]))
 
       (define (build-app rator rand-values env)
         (match rator
