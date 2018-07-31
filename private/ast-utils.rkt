@@ -4,6 +4,7 @@
 
 (provide (prefix-out s$: (all-defined-out)))
 
+(define i1  (sham:ast:type:ref 'i1))
 (define i8  (sham:ast:type:ref 'i8))
 (define i16  (sham:ast:type:ref 'i16))
 (define i32 (sham:ast:type:ref 'i32))
@@ -14,6 +15,7 @@
 (define i32* (sham:ast:type:pointer i32))
 (define i64* (sham:ast:type:pointer i64))
 
+(define (ui1 v) (sham:ast:expr:const:ui v i1))
 (define (ui32 v) (sham:ast:expr:const:ui v i32))
 (define (ui64 v) (sham:ast:expr:const:ui v i64))
 (define (si32 v) (sham:ast:expr:const:si v i32))
@@ -25,6 +27,8 @@
 (define f64* (sham:ast:type:pointer f64))
 (define (fl32 v) (sham:ast:expr:const:fl v f32))
 (define (fl64 v) (sham:ast:expr:const:fl v f64))
+
+(define void (sham:ast:type:ref 'void))
 
 (define dmodule sham:def:module)
 (define dfunction sham:def:function)
@@ -75,4 +79,87 @@
 (define cvector sham:ast:expr:const:vector)
 
 (define (ret v) (sham:ast:stmt:return v))
-(define (ret-void) (sham:ast:stmt:return (sham:ast:expr:void)))
+(define ret-void (sham:ast:stmt:return (sham:ast:expr:void)))
+(define (app^ rator . rands) (app rator rands))
+(define (block^ . stmts) (block stmts))
+;; internal function
+(define icmp-eq (rs 'icmp-eq))
+(define icmp-ne (rs 'icmp-ne))
+(define icmp-ugt (rs 'icmp-ugt))
+(define icmp-uge (rs 'icmp-uge))
+(define icmp-ult (rs 'icmp-ult))
+(define icmp-ule (rs 'icmp-ule))
+(define icmp-sgt (rs 'icmp-sgt))
+(define icmp-sge (rs 'icmp-sge))
+(define icmp-slt (rs 'icmp-slt))
+(define icmp-sle (rs 'icmp-sle))
+
+(define fcmp-oeq (rs 'fcmp-oeq))
+(define fcmp-ogt (rs 'fcmp-ogt))
+(define fcmp-oge (rs 'fcmp-oge))
+(define fcmp-olt (rs 'fcmp-olt))
+(define fcmp-ole (rs 'fcmp-ole))
+(define fcmp-one (rs 'fcmp-one))
+(define fcmp-ord (rs 'fcmp-ord))
+(define fcmp-uno (rs 'fcmp-uno))
+(define fcmp-ueq (rs 'fcmp-ueq))
+(define fcmp-ugt (rs 'fcmp-ugt))
+(define fcmp-uge (rs 'fcmp-uge))
+(define fcmp-ult (rs 'fcmp-ult))
+(define fcmp-ule (rs 'fcmp-ule))
+(define fcmp-une (rs 'fcmp-une))
+
+(define add (rs 'add))
+(define add-nsw (rs 'add-nsw))
+(define add-nuw (rs 'add-nuw))
+(define fadd (rs 'fadd))
+
+(define sub (rs 'sub))
+(define sub-nsw (rs 'sub-nsw))
+(define sub-nuw (rs 'sub-nuw))
+(define fsub (rs 'fsub))
+
+(define mul (rs 'mul))
+(define mul-nsw (rs 'mul-nsw))
+(define mul-nuw (rs 'mul-nuw))
+(define fmul (rs 'fmul))
+
+(define udiv (rs 'udiv))
+(define sdiv (rs 'sdiv))
+(define exact-sdiv (rs 'exact-sdiv))
+(define fdiv (rs 'fdiv))
+
+(define urem (rs 'urem))
+(define srem (rs 'srem))
+(define frem (rs 'frem))
+
+(define shl (rs 'shl))
+(define lshr (rs 'lshr))
+(define ashr (rs 'ashr))
+
+(define or (rs 'or))
+(define xor (rs 'xor))
+(define and (rs 'and))
+
+(define arr-malloc (rs 'arr-malloc))
+(define arr-alloca (rs 'arr-alloca))
+
+;;casts
+(define trunc  (rs 'trunc))
+(define zext   (rs 'zext))
+(define sext   (rs 'sext))
+(define fp->ui (rs 'fp->ui))
+(define fp->si (rs 'fp->si))
+(define ui->fp (rs 'ui->fp))
+(define si->fp (rs 'si->fp))
+(define fp-trunc (rs 'fp-trunc))
+(define fp-ext   (rs 'fp-ext))
+(define ptr->int (rs 'ptr->int))
+(define int->ptr (rs 'int->ptr))
+(define bitcast  (rs 'bitcast))
+(define addrspacecast (rs 'addrspacecast))
+(define zextorbitcast (rs 'zextorbitcast))
+(define sextorbitcast (rs 'sextorbitcast))
+(define ptrcast  (rs 'ptrcast))
+(define intcast  (rs 'intcast))
+(define fpcast   (rs 'fpcast))
