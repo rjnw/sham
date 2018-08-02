@@ -17,6 +17,9 @@
   (define (get-binary-compiler llvm-builder)
     (lambda (jit-builder args [name "v"])
       (llvm-builder jit-builder (first args) (second args) name)))
+  (define (get-ternary-compiler llvm-builder)
+    (lambda (jit-builder args [name "v"])
+      (llvm-builder jit-builder (first args) (second args) (third args) name)))
   (define (register-internal intr reg env)
     (env-extend (car intr) (env-jit-intr-function (reg (cadr intr))) env))
   (define (register-int-predicate env)
@@ -111,7 +114,12 @@
       unary-internals get-unary-compiler
       (register-internals
        binary-internals get-binary-compiler
-       env))))))
+       (register-internals
+        ternary-internals get-ternary-compiler
+        env)))))))
+
+(define ternary-internals
+  `((insertelement ,LLVMBuildInsertElement)))
 
 (define binary-internals
   `((add ,LLVMBuildAdd)
@@ -148,6 +156,9 @@
 
     (arr-malloc ,LLVMBuildArrayMalloc)
     (arr-alloca ,LLVMBuildArrayAlloca)
+
+    ;; vector
+    (extractelement ,LLVMBuildExtractElement)
 
     ;;casts
     (trunc  ,LLVMBuildTrunc)
