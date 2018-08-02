@@ -60,7 +60,7 @@
           [llvm   (value:terminal.llvm         type:type)]
           [struct (value:terminal.struct       type:type)]
           [array  (value:terminal.array        type:type)]
-          [vector (value:terminal.vector       type:type)])
+          [vector (value:terminal)])
    (terminal #:terminals
              [sym symbol?]
              [float fixnum?]

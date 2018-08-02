@@ -28,6 +28,11 @@
 (define (fl32 v) (sham:ast:expr:const:fl v f32))
 (define (fl64 v) (sham:ast:expr:const:fl v f64))
 
+(define v4i32 (tvec i32 4))
+(define v4i64 (tvec i64 4))
+(define v4f32 (tvec f32 4))
+(define v4f64 (tvec f64 4))
+
 (define void (sham:ast:type:ref 'void))
 
 (define dmodule sham:def:module)
@@ -77,10 +82,12 @@
 (define cstruct sham:ast:expr:const:struct)
 (define carray sham:ast:expr:const:array)
 (define cvector sham:ast:expr:const:vector)
+(define (vec . vals) (sham:ast:expr:const:vector vals))
 
 (define (ret v) (sham:ast:stmt:return v))
 (define ret-void (sham:ast:stmt:return (sham:ast:expr:void)))
 (define (app^ rator . rands) (app rator rands))
+(define (gep^ ptr . indexes) (gep ptr indexes))
 (define (block^ . stmts) (block stmts))
 ;; internal function
 (define icmp-eq (rs 'icmp-eq))
