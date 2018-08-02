@@ -305,9 +305,8 @@
                            (map (curryr build-expression env) vals))]
           [(sham:ast:expr:const:string md str)
            (LLVMBuildGlobalStringPtr builder str (symbol->string (gensym 'str)))]
-          [(sham:ast:expr:const:vector md vals t)
-           (LLVMConstVector (build-llvm-type t env)
-                            (map (curryr build-expression env) vals))]
+          [(sham:ast:expr:const:vector md vals)
+           (LLVMConstVector (map (curryr build-expression env) vals))]
           [(sham:ast:expr:sizeof md type)
            (define llvm-type (build-llvm-type type env))
            (LLVMConstInt (internal-type-jit (env-type-prim (env-lookup 'i32 env)))
@@ -322,9 +321,10 @@
                          (map (curryr build-expression env) indxs)
                          "gep")]
           [(sham:ast:expr:var md sym)
-           (LLVMBuildLoad builder
-                          (env-jit-value-ref (env-lookup sym env))
-                          (symbol->string sym))]
+           (define env-value (env-lookup sym env))
+           (define jit-value (env-jit-value-ref env-value))
+           ;; (printf "env-value: ~a=~a\n" sym env-value)
+           (LLVMBuildLoad builder jit-value (symbol->string sym))]
           [(sham:ast:expr:external md lib-id sym t)
            (define value
              (LLVMAddGlobal jit-module
@@ -347,7 +347,7 @@
                         [ref (LLVMAddFunction jit-module s fn-type)])
                    (hash-set! intrinsic-map s ref)
                    ref)))
-           (LLVMBuildCall builder ref rand-values (substring s 0 3))]
+           (LLVMBuildCall builder ref rand-values (llvm-lhs s))]
           [(sham:ast:rator:external md lib-id id ret-type)
            #:when (hash-has-key? ffi-mappings id)
            (LLVMBuildCall builder (cdr (hash-ref ffi-mappings id)) rand-values "e")]
@@ -357,14 +357,14 @@
                                              (map LLVMTypeOf rand-values) #f))
            (define fn-value (LLVMAddFunction jit-module s fn-type))
            (add-ffi-mapping! id (cons lib-id fn-value))
-           (LLVMBuildCall builder fn-value rand-values (substring s 0 3))]
+           (LLVMBuildCall builder fn-value rand-values (llvm-lhs s))]
           [(sham:ast:rator:racket md id rkt-fun type)
            (define s (symbol->string id))
            (define ct (compile-type type env))
            (define fn-type (internal-type-jit ct))
            (define fn-value (LLVMAddFunction jit-module s fn-type))
            (add-rkt-mapping! s (list rkt-fun (internal-type-racket ct) fn-value))
-           (LLVMBuildCall builder fn-value rand-values (substring s 0 3))]
+           (LLVMBuildCall builder fn-value rand-values (llvm-lhs s))]
           [(sham:ast:rator:symbol md sym)
            (match (env-lookup sym env)
              [(env-jit-function ref type)
@@ -373,7 +373,7 @@
                              (internal-type-jit (env-type-prim type)))
                             (LLVMVoidType))
                     ""
-                    (substring (symbol->string sym) 0 3)))
+                    (llvm-lhs sym)))
               (LLVMBuildCall builder ref rand-values call-name)]
              [(env-jit-intr-function appbuilder)
               (appbuilder builder rand-values)]

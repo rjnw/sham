@@ -42,12 +42,18 @@
              ret)))]
     [(_ exp ...) #'(try/no-finally exp ...)]))
 
-;; Run a shell command and return the stdout as a string. 
+;; Run a shell command and return the stdout as a string.
 (define (get-out-string process-str)
   (define out (open-output-string))
   (define l (process/ports out #f #f process-str))
   ((last l) 'wait)
   (string-trim (get-output-string out)))
+
+(define (llvm-lhs v)
+  (cond
+    [(string? v) (substring (string-append v "value") 0 5)]
+    [(symbol? v) (substring (string-append (symbol->string v) "value") 0 5)]
+    [else "value"]))
 
 (module+ test
   (require rackunit)
