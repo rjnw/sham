@@ -9,10 +9,13 @@
          build-env-type
          register-initial-types
          internal-type-racket
-         internal-type-jit)
+         internal-type-jit
+         empty-type-info
+         vector-type?)
 
 (struct internal-type (racket jit) #:prefab)
 
+(define (empty-type-info) (void))
 ;;returns one of env-type object
 (define (build-env-type t env)
   (env-type t (compile-type t env)))
@@ -113,6 +116,12 @@
   (match envtype
     [(env-type _ (internal-type racket-type jit-type))
      (equal? _float racket-type)]
+    [else #f]))
+
+(define (vector-type? t env)
+  (match t
+    [(sham:ast:type:ref _ t) (vector-type? (env-lookup t env))]
+    [(sham:ast:type:vector _ _ _) #t]
     [else #f]))
 
 (define (racket-type-cast object from-type to-type)
