@@ -82,7 +82,7 @@ extern "C" {
     return targetMachine;
   }
 
-  LLVMTargetMachineRef LLVMCreateCurrentTargetMachineRef (){
+  LLVMTargetMachineRef LLVMCreateCurrentTargetMachineRef () {
     return
       reinterpret_cast<LLVMTargetMachineRef>(const_cast<TargetMachine *>
 					     (LLVMCreateCurrentTargetMachine ()));
@@ -115,192 +115,212 @@ extern "C" {
     return 1;
   }
 
-  LLVMBool LLVMRunOurModulePasses(LLVMModuleRef M) {
-    auto MPM = legacy::PassManager();
-    auto TLII = TargetLibraryInfoImpl(Triple(sys::getProcessTriple()));
 
-    MPM.add(new TargetLibraryInfoWrapperPass(TLII));
-    MPM.add(createPromoteMemoryToRegisterPass());
-    MPM.add(createInstructionCombiningPass());
-    MPM.add(createReassociatePass());
-    MPM.add(createGVNPass());
-    MPM.add(createCFGSimplificationPass());
+  // copied from llc
+  static bool addPass(PassManagerBase &PM, const char *argv0,
+                      StringRef PassName, TargetPassConfig &TPC) {
+    if (PassName == "none")
+      return false;
 
-    // MPM->add(createForceFunctionAttrsLegacyPass());
+    const PassRegistry *PR = PassRegistry::getPassRegistry();
+    const PassInfo *PI = PR->getPassInfo(PassName);
+    Pass *P;
+    if (PI->getNormalCtor())
+      P = PI->getNormalCtor()();
+    else {
+      errs() << argv0 << ": cannot create pass: " << PI->getPassName() << "\n";
+      return true;
+    }
+    std::string Banner = std::string("After ") + std::string(P->getPassName());
+    PM.add(P);
+    TPC.printAndVerify(Banner);
 
-    // MPM->add(createCFLSteensAAWrapperPass());
-    // MPM->add(createCFLAndersAAWrapperPass());
-
-    // MPM->add(createTypeBasedAAWrapperPass());
-    // MPM->add(createScopedNoAliasAAWrapperPass());
-
-
-    // MPM->add(createInferFunctionAttrsLegacyPass());
-
-
-    // MPM->add(createIPSCCPPass());          // IP SCCP
-    // MPM->add(createGlobalOptimizerPass()); // Optimize out global vars
-
-    // MPM->add(createDeadArgEliminationPass()); // Dead argument elimination
-    // MPM->add(createPruneEHPass()); // Remove dead EH info
-
-    // MPM->add(createGlobalsAAWrapperPass());
-    // //;;function simplifications
-    // MPM->add(createSROAPass());
-    // MPM->add(createEarlyCSEPass(1));
-    // MPM->add(createGVNHoistPass());
-
-    // // MPM->add(createGVNSinkPass());
-    // MPM->add(createCFGSimplificationPass());
-
-    // MPM->add(createSpeculativeExecutionIfHasBranchDivergencePass());
-    // MPM->add(createJumpThreadingPass());         // Thread jumps.
-    // MPM->add(createCorrelatedValuePropagationPass()); // Propagate conditionals
-    // MPM->add(createCFGSimplificationPass());     // Merge & remove BBs
-
-    // MPM->add(createInstructionCombiningPass(1)); //
+    return false;
+  }
 
 
-    // MPM->add(createTailCallEliminationPass()); // Eliminate tail calls
-    // MPM->add(createCFGSimplificationPass());     // Merge & remove BBs
-    // MPM->add(createReassociatePass());           // Reassociate expressions
+  static AnalysisID getPassID(const char *argv0, const char *OptionName,
+                              StringRef PassName) {
+    if (PassName.empty())
+      return nullptr;
 
-    // MPM->add(createLoopRotatePass(1));
+    const PassRegistry &PR = *PassRegistry::getPassRegistry();
+    const PassInfo *PI = PR.getPassInfo(PassName);
+    if (!PI) {
+      errs() << argv0 << ": " << OptionName << " pass is not registered.\n";
+      exit(1);
+    }
+    return PI->getTypeInfo();
+  }
 
-    // MPM->add(createLICMPass());                  // Hoist loop invariants
+  static int optimizeModule(CodeGenOpt::Level OptLevel, Module* M) {
+    std::string CPUStr = getCPUStr(), FeaturesStr = getFeaturesStr();
+    // Build up all of the passes that we want to do to the module.
+    legacy::PassManager PM;
 
-    // // MPM->add(createSimpleLoopUnswitchLegacyPass());
-    // // MPM->add(createLoopUnswitchPass(1, 0));
+    // Add an appropriate TargetLibraryInfo pass for the module's triple.
+    TargetLibraryInfoImpl TLII(Triple(M->getTargetTriple()));
 
-    // MPM->add(createCFGSimplificationPass());
+    // The -disable-simplify-libcalls flag actually disables all builtin optzns.
+    if (DisableSimplifyLibCalls)
+      TLII.disableAllFunctions();
+    PM.add(new TargetLibraryInfoWrapperPass(TLII));
 
-    // MPM->add(createInstructionCombiningPass(1));
+    // Add the target data from the target machine, if it exists, or the module.
+    M->setDataLayout(Target->createDataLayout());
 
-    // MPM->add(createIndVarSimplifyPass());        // Canonicalize indvars
-    // MPM->add(createLoopIdiomPass());             // Recognize idioms like memset.
 
-    // MPM->add(createLoopDeletionPass());          // Delete dead loops
+      // Override function attributes based on CPUStr, FeaturesStr, and command line
+    // flags.
+    setFunctionAttributes(CPUStr, FeaturesStr, *M);
+  }
 
-    // MPM->add(createLoopInterchangePass()); // Interchange loops
-    // MPM->add(createCFGSimplificationPass());
-    // MPM->add(createSimpleLoopUnrollPass());    // Unroll small loops
 
-    // MPM->add(createMergedLoadStoreMotionPass()); // Merge ld/st in diamonds
-    // MPM->add(createNewGVNPass());
+  void LLVMPassManagerBuilderSetLoopVectorize(LLVMPassManagerBuilderRef PMB, LLVMBool Value) {
+    PassManagerBuilder *Builder = unwrap(PMB);
+    Builder->LoopVectorize=Value;
+  }
 
-    // MPM->add(createMemCpyOptPass());             // Remove memcpy / form memset
-    // MPM->add(createSCCPPass());                  // Constant prop with SCCP
+  void LLVMPassManagerBuilderSetSLPVectorize(LLVMPassManagerBuilderRef PMB, LLVMBool Value) {
+    PassManagerBuilder *Builder = unwrap(PMB);
+    Builder->SLPVectorize=Value;
+  }
 
-    // MPM->add(createBitTrackingDCEPass());        // Delete dead bit computations
+  void LLVMPassManagerBuilderSetInliner(LLVMPassManagerBuilderRef PMB, unsigned OptLevel, unsigned SizeLevel) {
+    PassManagerBuilder *Builder = unwrap(PMB);
+    Builder->Inliner = createFunctionInliningPass(OptLevel, SizeLevel, false);
+  }
 
-    // // Run instcombine after redundancy elimination to exploit opportunities
-    // // opened up by them.
-    // MPM->add(createInstructionCombiningPass(1));
-
-    // MPM->add(createJumpThreadingPass());         // Thread jumps
-    // MPM->add(createCorrelatedValuePropagationPass());
-    // MPM->add(createDeadStoreEliminationPass());  // Delete dead stores
-    // MPM->add(createLICMPass());
-
-    // MPM->add(createLoopRerollPass());
-
-    // MPM->add(createSLPVectorizerPass()); // Vectorize parallel scalar chains.
-    // MPM->add(createAggressiveDCEPass());         // Delete dead instructions
-    // MPM->add(createCFGSimplificationPass()); // Merge & remove BBs
-    // // Clean up after everything.
-
-    // //functino simplificationsend
-    // InlineParams IP;
-    // IP.DefaultThreshold = 75;
-    // // FIXME: The hint threshold has the same value used by the regular inliner.
-    // // This should probably be lowered after performance testing.
-    // IP.HintThreshold = 325;
-
-    // MPM->add(createFunctionInliningPass(IP));
-    // MPM->add(createSROAPass());
-    // MPM->add(createEarlyCSEPass());             // Catch trivial redundancies
-    // MPM->add(createCFGSimplificationPass());    // Merge & remove BBs
+  void LLVMTargetMachineAdjustPassManagerBuilder(LLVMPassManagerBuilderRef PMB, LLVMTargetMachineRef T) {
+    TargetMachine *TM = unwrap(T);
+    PassManagerBuilder *Builder = unwrap(PMB);
+    TM->adjustPassManager(Builder);
+  }
 
 
 
+  static void AddOptimizationPasses(legacy::PassManagerBase &MPM,
+                                    legacy::FunctionPassManager &FPM,
+                                    TargetMachine *TM, unsigned OptLevel,
+                                    unsigned SizeLevel) {
+    if (!NoVerify || VerifyEach)
+      FPM.add(createVerifierPass()); // Verify that input is correct
 
-    // MPM->add(createEliminateAvailableExternallyPass());
-    // MPM->add(createGlobalOptimizerPass());
-    // MPM->add(createLoopVersioningLICMPass());    // Do LoopVersioningLICM
-    // MPM->add(createLICMPass());                  // Hoist loop invariants
+    PassManagerBuilder Builder;
+    Builder.OptLevel = OptLevel;
+    Builder.SizeLevel = SizeLevel;
 
-    // MPM->add(createGlobalsAAWrapperPass());
+    if (DisableInline) {
+      // No inlining pass
+    } else if (OptLevel > 1) {
+      Builder.Inliner = createFunctionInliningPass(OptLevel, SizeLevel, false);
+    } else {
+      Builder.Inliner = createAlwaysInlinerLegacyPass();
+    }
+    Builder.DisableUnitAtATime = !UnitAtATime;
+    Builder.DisableUnrollLoops = (DisableLoopUnrolling.getNumOccurrences() > 0) ?
+      DisableLoopUnrolling : OptLevel == 0;
 
-    // MPM->add(createFloat2IntPass());
-    // MPM->add(createLoopRotatePass(-1)); //default 16
+    // This is final, unless there is a #pragma vectorize enable
+    if (DisableLoopVectorization)
+      Builder.LoopVectorize = false;
+    // If option wasn't forced via cmd line (-vectorize-loops, -loop-vectorize)
+    else if (!Builder.LoopVectorize)
+      Builder.LoopVectorize = OptLevel > 1 && SizeLevel < 2;
 
-    // MPM->add(createLoopDistributePass());
+    // When #pragma vectorize is on for SLP, do the same as above
+    Builder.SLPVectorize = DisableSLPVectorization ? false : OptLevel > 1 && SizeLevel < 2;
 
-    // MPM->add(createLoopVectorizePass(0, 1));
-    // MPM->add(createLoopLoadEliminationPass());
+    if (TM)
+      TM->adjustPassManager(Builder);
 
-    // MPM->add(createInstructionCombiningPass(1));
+    if (Coroutines)
+      addCoroutinePassesToExtensionPoints(Builder);
 
-    // MPM->add(createEarlyCSEPass());
-    // MPM->add(createCorrelatedValuePropagationPass());
-    // MPM->add(createInstructionCombiningPass(1));
-
-    // MPM->add(createLICMPass());
-    // MPM->add(createLoopUnswitchPass(1));//tune this
-    // MPM->add(createCFGSimplificationPass());
-    // MPM->add(createInstructionCombiningPass(1));
-
-
-    // MPM->add(createSLPVectorizerPass()); // Vectorize parallel scalar chains.
-    // MPM->add(createEarlyCSEPass());
-
-    // // MPM->add(createLateCFGSimplificationPass()); // Switches to lookup tables
-    // MPM->add(createInstructionCombiningPass(1));
-
-    // MPM->add(createLoopUnrollPass(4, 400, 0, 1, 1));    // Unroll small loops
-    // // Pass *llvm::createLoopUnrollPass(int OptLevel, int Threshold, int Count,
-    // //                                  int AllowPartial, int Runtime,
-    // //                                  int UpperBound) {
-    // //   // TODO: It would make more sense for this function to take the optionals
-    // //   // directly, but that's dangerous since it would silently break out of tree
-    // //   // callers.
-    // // Pass *llvm::createSimpleLoopUnrollPass(int OptLevel) {
-    // //   return llvm::createLoopUnrollPass(OptLevel, -1, -1, 0, 0, 0);
-    // // }
-
-    // // LoopUnroll may generate some redundency to cleanup.
-    // MPM->add(createInstructionCombiningPass(1));
-
-    // // Runtime unrolling will introduce runtime check in loop prologue. If the
-    // // unrolled loop is a inner loop, then the prologue will be inside the
-    // // outer loop. LICM pass can help to promote the runtime check out if the
-    // // checked value is loop invariant.
-    // MPM->add(createLICMPass());
-
-    // // After vectorization and unrolling, assume intrinsics may tell us more
-    // // about pointer alignments.
-    // MPM->add(createAlignmentFromAssumptionsPass());
-
-    // MPM->add(createGlobalDCEPass());         // Remove dead fns and globals.
-    // MPM->add(createConstantMergePass());     // Merge dup global constants
+    Builder.populateFunctionPassManager(FPM);
+    Builder.populateModulePassManager(MPM);
+  }
 
 
-    // // LoopSink pass sinks instructions hoisted by LICM, which serves as a
-    // // canonicalization pass that enables other optimizations. As a result,
-    // // LoopSink pass needs to be a very late IR pass to avoid undoing LICM
-    // // result too early.
-    // MPM->add(createLoopSinkPass());
-    // // Get rid of LCSSA nodes.
-    // MPM->add(createInstructionSimplifierPass());
+  int LLVMCustomInitializeCL(int argc, char **argv) {
+    sys::PrintStackTraceOnErrorSignal(argv[0]);
+    llvm::PrettyStackTraceProgram X(argc, argv);
 
-    // // LoopSink (and other loop passes since the last simplifyCFG) might have
-    // // resulted in single-entry-single-exit or empty blocks. Clean up the CFG.
-    // MPM->add(createCFGSimplificationPass());
+    // Enable debug stream buffering.
+    EnableDebugBuffering = true;
 
+    InitializeAllTargets();
+    InitializeAllTargetMCs();
+    InitializeAllAsmPrinters();
+    InitializeAllAsmParsers();
 
+    // Initialize passes
+    PassRegistry &Registry = *PassRegistry::getPassRegistry();
+    initializeCore(Registry);
+    initializeCoroutines(Registry);
+    initializeScalarOpts(Registry);
+    initializeObjCARCOpts(Registry);
+    initializeVectorization(Registry);
+    initializeIPO(Registry);
+    initializeAnalysis(Registry);
+    initializeTransformUtils(Registry);
+    initializeInstCombine(Registry);
+    initializeInstrumentation(Registry);
+    initializeTarget(Registry);
+    // For codegen passes, only passes that do IR to IR transformation are
+    // supported.
+    initializeScalarizeMaskedMemIntrinPass(Registry);
+    initializeCodeGenPreparePass(Registry);
+    initializeAtomicExpandPass(Registry);
+    initializeRewriteSymbolsLegacyPassPass(Registry);
+    initializeWinEHPreparePass(Registry);
+    initializeDwarfEHPreparePass(Registry);
+    initializeSafeStackLegacyPassPass(Registry);
+    initializeSjLjEHPreparePass(Registry);
+    initializePreISelIntrinsicLoweringLegacyPassPass(Registry);
+    initializeGlobalMergePass(Registry);
+    initializeInterleavedAccessPass(Registry);
+    initializeCountingFunctionInserterPass(Registry);
+    initializeUnreachableBlockElimLegacyPassPass(Registry);
+    initializeExpandReductionsPass(Registry);
+    polly::initializePollyPasses(Registry);
 
-    MPM.run(*unwrap(M));
-    return 1;
+    cl::ParseCommandLineOptions(argc, argv, "llvm cl used internaly for use with jit.");
+  }
+
+  legacy::PassManagerBase &LLVMCreatePassManager() {
+    // Create a PassManager to hold and optimize the collection of passes we are
+    // about to build.
+    //
+    legacy::PassManager Passes;
+    // Add an appropriate TargetLibraryInfo pass for the module's triple.
+    TargetLibraryInfoImpl TLII(ModuleTriple);
+
+    // The -disable-simplify-libcalls flag actually disables all builtin optzns.
+    if (DisableSimplifyLibCalls)
+      TLII.disableAllFunctions();
+    Passes.add(new TargetLibraryInfoWrapperPass(TLII));
+
+    // Add internal analysis passes from the target machine.
+    Passes.add(createTargetTransformInfoWrapperPass(TM ? TM->getTargetIRAnalysis()
+                                                    : TargetIRAnalysis()));
+  }
+
+  legacy::FunctionPassManager &LLVMCreateFunctionPassManager(TargetMachine* TM) {
+    std::unique_ptr<legacy::FunctionPassManager> FPasses;
+    FPasses.reset(new legacy::FunctionPassManager(TargetMachine *TM));
+    FPasses->add(createTargetTransformInfoWrapperPass(TM ? TM->getTargetIRAnalysis() : TargetIRAnalysis()));
+  }
+
+  int LLVMRunFunctionPassManagerOnModule(LLVMPassManagerRef FPMC, LLVMModuleRef MC) {
+    legacy::FunctionPassManager *FPM = unwrap<legacy::FunctionPassManager>(FPMC);
+    Module* M = unwrap(M)
+    FPM->doInitialization();
+    for (Function &F : *M) {
+      FPM->run(F);
+    }
+    FPM->doFinalization();
+    delete FPM;
   }
 
 #ifdef __cplusplus
