@@ -7,9 +7,7 @@
 
 (provide (all-defined-out))
 
-;; pass manager builder
-(define-llvm-types LLVMPassManagerBuilderRef)
-
+;; Pass Manager Builder
 (define-llvm LLVMPassManagerBuilderCreate                      (_fun -> LLVMPassManagerBuilderRef))
 (define-llvm LLVMPassManagerBuilderDispose                     (_fun LLVMPassManagerBuilderRef -> _void))
 (define-llvm LLVMPassManagerBuilderSetOptLevel                 (_fun LLVMPassManagerBuilderRef _uint -> _void))
@@ -82,4 +80,3 @@
 (define-llvm LLVMAddInternalizePass                            (_fun LLVMPassManagerRef _uint -> _void))
 (define-llvm LLVMAddStripDeadPrototypesPass                    (_fun LLVMPassManagerRef -> _void))
 (define-llvm LLVMAddStripSymbolsPass                           (_fun LLVMPassManagerRef -> _void))
-
