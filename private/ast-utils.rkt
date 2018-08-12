@@ -28,11 +28,6 @@
 (define (fl32 v) (sham:ast:expr:const:fl v f32))
 (define (fl64 v) (sham:ast:expr:const:fl v f64))
 
-(define v4i32 (tvec i32 4))
-(define v4i64 (tvec i64 4))
-(define v4f32 (tvec f32 4))
-(define v4f64 (tvec f64 4))
-
 (define void (sham:ast:type:ref 'void))
 
 (define dmodule sham:def:module)
@@ -47,6 +42,11 @@
 (define tptr sham:ast:type:pointer)
 (define tarr sham:ast:type:array)
 (define tvec sham:ast:type:vector)
+
+(define v4i32 (tvec i32 4))
+(define v4i64 (tvec i64 4))
+(define v4f32 (tvec f32 4))
+(define v4f64 (tvec f64 4))
 
 (define set! sham:ast:stmt:set!)
 (define if sham:ast:stmt:if)

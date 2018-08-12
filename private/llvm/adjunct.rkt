@@ -53,3 +53,8 @@
   (get-ffi-obj "LLVMPassManagerAddTargetLibraryInfoPass"
                adjunct-lib
                (_fun LLVMPassManagerRef LLVMModuleRef -> _void)))
+
+(define LLVMPassManagerAddTargetIRAnalysis
+  (get-ffi-obj "LLVMPassManagerAddTargetIRAnalysis"
+               adjunct-lib
+               (_fun LLVMPassManagerRef LLVMTargetMachineRef -> _void)))

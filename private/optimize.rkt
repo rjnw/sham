@@ -8,16 +8,46 @@
          "env.rkt")
 
 (provide optimize-module
-         basic-optimize-module)
+         )
 
-(define (optimize-module mod-env #:opt-level [level 3])
-  (define all-function-info (env-get-info-key mod-env per-function-info-key))
+;; (define (optimize-module mod-env #:opt-level [level 3])
+;;   (define all-function-info (env-get-info-key mod-env per-function-info-key))
+;;   (for ([(key val) (in-hash all-function-info)])
+;;     (do-function-info key val mod-env))
 
-  (for ([(key val) (in-hash all-function-info)])
-    (do-function-info key val mod-env))
-  (LLVMRunOurModulePasses (env-get-module mod-env))
-  (basic-optimize-module mod-env #:opt-level level)
-  (run-module-passes (env-get-module mod-env) (get-module-passes mod-env)))
+
+;;   (basic-optimize-module mod-env #:opt-level level)
+;;   (run-module-passes (env-get-module mod-env) (get-module-passes mod-env)))
+
+(define (optimize-module mod-env #:opt-level [olevel 1] #:size-level [slevel 1])
+  (LLVMCustomInitializeCL 1 '("sham-jit"))
+  (define llvm-module (env-get-module mod-env))
+  (define module-pass-manager (LLVMCreatePassManager))
+  (define pass-manager-builder (LLVMPassManagerBuilderCreate))
+  (define target-machine (LLVMCreateCurrentTargetMachineRef))
+  (LLVMTargetMachineAdjustPassManagerBuilder pass-manager-builder target-machine)
+  (LLVMPassManagerBuilderSetOptLevel pass-manager-builder olevel)
+  (LLVMPassManagerBuilderSetSizeLevel pass-manager-builder slevel)
+  (LLVMPassManagerBuilderSetSLPVectorize pass-manager-builder #t)
+  (LLVMPassManagerBuilderSetLoopVectorize pass-manager-builder #t)
+
+  (LLVMPassManagerAddTargetLibraryInfoPass module-pass-manager llvm-module)
+  (LLVMPassManagerAddTargetIRAnalysis module-pass-manager target-machine)
+  (LLVMPassManagerBuilderPopulateModulePassManager pass-manager-builder module-pass-manager)
+
+  (LLVMRunPassManager module-pass-manager llvm-module)
+  (LLVMDisposePassManager module-pass-manager)
+
+  (define function-pass-manager (LLVMCreateFunctionPassManagerForModule llvm-module))
+  (LLVMPassManagerAddTargetLibraryInfoPass function-pass-manager llvm-module)
+  (LLVMPassManagerAddTargetIRAnalysis function-pass-manager target-machine)
+  (LLVMPassManagerBuilderPopulateFunctionPassManager pass-manager-builder function-pass-manager)
+  (for [(m mod-env)]
+    (when (env-jit-function? (cdr m))
+      (LLVMRunFunctionPassManager function-pass-manager (env-jit-function-ref (cdr m)))))
+
+  (LLVMDisposePassManager function-pass-manager)
+  (LLVMPassManagerBuilderDispose pass-manager-builder))
 
 (define (run-module-passes jit-mod passes)
   (define mpm (LLVMCreatePassManager))
@@ -64,18 +94,3 @@
       (LLVMRunFunctionPassManager fpm (env-jit-function-ref (cdr m)))))
   (LLVMDisposePassManager fpm)
   (LLVMPassManagerBuilderDispose fpmb))
-
-
-;;we don't want rely on llvm's basic optimization levels anymore
-;; as they are based on c style languages. need to figure out our own
-(define (basic-optimize-module mod-env #:opt-level [level 3])
-  (define jit-mod (env-get-module mod-env))
-  (define mpm (LLVMCreatePassManager))
-  (define pmb (LLVMPassManagerBuilderCreate))
-  (LLVMPassManagerBuilderSetOptLevel pmb level)
-  (LLVMPassManagerBuilderSetSizeLevel pmb 100)
-  (LLVMPassManagerBuilderPopulateModulePassManager pmb mpm)
-  (begin0
-      (LLVMRunPassManager mpm jit-mod)
-    (LLVMDisposePassManager mpm)
-    (LLVMPassManagerBuilderDispose pmb)))

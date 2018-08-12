@@ -107,7 +107,7 @@ extern "C" {
 
   void LLVMCustomInitializeCL(int argc, char **argv) {
     sys::PrintStackTraceOnErrorSignal(argv[0]);
-    llvm::PrettyStackTraceProgram X(argc, argv);
+
 
     // Enable debug stream buffering.
     EnableDebugBuffering = true;
@@ -231,6 +231,13 @@ extern "C" {
     TargetLibraryInfoImpl tlii(Triple(module->getTargetTriple()));
     pm->add(new TargetLibraryInfoWrapperPass(tlii));
   }
+
+  void LLVMPassManagerAddTargetIRAnalysis(LLVMPassManagerRef passManagerRef, LLVMTargetMachineRef targetMachineRef) {
+    legacy::PassManager *pm = unwrap<legacy::PassManager>(passManagerRef);
+    TargetMachine* tm = reinterpret_cast<TargetMachine*>(targetMachineRef);
+    pm->add(createTargetTransformInfoWrapperPass(tm->getTargetIRAnalysis()));
+  }
+
 
 #ifdef __cplusplus
 }
