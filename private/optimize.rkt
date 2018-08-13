@@ -7,19 +7,15 @@
          "type-info.rkt"
          "env.rkt")
 
-(provide optimize-module
-         )
+(provide optimize-module)
 
-;; (define (optimize-module mod-env #:opt-level [level 3])
-;;   (define all-function-info (env-get-info-key mod-env per-function-info-key))
-;;   (for ([(key val) (in-hash all-function-info)])
-;;     (do-function-info key val mod-env))
-
-
-;;   (basic-optimize-module mod-env #:opt-level level)
-;;   (run-module-passes (env-get-module mod-env) (get-module-passes mod-env)))
-
-(define (optimize-module mod-env #:opt-level [olevel 1] #:size-level [slevel 1])
+;; TODO run specific pass defined in meta information
+(define (optimize-module mod-env
+                         #:opt-level [olevel 1]
+                         #:size-level [slevel 1]
+                         #:loop-vec [lvec #f]
+                         #:slp-vec [svec #f]
+                         )
   (LLVMCustomInitializeCL 1 '("sham-jit"))
   (define llvm-module (env-get-module mod-env))
   (define module-pass-manager (LLVMCreatePassManager))
@@ -28,8 +24,8 @@
   (LLVMTargetMachineAdjustPassManagerBuilder pass-manager-builder target-machine)
   (LLVMPassManagerBuilderSetOptLevel pass-manager-builder olevel)
   (LLVMPassManagerBuilderSetSizeLevel pass-manager-builder slevel)
-  (LLVMPassManagerBuilderSetSLPVectorize pass-manager-builder #t)
-  (LLVMPassManagerBuilderSetLoopVectorize pass-manager-builder #t)
+  (LLVMPassManagerBuilderSetSLPVectorize pass-manager-builder lvec)
+  (LLVMPassManagerBuilderSetLoopVectorize pass-manager-builder svec)
 
   (LLVMPassManagerAddTargetLibraryInfoPass module-pass-manager llvm-module)
   (LLVMPassManagerAddTargetIRAnalysis module-pass-manager target-machine)
