@@ -322,9 +322,11 @@
                          "gep")]
           [(sham:ast:expr:var md sym)
            (define env-value (env-lookup sym env))
-           (define jit-value (env-jit-value-ref env-value))
-           ;; (printf "env-value: ~a=~a\n" sym env-value)
-           (LLVMBuildLoad builder jit-value (symbol->string sym))]
+           (match env-value
+             [(env-jit-value jv t)
+              (LLVMBuildLoad builder jv (symbol->string sym))]
+             [(env-jit-function jv t)
+              jv])]
           [(sham:ast:expr:external md lib-id sym t)
            (define value
              (LLVMAddGlobal jit-module
@@ -377,7 +379,9 @@
               (LLVMBuildCall builder ref rand-values call-name)]
              [(env-jit-intr-function appbuilder)
               (appbuilder builder rand-values)]
-             [else (error "cannot figure out how to apply: ~a" rator)])]))
+             [(env-jit-value jit-value (env-type (sham:ast:type:pointer _ (sham:ast:type:function _ _ _)) it))
+              (LLVMBuildCall builder (LLVMBuildLoad builder jit-value "ptrrator") rand-values "ptrcall")]
+             [v (error "cannot figure out how to apply " rator v)])]))
       (build-statement body new-env)
       (LLVMPositionBuilderAtEnd builder alloca-block)
       (LLVMBuildBr builder entry-block)
