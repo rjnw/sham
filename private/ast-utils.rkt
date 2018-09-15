@@ -196,3 +196,28 @@
   (se (let (list var) (list type) (list val) (block stmt) (evoid))))
 (define (elet1 var type val expr)
   (let (list var) (list type) (list val) (svoid) expr))
+
+
+;; intrinsics
+(define (intrinsic . args)
+  (define sargs (map symbol->string args))
+  (define s. (string-join sargs "."))
+  (string->symbol (format "llvm.~a" s.)))
+
+(require (for-syntax racket/syntax syntax/parse racket/pretty))
+(define-syntax (li stx)
+  (syntax-parse stx
+    [(_ names:id ...)
+     (define sl (for/list ([name (syntax->list #`(names ...))])
+                  (define fname (datum->syntax name (string->symbol (format "ri-~a" (syntax->datum name)))))
+                  #`(define-syntax-rule
+                      (#,fname iarg ret-type args #,'...)
+                      (app (ri (intrinsic (quote name) (quote iarg)) ret-type) (list args #,'...)))))
+     #`(begin #,@sl)]))
+
+
+(li memcpy memmove memset sqrt powi sin cos pow exp exp2 log log10 log2 fma fabs
+    minnum maxnum copysign floor ceil trunc rint nearbyint round bitreverse
+    bswap ctpop ctlz cttz fshl fshr sadd.with.overflow uadd.with.overflow
+    ssub.with.overflow usub.with.overflow smul.with.overflow umul.with.overflow
+    canonicalize fmuladd)
