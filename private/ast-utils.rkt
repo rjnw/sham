@@ -74,7 +74,7 @@
 (define let sham:ast:expr:let)
 
 (define rs sham:ast:rator:symbol)
-(define ri sham:ast:rator:intrinsic)
+
 (define re sham:ast:rator:external)
 (define rr sham:ast:rator:racket)
 
@@ -212,7 +212,8 @@
                   (define fname (datum->syntax name (string->symbol (format "ri-~a" (syntax->datum name)))))
                   #`(define-syntax-rule
                       (#,fname iarg ret-type args #,'...)
-                      (app (ri (intrinsic (quote name) (quote iarg)) ret-type) (list args #,'...)))))
+                      (app (ri (intrinsic (quote #,name) (quote iarg)) ret-type) (list args #,'...)))))
+     ;; (pretty-print (map syntax->datum sl))
      #`(begin #,@sl)]))
 
 
@@ -221,3 +222,7 @@
     bswap ctpop ctlz cttz fshl fshr sadd.with.overflow uadd.with.overflow
     ssub.with.overflow usub.with.overflow smul.with.overflow umul.with.overflow
     canonicalize fmuladd)
+
+(define ri sham:ast:rator:intrinsic)
+(define-syntax-rule (ri^ intr ret-type args ...)
+  (app^ (ri (intrinsic (quote intr)) ret-type) args ...))
