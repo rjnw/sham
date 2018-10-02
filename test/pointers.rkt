@@ -30,7 +30,7 @@
 
   (define mod-env (compile-module mod))
   (jit-dump-module mod-env)
-  (basic-optimize-module mod-env #:opt-level 3)
+  (optimize-module mod-env #:opt-level 3)
   (jit-dump-module mod-env)
   (initialize-jit! mod-env)
 

@@ -15,14 +15,15 @@
       (s$:dfunction (void) 'identity (list 'v) (list s$:i32) s$:i32
                     (s$:ret (s$:v 'v)))
       (s$:dfunction (void) 'even? (list 'x) (list s$:i32) s$:i32
-                    (s$:if (s$:app s$:icmp-eq (list (s$:app s$:urem (list (s$:v 'x) (s$:ui32 2)))
-                                                    (s$:ui32 0)))
+                    (s$:if (s$:icmp-eq (s$:urem (s$:v 'x) (s$:ui32 2))
+                                       (s$:ui32 0))
                            (s$:ret (s$:ui32 1))
-                           (s$:ret (s$:ui32 0)))))))
+                           (s$:ret (s$:ui32 0))))
+      )))
 
   (define mod-env (compile-module mod))
   (jit-dump-module mod-env)
-  (basic-optimize-module mod-env #:opt-level 3)
+  (optimize-module mod-env #:opt-level 3)
   (jit-dump-module mod-env)
   (initialize-jit! mod-env)
 
