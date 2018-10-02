@@ -1,5 +1,6 @@
 #lang racket
-(require "../../rcf/private/compiler.rkt")
+(require "../../rcf/private/compiler.rkt"
+         ffi/unsafe)
 (provide (all-defined-out))
 
 (define-ast sham
@@ -40,7 +41,7 @@
          [expr     (e:expr)]
          [block    (stmts:stmt ...)])
    (expr ast
-         [app      (rator:expr rands:expr ...)]
+         [app      (rator:rator rands:expr ...)]
          [void     ()]
          [sizeof   (t:type)]
          [etype    (t:type)]
@@ -84,8 +85,8 @@
 (define (sham-vector? v) #f)
 (define (sham-array? v) #f)
 (define (sham-struct? v) #f)
-(define (sham-llvm? v) #f)
-(define (sham-string? v) #f)
+(define (sham-llvm? v) (cpointer-has-tag? v 'LLVMValueRef))
+(define (sham-string? v) (string? v))
 
 ;; generated structs
 #;((struct sham:def:module sham:def (defs:def))

@@ -35,7 +35,7 @@
 (define (fl32 v) (sham:ast:expr:const:fl v f32))
 (define (fl64 v) (sham:ast:expr:const:fl v f64))
 
-(define void (sham:ast:type:ref 'void))
+(define tvoid (sham:ast:type:ref 'void))
 
 (define dmodule sham:def:module)
 (define dfunction sham:def:function)
@@ -56,7 +56,7 @@
 (define v4f64 (tvec f64 4))
 
 (define set! sham:ast:stmt:set!)
-(define if sham:ast:stmt:if)
+(define if^ sham:ast:stmt:if)
 (define switch sham:ast:stmt:switch)
 (define break sham:ast:stmt:break)
 (define while sham:ast:stmt:while)
@@ -74,7 +74,7 @@
 (define v sham:ast:expr:var)
 (define global sham:ast:expr:global)
 (define external sham:ast:expr:external)
-(define let sham:ast:expr:let)
+;; (define let sham:ast:expr:let) use let^
 
 (define rs sham:ast:rator:symbol)
 
@@ -92,10 +92,11 @@
 (define (vec . vals) (sham:ast:expr:const:vector vals))
 
 (define (ret v) (sham:ast:stmt:return v))
+(define (return v) (sham:ast:stmt:return v))
 (define ret-void (sham:ast:stmt:return (sham:ast:expr:void)))
+(define return-void (sham:ast:stmt:return (sham:ast:expr:void)))
 (define (app^ rator . rands) (app rator rands))
 (define (gep^ ptr . indexes) (gep ptr indexes))
-(define (block^ . stmts) (block stmts))
 
 ;; internal function
 (define (irs sym)
@@ -191,16 +192,6 @@
 (define (while-ule^ ind bound . stmts)
   (while (icmp-ule ind bound) (block stmts)))
 
-(define (let1 var type val stmt expr)
-  (let (list var) (list type) (list val) stmt expr))
-(define (slet1 var type val stmt)
-  (se (let (list var) (list type) (list val) stmt (evoid))))
-(define (slet1^ var type val . stmt)
-  (se (let (list var) (list type) (list val) (block stmt) (evoid))))
-(define (elet1 var type val expr)
-  (let (list var) (list type) (list val) (svoid) expr))
-
-
 ;; intrinsics
 (define (intrinsic . args)
   (define sargs (map symbol->string args))
@@ -236,7 +227,32 @@
                       (LLVMPointerType (LLVMInt8Type) 0))
    i8*))
 
+(define (block^ . stmts)
+  (block (map (λ (v) (if (sham:ast:expr? v) (se v) v)) stmts))
+  )
+
 (define-syntax (function^ stx)
   (syntax-parse stx
-    [(_ name:expr [(args:id : arg-types:expr) ...] ret-type:expr body:expr)
-     #`(dfunction #f name (list (quote args) ...) (list arg-types ...) ret-type body)]))
+    [(_ name:expr [(args:id (~datum :) arg-types:expr) ...] ret-type:expr body:expr ...)
+     #`(dfunction #f name (list (quote args) ...) (list arg-types ...) ret-type
+                  (let ([args (v (quote args))] ...)
+                    (block^ body ...)))]))
+
+(define-syntax-rule (define-function name args ret-type body ...)
+  (define name (function^ (quote name) args ret-type body ...)))
+
+(define-syntax (let^ stx)
+  (syntax-parse stx
+    [(_ ([arg val (~datum :) typ] ...) s:expr ... e:expr)
+     #`(let ([arg (v (quote arg))] ...)
+         (sham:ast:expr:let (list arg ...) (list typ ...) (list val ...)
+                            (block^ s ...)
+                            e))]))
+;; (define (let1 var type val stmt expr)
+;;   (let (list var) (list type) (list val) stmt expr))
+;; (define (slet1 var type val stmt)
+;;   (se (let (list var) (list type) (list val) stmt (evoid))))
+;; (define (slet1^ var type val . stmt)
+;;   (se (let (list var) (list type) (list val) (block stmt) (evoid))))
+;; (define (elet1 var type val expr)
+;;   (let (list var) (list type) (list val) (svoid) expr))
