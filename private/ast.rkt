@@ -67,7 +67,7 @@
              [signed-int exact-integer?]
              [unsigned-int exact-nonnegative-integer?]
              [string sham-string?]
-             [llvm llvm?]
+             [llvm sham-llvm?]
              [struct sham-struct?]
              [array sham-array?]
              [vector sham-vector?])
@@ -81,7 +81,11 @@
    ;;  [array  v]
    ;;  [vector v])
    )
-
+(define (sham-vector? v) #f)
+(define (sham-array? v) #f)
+(define (sham-struct? v) #f)
+(define (sham-llvm? v) #f)
+(define (sham-string? v) #f)
 
 ;; generated structs
 #;((struct sham:def:module sham:def (defs:def))

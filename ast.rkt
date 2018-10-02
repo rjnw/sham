@@ -4,4 +4,4 @@
          "private/ast-utils.rkt")
 
 (provide (all-from-out "private/ast.rkt")
-         (all-from-out "private/ast-utils.rkt"))
+         (prefix-out s$: (all-from-out "private/ast-utils.rkt")))

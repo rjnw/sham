@@ -20,7 +20,7 @@
          jit-get-racket-type
          jit-verify-module)
 
-(define diagnose-compile (make-parameter #t))
+(define diagnose-compile (make-parameter #f))
 (define data-layout (make-parameter #f))
 
 (define (mcjit-function-ptr f-sym mod-env)

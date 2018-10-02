@@ -106,7 +106,7 @@ extern "C" {
   using namespace llvm;
 
   void LLVMCustomInitializeCL(int argc, char **argv) {
-    sys::PrintStackTraceOnErrorSignal(argv[0]);
+    // sys::PrintStackTraceOnErrorSignal(argv[0]);
 
 
     // Enable debug stream buffering.

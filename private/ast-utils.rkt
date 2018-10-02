@@ -1,8 +1,11 @@
 #lang racket
 
-(require "ast.rkt")
+(require "ast.rkt"
+         "llvm/ffi/all.rkt"
+         ffi/unsafe)
 
-(provide (prefix-out s$: (all-defined-out)))
+
+(provide (all-defined-out))
 
 (define i1  (sham:ast:type:ref 'i1))
 (define i8  (sham:ast:type:ref 'i8))
@@ -226,3 +229,14 @@
 (define ri sham:ast:rator:intrinsic)
 (define-syntax-rule (ri^ intr ret-type args ...)
   (app^ (ri (intrinsic (quote intr)) ret-type) args ...))
+
+(define (rptr->llvmptr rptr)
+  (cllvm
+   (LLVMConstIntToPtr (LLVMConstInt (LLVMInt64Type) (cast rptr _pointer _uintptr) #f)
+                      (LLVMPointerType (LLVMInt8Type) 0))
+   i8*))
+
+(define-syntax (function^ stx)
+  (syntax-parse stx
+    [(_ name:expr [(args:id : arg-types:expr) ...] ret-type:expr body:expr)
+     #`(dfunction #f name (list (quote args) ...) (list arg-types ...) ret-type body)]))
