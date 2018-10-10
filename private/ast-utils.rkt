@@ -92,7 +92,6 @@
 (define (vec . vals) (sham:ast:expr:const:vector vals))
 
 (define (ret v) (sham:ast:stmt:return v))
-(define (return v) (sham:ast:stmt:return v))
 (define ret-void (sham:ast:stmt:return (sham:ast:expr:void)))
 (define return-void (sham:ast:stmt:return (sham:ast:expr:void)))
 (define (app^ rator . rands) (app rator rands))
@@ -188,9 +187,9 @@
 
 
 (define (while^ expr . stmts)
-  (while expr (block stmts)))
+  (while expr (apply block^ stmts)))
 (define (while-ule^ ind bound . stmts)
-  (while (icmp-ule ind bound) (block stmts)))
+  (while (icmp-ule ind bound) (apply block^ stmts)))
 
 ;; intrinsics
 (define (intrinsic . args)
@@ -241,13 +240,23 @@
 (define-syntax-rule (define-function name args ret-type body ...)
   (define name (function^ (quote name) args ret-type body ...)))
 
+(define-syntax-rule (define-module name info funcs)
+  (define name (dmodule info (quote name) funcs)))
+
 (define-syntax (let^ stx)
   (syntax-parse stx
     [(_ ([arg val (~datum :) typ] ...) s:expr ... e:expr)
      #`(let ([arg (v (quote arg))] ...)
-         (sham:ast:expr:let (list arg ...) (list typ ...) (list val ...)
+         (sham:ast:expr:let (list (quote arg) ...) (list typ ...) (list val ...)
                             (block^ s ...)
                             e))]))
+(define-syntax (slet^ stx)
+  (syntax-parse stx
+    [(_ ([arg val (~datum :) typ] ...) s:expr ...)
+     #`(let ([arg (v (quote arg))] ...)
+         (sham:ast:expr:let (list (quote arg) ...) (list typ ...) (list val ...)
+                            (block^ s ...)
+                            (evoid)))]))
 ;; (define (let1 var type val stmt expr)
 ;;   (let (list var) (list type) (list val) stmt expr))
 ;; (define (slet1 var type val stmt)
