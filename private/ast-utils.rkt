@@ -237,11 +237,41 @@
                   (let ([args (v (quote args))] ...)
                     (block^ body ...)))]))
 
-(define-syntax-rule (define-function name args ret-type body ...)
-  (define name (function^ (quote name) args ret-type body ...)))
+(define hfunction-manager
+  (make-keyword-procedure
+   (λ (kws kw-args . rest-args)
+     (define hf (first rest-args))
+     (define app-args (rest rest-args))
+     (match-define (hfunction id sym-args arg-types ret-type body-builder sham-module) hf)
+     (cond
+       [(and (empty? kws) (andmap sham:ast? app-args))
+        (app (rs id) app-args)]
+       ;; todo inline, partial, direct jit
+       (else (error 'todo))))))
 
+(struct hfunction [id sym-args arg-types ret-type body-builder sham-module]
+  #:property prop:procedure hfunction-manager)
+(define-syntax (define-sham-function stx)
+  (syntax-parse stx
+    [(_ [name:expr (args:id (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
+     #`(define name (hfunction (quote name)
+                    (list (quote args) ...)
+                    (list arg-types ...)
+                    ret-type
+                    (λ (args ...) (block^ body ...))
+                    #f))]))
+(define (get-function-for-module hf)
+  (match-define (hfunction id sym-args arg-types ret-type body-builder sham-module) hf)
+  (dfunction #f id sym-args arg-types ret-type (apply body-builder (map v sym-args))))
+
+(define (get-functions fs)
+  (map (λ (f)
+         (cond [(sham:def:function? f) f]
+               [(hfunction? f) (get-function-for-module f)]
+               [else (error "unknown function for creating module.")]))
+       fs))
 (define-syntax-rule (define-module name info funcs)
-  (define name (dmodule info (quote name) funcs)))
+  (define name (dmodule info (quote name) (get-functions funcs))))
 
 (define-syntax (let^ stx)
   (syntax-parse stx
