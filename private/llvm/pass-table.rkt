@@ -55,7 +55,6 @@
      (BasicAliasAnalysis                    . ,LLVMAddBasicAliasAnalysisPass)
 
      ;; Vectorization transformations
-     (BBVectorize                           . ,LLVMAddBBVectorizePass)
      (LoopVectorize                         . ,LLVMAddLoopVectorizePass)
      (SLPVectorize                          . ,LLVMAddSLPVectorizePass)
 

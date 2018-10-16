@@ -34,9 +34,8 @@
 
 (define (initialize-orc! mod-env)
   (define orc (LLVMOrcCreateInstance (LLVMCreateCurrentTargetMachineRef)))
-  (define ms (LLVMOrcMakeSharedModule (env-get-module mod-env)))
+  (define ms (env-get-module mod-env))
   (define (null-symbol-resolver name orc) (printf "called symbol resolver\n") 42)
   (define-values (error-code module-handle)
     (LLVMOrcAddEagerlyCompiledIR orc ms (function-ptr null-symbol-resolver LLVMOrcSymbolResolverFn) orc))
-  (LLVMOrcDisposeSharedModuleRef ms)
   (env-add-orc! mod-env orc))

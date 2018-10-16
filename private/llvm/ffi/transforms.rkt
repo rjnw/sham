@@ -61,7 +61,6 @@
 (define-llvm LLVMAddBasicAliasAnalysisPass                     (_fun LLVMPassManagerRef -> _void))
 
 ;; Vectorization transformations
-(define-llvm LLVMAddBBVectorizePass                            (_fun LLVMPassManagerRef -> _void))
 (define-llvm LLVMAddLoopVectorizePass                          (_fun LLVMPassManagerRef -> _void))
 (define-llvm LLVMAddSLPVectorizePass                           (_fun LLVMPassManagerRef -> _void))
 

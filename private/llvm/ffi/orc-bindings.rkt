@@ -16,18 +16,13 @@
 
 (define LLVMOrcErrorCode (_enum '(LLVMOrcErrSuccess = 0 LLVMOrcErrGeneric)))
 
-(define-llvm LLVMOrcMakeSharedModule (_fun LLVMModuleRef -> LLVMSharedModuleRef))
-(define-llvm LLVMOrcDisposeSharedModuleRef (_fun LLVMSharedModuleRef -> _void))
-;; (define-llvm LLVMOrcMakeSharedObjectBuffer
-;;   (_fun LLVMMemoryBufferRef -> LLVMSharedObjectBufferRef))
-
 (define-llvm LLVMOrcCreateInstance
   (_fun LLVMTargetMachineRef -> LLVMOrcJITStackRef))
 (define-llvm LLVMOrcGetErrorMsg (_fun LLVMOrcJITStackRef -> _string))
 (define-llvm LLVMOrcGetMangledSymbol
   (_fun LLVMOrcJITStackRef (mangled-symbol : (_ptr o _string)) _string
         -> _void -> mangled-symbol))
-;; (define-llvm LLVMDisposeMangledSymbol (_fun _string -> _void))
+(define-llvm LLVMOrcDisposeMangledSymbol (_fun _string -> _void))
 
 (define-llvm LLVMOrcCreateLazyCompileCallback
   (_fun LLVMOrcJITStackRef LLVMOrcLazyCompileCallbackFn _pointer
@@ -48,6 +43,6 @@
 ; (define-llvm LLVMOrcAddObjectFile (_fun LLVMOrcJITStackRef LLVMObjectFileRef LLVMOrcSymbolResolverFn _pointer -> LLVMOrcModuleHandle))
 (define-llvm LLVMOrcGetSymbolAddress
   (_fun LLVMOrcJITStackRef (target-address : (_ptr o LLVMOrcTargetAddress)) _string
-        -> (error-code : LLVMOrcTargetAddress)
+        -> (error-code : _uint64)
         -> (values error-code target-address)))
 (define-llvm LLVMOrcDisposeInstance (_fun LLVMOrcJITStackRef -> _void))
