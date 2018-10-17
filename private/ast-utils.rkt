@@ -55,7 +55,7 @@
 (define v4f32 (tvec f32 4))
 (define v4f64 (tvec f64 4))
 
-(define set! sham:ast:stmt:set!)
+(define set!^ sham:ast:stmt:set!)
 (define if^ sham:ast:stmt:if)
 (define switch sham:ast:stmt:switch)
 (define break sham:ast:stmt:break)
@@ -63,7 +63,6 @@
 (define return sham:ast:stmt:return)
 (define svoid sham:ast:stmt:void)
 (define se sham:ast:stmt:expr)
-(define block sham:ast:stmt:block)
 
 (define app sham:ast:expr:app)
 (define evoid sham:ast:expr:void)
@@ -94,7 +93,6 @@
 (define (ret v) (sham:ast:stmt:return v))
 (define ret-void (sham:ast:stmt:return (sham:ast:expr:void)))
 (define return-void (sham:ast:stmt:return (sham:ast:expr:void)))
-(define (app^ rator . rands) (app rator rands))
 (define (gep^ ptr . indexes) (gep ptr indexes))
 
 ;; internal function
@@ -209,7 +207,6 @@
      ;; (pretty-print (map syntax->datum sl))
      #`(begin #,@sl)]))
 
-
 (li memcpy memmove memset sqrt powi sin cos pow exp exp2 log log10 log2 fma fabs
     minnum maxnum copysign floor ceil trunc rint nearbyint round bitreverse
     bswap ctpop ctlz cttz fshl fshr sadd.with.overflow uadd.with.overflow
@@ -226,9 +223,21 @@
                       (LLVMPointerType (LLVMInt8Type) 0))
    i8*))
 
-(define (block^ . stmts)
-  (block (map (λ (v) (if (sham:ast:expr? v) (se v) v)) stmts))
-  )
+(define (block stmts)
+  (sham:ast:stmt:block
+   (map
+    (λ (v) (cond [(sham:ast:expr? v) (se v)]
+                 [(sham:ast:stmt? v) v]
+                 [else (error "block expects a stmt/expr given: " v)]))
+    stmts)))
+(define (block^ . stmts) (block stmts))
+(define (app^ rator . rands)
+  (match rator
+    [(sham:ast:rator r) (app rator rands)]
+    [(sham:ast:expr:var md v) (app (rs v) rands)]
+    [h #:when (hfunction? h) (apply h rands)]
+    [s #:when (symbol? s) (app (rs s) rands)]
+    [else (error "expected rator for app^ given: " rator)]))
 
 (define-syntax (function^ stx)
   (syntax-parse stx
@@ -236,7 +245,6 @@
      #`(dfunction #f name (list (quote args) ...) (list arg-types ...) ret-type
                   (let ([args (v (quote args))] ...)
                     (block^ body ...)))]))
-
 (define hfunction-manager
   (make-keyword-procedure
    (λ (kws kw-args . rest-args)
@@ -247,19 +255,31 @@
        [(and (empty? kws) (andmap sham:ast? app-args))
         (app (rs id) app-args)]
        ;; todo inline, partial, direct jit
-       (else (error 'todo))))))
+       (else (printf "giving special arguments for function app but TODO: ~a\n" kws)
+             (app (rs id) app-args))))))
 
 (struct hfunction [id sym-args arg-types ret-type body-builder sham-module]
   #:property prop:procedure hfunction-manager)
 (define-syntax (define-sham-function stx)
   (syntax-parse stx
-    [(_ [name:expr (args:id (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
-     #`(define name (hfunction (quote name)
-                    (list (quote args) ...)
+    [(_ [name:id (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
+     #`(define name
+         (hfunction (quasiquote name)
+                    (list (quasiquote args) ...)
                     (list arg-types ...)
                     ret-type
                     (λ (args ...) (block^ body ...))
                     #f))]))
+(define-syntax (hfunction^ stx)
+  (syntax-parse stx
+    [(_ name:expr [(args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
+     #`(hfunction (quasiquote name)
+                  (list (quasiquote args) ...)
+                  (list arg-types ...)
+                  ret-type
+                  (λ (args ...) (block^ body ...))
+                  #f)]))
+
 (define (get-function-for-module hf)
   (match-define (hfunction id sym-args arg-types ret-type body-builder sham-module) hf)
   (dfunction #f id sym-args arg-types ret-type (apply body-builder (map v sym-args))))
@@ -270,6 +290,7 @@
                [(hfunction? f) (get-function-for-module f)]
                [else (error "unknown function for creating module.")]))
        fs))
+
 (define-syntax-rule (define-module name info funcs)
   (define name (dmodule info (quote name) (get-functions funcs))))
 

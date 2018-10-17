@@ -19,6 +19,7 @@
 (define module-pass-info-key 'module-passes)
 (define mcjit-info-key 'mcjit)
 (define orc-info-key 'orc)
+(define orc-handle-info-key 'orc-handle)
 (define per-function-info-key 'per-function-info)
 (define per-type-info-key 'per-type-info)
 
@@ -56,7 +57,9 @@
 (define env-get-mcjit (curryr env-get-info-key mcjit-info-key))
 (define env-add-mcjit! (λ (mod-env mcjit) (env-set-info-key! mod-env mcjit-info-key mcjit)))
 (define env-get-orc (curryr env-get-info-key orc-info-key))
+(define env-get-orc-handle (curryr env-get-info-key orc-handle-info-key))
 (define env-add-orc! (λ (mod-env orc) (env-set-info-key! mod-env orc-info-key orc)))
+(define env-add-orc-handle! (λ (mod-env orc) (env-set-info-key! mod-env orc-handle-info-key orc)))
 
 (define (mod-info-add-ffi-libs info . libs) ;libs is (cons libname ("libid" args))
   (define orig-libs (get-info-key info ffi-lib-key '()))

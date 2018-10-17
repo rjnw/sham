@@ -18,6 +18,9 @@
 
 (define-llvm LLVMOrcCreateInstance
   (_fun LLVMTargetMachineRef -> LLVMOrcJITStackRef))
+;; (define-llvm LLVMOrcMakeSharedModule (_fun LLVMModuleRef -> LLVMSharedModuleRef))
+;; (define-llvm LLVMOrcDisposeSharedModuleRef (_fun LLVMModuleRef -> LLVMSharedModuleRef))
+
 (define-llvm LLVMOrcGetErrorMsg (_fun LLVMOrcJITStackRef -> _string))
 (define-llvm LLVMOrcGetMangledSymbol
   (_fun LLVMOrcJITStackRef (mangled-symbol : (_ptr o _string)) _string
@@ -33,12 +36,14 @@
   (_fun LLVMOrcJITStackRef _string LLVMOrcTargetAddress -> LLVMOrcErrorCode))
 (define-llvm LLVMOrcAddEagerlyCompiledIR
   (_fun LLVMOrcJITStackRef (module-handle : (_ptr o LLVMOrcModuleHandle))
-        LLVMSharedModuleRef _pointer _pointer
+        LLVMModuleRef LLVMOrcSymbolResolverFn _pointer
         -> (error-code : LLVMOrcErrorCode)
         -> (values error-code module-handle)))
 (define-llvm LLVMOrcAddLazilyCompiledIR
-  (_fun LLVMOrcJITStackRef LLVMModuleRef LLVMOrcSymbolResolverFn _pointer
-        -> LLVMOrcModuleHandle))
+  (_fun LLVMOrcJITStackRef (module-handle : (_ptr o LLVMOrcModuleHandle))
+        LLVMModuleRef LLVMOrcSymbolResolverFn _pointer
+        -> (error-code : LLVMOrcErrorCode)
+        -> (values error-code module-handle)))
 ;; TODO add object.h
 ; (define-llvm LLVMOrcAddObjectFile (_fun LLVMOrcJITStackRef LLVMObjectFileRef LLVMOrcSymbolResolverFn _pointer -> LLVMOrcModuleHandle))
 (define-llvm LLVMOrcGetSymbolAddress
