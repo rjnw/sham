@@ -12,6 +12,7 @@
 
 (define info-sym '#%jit-info)
 (define module-key 'module)
+(define top-env-key 'top-env)
 (define context-key 'context)
 (define ffi-mapping-key 'ffi-mappings)
 (define ffi-lib-key 'ffi-libs)
@@ -52,6 +53,13 @@
 (define (env-get-info mod-env)
   (env-lookup info-sym mod-env))
 
+(define env-get-ffi-mappings (curryr env-get-info-key ffi-mapping-key))
+(define env-get-rkt-mappings (curryr env-get-info-key rkt-mapping-key))
+(define env-get-per-function-info-map (curryr env-get-info-key per-function-info-key))
+(define env-get-per-type-info-map (curryr env-get-info-key per-type-info-key))
+
+(define env-get-top-env (curryr env-get-info-key top-env-key))
+(define env-set-top-env! (λ (mod-env env) (env-set-info-key! mod-env top-env-key env)))
 (define env-get-module (curryr env-get-info-key module-key))
 (define env-get-context (curryr env-get-info-key context-key))
 (define env-get-mcjit (curryr env-get-info-key mcjit-info-key))
