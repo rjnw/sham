@@ -60,7 +60,7 @@
 
 (define env-get-top-env (curryr env-get-info-key top-env-key))
 (define env-set-top-env! (λ (mod-env env) (env-set-info-key! mod-env top-env-key env)))
-(define env-get-module (curryr env-get-info-key module-key))
+(define env-get-llvm-module (curryr env-get-info-key module-key))
 (define env-get-context (curryr env-get-info-key context-key))
 (define env-get-mcjit (curryr env-get-info-key mcjit-info-key))
 (define env-add-mcjit! (λ (mod-env mcjit) (env-set-info-key! mod-env mcjit-info-key mcjit)))

@@ -46,7 +46,7 @@
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
   (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
   (define-values (mcjit status err)
-    (LLVMCreateMCJITCompilerForModule (env-get-module mod-env) mcjit-options))
+    (LLVMCreateMCJITCompilerForModule (env-get-llvm-module mod-env) mcjit-options))
   (if status
       (error "error initializing jit" status err)
       (begin
@@ -80,9 +80,9 @@
       module-handle
       (error "orc-add-eager-module! error" error-code)))
 (define (orc-add-lazy-module! orc mod-env)
-  (orc-add-lazy-llvm-module! orc (env-get-module mod-env)))
+  (orc-add-lazy-llvm-module! orc (env-get-llvm-module mod-env)))
 (define (orc-add-eager-module! orc mod-env)
-  (orc-add-eager-llvm-module! orc (env-get-module mod-env)))
+  (orc-add-eager-llvm-module! orc (env-get-llvm-module mod-env)))
 (define (orc-get-function-address orc fsym)
   (LLVMOrcGetSymbolAddress orc (symbol->string fsym)))
 (define (orc-get-function-pointer orc fsym)

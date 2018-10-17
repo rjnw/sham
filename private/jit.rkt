@@ -14,7 +14,8 @@
          "dump.rkt"
          "utils.rkt")
 
-(provide compile-module
+(provide jit-module-compile
+         jit-module-add-function
          jit-get-function
          jit-get-function-ptr
          jit-get-racket-type
@@ -52,7 +53,7 @@
   (internal-type-racket (env-type-prim (env-lookup t-sym mod))))
 
 (define (jit-verify-module mod-env)
-  (define jit-mod (env-get-module mod-env))
+  (define jit-mod (env-get-llvm-module mod-env))
   (LLVMVerifyModule jit-mod 'LLVMPrintMessageAction #f))
 
 (define (jit-cleanup mod-env)
@@ -63,13 +64,13 @@
   ;; LLVMOrcRemoveModule
   (void))
 
-(define (register-module-define stmt llvm-module env)
+(define (register-module-define def llvm-module env)
     (define (compile-function-declaration env-function-type function-name)
       (define function-type
         (internal-type-jit (env-type-prim env-function-type)))
       (LLVMAddFunction llvm-module (symbol->string function-name) function-type))
 
-    (match stmt
+    (match def
       [(sham:def:type info type-name t)
        (env-extend type-name (build-env-type t env) env)]
       [(sham:def:function info function-name args types ret-type body)
@@ -87,7 +88,7 @@
         (LLVMConstNull (internal-type-jit (env-type-prim type))))
        (env-extend id (env-jit-value value (build-env-type t env)) env)]))
 
-(define (compile-module-define def builder llvm-module module-env)
+(define (compile-module-define def module-env)
   (define env (env-get-top-env module-env))
   (define ffi-mappings (env-get-ffi-mappings module-env))
   (define rkt-mappings (env-get-rkt-mappings module-env))
@@ -98,6 +99,11 @@
   (define add-function-info! (curry hash-set! function-info-map))
   (define add-type-info! (curry hash-set! type-info-map))
   (define intrinsic-map (make-hash))
+
+  (define llvm-module (env-get-llvm-module module-env))
+  (define context (env-get-context module-env))
+  (define builder (LLVMCreateBuilderInContext context))
+
   (define (compile-function-definition name args types ret-type body)
     (define env-function (env-lookup name env))
     (define fref (env-jit-function-ref env-function))
@@ -375,7 +381,7 @@
      ;; (env-extend id env-value module-env)
      (values id env-value)]))
 
-(define (compile-module m [module-name "module"] [context (global-jit-context)])
+(define (jit-module-compile m [module-name "module"] [context (global-jit-context)])
   (when (diagnose-compile)
     (define (diag-handler dinfo voidp)
       (define diag-desc (LLVMGetDiagInfoDescription dinfo))
@@ -386,7 +392,7 @@
   (define llvm-module (LLVMModuleCreateWithNameInContext module-name context))
   (when (data-layout) (LLVMSetDataLayout llvm-module (data-layout)))
   (LLVMSetTarget llvm-module (LLVMGetDefaultTargetTriple))
-  (define builder (LLVMCreateBuilderInContext context))
+
   (define function-info-map (make-hash))
   (define type-info-map (make-hash))
   (define ffi-mappings (make-hash))
@@ -409,5 +415,12 @@
                                 (,ffi-mapping-key       . ,ffi-mappings)
                                 (,rkt-mapping-key       . ,rkt-mappings))))])
                ([def defs])
-       (define-values (id value) (compile-module-define def builder llvm-module module-env))
+       (define-values (id value) (compile-module-define def module-env))
        (env-extend id value module-env))]))
+
+(define (jit-module-add-function module-env function-def)
+  (define top-env (env-get-top-env module-env))
+  (define llvm-module (env-get-llvm-module module-env))
+  (define new-top-env (register-module-define function-def llvm-module top-env))
+  (define-values (id value) (compile-module-define function-def module-env))
+  (env-extend id value module-env))
