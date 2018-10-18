@@ -15,35 +15,34 @@
        (return (mul x (pow2 x (sub-nuw n (ui32 1)))))))
 
 (module+ test
-  (define-module test-module
+  (define-module mod1-ast
     (empty-mod-env-info)
     (list pow))
-  (define test-mod-env (compile-module test-module))
+  (define mod1 (jit-module-compile mod1-ast))
+  (define lmod1 (env-get-llvm-module mod1))
 
-
-  (define-module test-module2
+  (define-module mod2-ast
     (empty-mod-env-info)
     (list pow2))
-  (define test-mod-env2 (compile-module test-module2))
-  (define llvm-mod1 (env-get-module test-mod-env))
-  (define mod1c (LLVMCloneModule llvm-mod1))
-  (define llvm-mod2 (env-get-module test-mod-env2))
-  (define mod-combine (LLVMLinkModules2 llvm-mod2 mod1c)) ;; destroys mod1c
+
+  (define mod2 (jit-module-compile mod2-ast))
+  (define lmod2 (env-get-llvm-module mod2))
+  (define lmod1c (LLVMCloneModule llvm-mod1))
+
+  (define mod21c (LLVMLinkModules2 lmod2 lmod1c)) ;; destroys mod1c
+
   (define orc2 (create-orc-instance))
-  (orc-get-function-address orc2 'pow2)
-  (define module-handle (orc-add-lazy-llvm-module! orc2 llvm-mod2))
+  (define mod2h (orc-add-lazy-llvm-module! orc2 lmod2))
 
   (orc-get-function-address orc2 'pow)
 
-  (jit-verify-module test-mod-env)
-  ;; (optimize-module test-mod-env #:opt-level 3)
-  (jit-dump-module test-mod-env)
-  (module-initialize-orc! test-mod-env)
-  ;; (initialize-jit! test-mod-env)
-  (define p (jit-get-function 'pow test-mod-env))
-  (p 3 3)
 
+  (define-module mod3-ast
+    (empty-mod-env-info)
+    (list pow))
+  (define mod3 (jit-module-compile mod3-ast))
+  (define mod3^ (jit-module-add-function mod3 (get-function-for-module pow2)))
 
-
-
-  )
+  (jit-verify-module mod3^)
+  (module-initialize-orc! mod3^)
+  (define pp (jit-get-function 'pow2 mod3^)))

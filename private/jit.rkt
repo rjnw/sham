@@ -422,5 +422,6 @@
   (define top-env (env-get-top-env module-env))
   (define llvm-module (env-get-llvm-module module-env))
   (define new-top-env (register-module-define function-def llvm-module top-env))
+  (env-set-top-env! module-env new-top-env)
   (define-values (id value) (compile-module-define function-def module-env))
   (env-extend id value module-env))

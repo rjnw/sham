@@ -17,7 +17,7 @@
                          #:slp-vec [svec #f]
                          )
   (LLVMCustomInitializeCL 1 '("sham-jit"))
-  (define llvm-module (env-get-module mod-env))
+  (define llvm-module (env-get-llvm-module mod-env))
   (define module-pass-manager (LLVMCreatePassManager))
   (define pass-manager-builder (LLVMPassManagerBuilderCreate))
   (define target-machine (LLVMCreateCurrentTargetMachineRef))
@@ -55,7 +55,7 @@
     (LLVMDisposePassManager mpm)))
 
 (define (do-function-info fname finfo mod-env)
-  (define jit-mod (env-get-module mod-env))
+  (define jit-mod (env-get-llvm-module mod-env))
   (define context (env-get-context mod-env))
   (define envf (env-lookup fname mod-env))
   (define lf (env-jit-function-ref envf))
@@ -80,7 +80,7 @@
     (LLVMDisposePassManager fpm)))
 
 (define (basic-optimize-function mod-env #:opt-level [level 1])
-  (define jit-mod (env-get-module mod-env))
+  (define jit-mod (env-get-llvm-module mod-env))
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))
   (define fpmb (LLVMPassManagerBuilderCreate))
   (LLVMPassManagerBuilderSetOptLevel fpmb level)
