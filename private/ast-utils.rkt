@@ -4,6 +4,7 @@
          "llvm/ffi/all.rkt"
          "parameters.rkt"
          "jit.rkt"
+         "optimize.rkt"
          "init.rkt"
          ffi/unsafe)
 
@@ -269,12 +270,13 @@
 (define (add-to-hmodule! m hfunc)
   (hash-set! (hmodule-func-map m) (hfunction-id hfunc) hfunc))
 
-(define (compile-sham-module! hm)
+(define (compile-sham-module! hm #:opt-level (opt-level #f) #:size-level (size-level 1))
   (match-define (hmodule id func-map info cmod) hm)
   (when cmod
     (error "sham-module already compiled" id))
   (define dm (dmodule info id (get-functions (hash-values func-map))))
   (define cm (jit-module-compile dm))
+  (when opt-level (jit-optimize-module cm #:optlevel opt-level #:size-level size-level))
   (module-initialize-orc! cm)
   (set-hmodule-cmod! hm cm))
 (define (get-module-func hm fid)

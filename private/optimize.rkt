@@ -7,10 +7,10 @@
          "type-info.rkt"
          "env.rkt")
 
-(provide optimize-module)
+(provide jit-optimize-module)
 
 ;; TODO run specific pass defined in meta information
-(define (optimize-module mod-env
+(define (jit-optimize-module mod-env
                          #:opt-level [olevel 1]
                          #:size-level [slevel 1]
                          #:loop-vec [lvec #f]
