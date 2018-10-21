@@ -2,8 +2,10 @@
 
 (require "ast.rkt"
          "llvm/ffi/all.rkt"
+         "parameters.rkt"
+         "jit.rkt"
+         "init.rkt"
          ffi/unsafe)
-
 
 (provide (all-defined-out))
 
@@ -260,16 +262,54 @@
 
 (struct hfunction [id sym-args arg-types ret-type body-builder sham-module]
   #:property prop:procedure hfunction-manager)
+(struct hmodule [id func-map info (cmod #:mutable)])
+
+(define (create-empty-sham-module (id "module") (info (make-hash)))
+  (hmodule id (make-hash) info #f))
+(define (add-to-hmodule! m hfunc)
+  (hash-set! (hmodule-func-map m) (hfunction-id hfunc) hfunc))
+
+(define (compile-sham-module! hm)
+  (match-define (hmodule id func-map info cmod) hm)
+  (when cmod
+    (error "sham-module already compiled" id))
+  (define dm (dmodule info id (get-functions (hash-values func-map))))
+  (define cm (jit-module-compile dm))
+  (module-initialize-orc! cm)
+  (set-hmodule-cmod! hm cm))
+(define (get-module-func hm fid)
+  (jit-get-function fid (hmodule-cmod hm)))
+
+(define (llvm-app hfunc . args)
+  (match-define (hfunction id sargs argt rett bb sm) hfunc)
+  (apply (get-module-func sm id) args))
+
 (define-syntax (define-sham-function stx)
   (syntax-parse stx
     [(_ [name:id (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
-     #`(define name
-         (hfunction (quasiquote name)
-                    (list (quasiquote args) ...)
-                    (list arg-types ...)
-                    ret-type
-                    (λ (args ...) (block^ body ...))
-                    #f))]))
+     #`(begin
+         (define name
+           (hfunction (quasiquote name)
+                      (list (quasiquote args) ...)
+                      (list arg-types ...)
+                      ret-type
+                      (λ (args ...) (block^ body ...))
+                      (current-sham-module)))
+         (add-to-hmodule! (current-sham-module) name))]
+    [(_ (~datum #:module) mod:expr
+        [name:id
+         (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr
+        body:expr ...)
+     #` (begin
+          (define name
+            (hfunction (quasiquote name)
+                       (list (quasiquote args) ...)
+                       (list arg-types ...)
+                       ret-type
+                       (λ (args ...) (block^ body ...))
+                       mod))
+          (add-to-hmodule! mod name))]))
+
 (define-syntax (hfunction^ stx)
   (syntax-parse stx
     [(_ name:expr [(args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
@@ -278,7 +318,7 @@
                   (list arg-types ...)
                   ret-type
                   (λ (args ...) (block^ body ...))
-                  #f)]))
+                  (current-sham-module))]))
 
 (define (get-function-for-module hf)
   (match-define (hfunction id sym-args arg-types ret-type body-builder sham-module) hf)
