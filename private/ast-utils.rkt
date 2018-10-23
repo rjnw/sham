@@ -262,13 +262,17 @@
   (define-splicing-syntax-class function-info
     (pattern (~seq (~datum #:module) mod:expr) #:attr info (cons 'module #'mod))
     (pattern (~seq (~datum #:info) i:expr) #:attr info (cons 'finfo #'i))))
-
+(require "parameters.rkt")
 (define-syntax (define-sham-function stx)
   (syntax-parse stx
     [(_ attrs:function-info ...
         [name:id
          (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr
         body:expr ...)
+     (define mod
+       (cond
+         [(assoc 'module (attribute attrs.info)) => (λ (v) (cdr v))]
+         [else #'(current-sham-module)]))
      #`(begin
          (define name
            (hfunction (quasiquote name)
@@ -279,10 +283,8 @@
                       #,(cond
                           [(assoc 'finfo (attribute attrs.info)) => (λ (v) (cdr v))]
                           [else #f])
-                      #,(cond
-                          [(assoc 'module (attribute attrs.info)) => (λ (v) (cdr v))]
-                          [else (current-sham-module)])))
-         (add-to-hmodule! mod name))]))
+                      #,mod))
+         (add-to-hmodule! #,mod name))]))
 
 (define-syntax (hfunction^ stx)
   (syntax-parse stx

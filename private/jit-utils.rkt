@@ -8,10 +8,11 @@
  "optimize.rkt"
  "init.rkt"
  "parameters.rkt"
+ "dump.rkt"
  ffi/unsafe
  )
 
-
+(provide (all-defined-out))
 (define (rptr->llvmptr rptr)
   (cllvm
    (LLVMConstIntToPtr (LLVMConstInt (LLVMInt64Type) (cast rptr _pointer _uintptr) #f)
@@ -19,21 +20,33 @@
    i8*))
 
 
-(define (compile-sham-module! hm #:opt-level (opt-level #f) #:size-level (size-level 1))
+(define (compile-sham-module! hm #:opt-level (opt-level 1) #:size-level (size-level 1))
   (match-define (hmodule id func-map info cmod) hm)
   (when cmod
     (error "sham-module already compiled" id))
   (define dm (dmodule info id (get-functions (hash-values func-map))))
   (define cm (jit-module-compile dm id))
-  (when opt-level (jit-optimize-module cm #:optlevel opt-level #:size-level size-level))
-  (module-initialize-orc! cm)
+  (when (member 'dump (compile-options)) (jit-dump-module cm))
+  (jit-optimize-module cm #:opt-level opt-level #:size-level size-level)
+  (when (member 'dump (compile-options)) (jit-dump-module cm))
+  (match (member 'jit (compile-options))
+    ['mc (module-initialize-mcjit! cm)]
+    ['orc (module-initialize-orc! cm)]
+    [else (module-initialize-orc! cm)])
   (set-hmodule-cmod! hm cm))
+
 (define (get-module-func hm fid)
-  (jit-get-function fid (hmodule-cmod hm)))
+  (if (hmodule-cmod hm)
+      (jit-get-function fid (hmodule-cmod hm))
+      (error "module not compiled.")))
 
 (define (sham-app hfunc . args)
-  (match-define (hfunction id sargs argt rett bb sm) hfunc)
+  (match-define (hfunction id sargs argt rett bb finfo sm) hfunc)
   (apply (get-module-func sm id) args))
 (define (sham-function hfunc)
-  (match-define (hfunction id sargs argt rett bb sm) hfunc)
+  (match-define (hfunction id sargs argt rett bb finfo sm) hfunc)
   (get-module-func sm id))
+
+(define (sham-dump-llvm hm)
+  (match-define (hmodule id func-map info cmod) hm)
+  (jit-dump-module cmod))
