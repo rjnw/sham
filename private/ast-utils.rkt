@@ -1,12 +1,6 @@
 #lang racket
 
-(require "ast.rkt"
-         "llvm/ffi/all.rkt"
-         "parameters.rkt"
-         "jit.rkt"
-         "optimize.rkt"
-         "init.rkt"
-         ffi/unsafe)
+(require "ast.rkt")
 
 (provide (all-defined-out))
 
@@ -220,12 +214,6 @@
 (define-syntax-rule (ri^ intr ret-type args ...)
   (app^ (ri (intrinsic (quote intr)) ret-type) args ...))
 
-(define (rptr->llvmptr rptr)
-  (cllvm
-   (LLVMConstIntToPtr (LLVMConstInt (LLVMInt64Type) (cast rptr _pointer _uintptr) #f)
-                      (LLVMPointerType (LLVMInt8Type) 0))
-   i8*))
-
 (define (block stmts)
   (sham:ast:stmt:block
    (map
@@ -253,7 +241,7 @@
    (λ (kws kw-args . rest-args)
      (define hf (first rest-args))
      (define app-args (rest rest-args))
-     (match-define (hfunction id sym-args arg-types ret-type body-builder sham-module) hf)
+     (match-define (hfunction id sym-args arg-types ret-type body-builder finfo sham-module) hf)
      (cond
        [(and (empty? kws) (andmap sham:ast? app-args))
         (app (rs id) app-args)]
@@ -261,7 +249,7 @@
        (else (printf "giving special arguments for function app but TODO: ~a\n" kws)
              (app (rs id) app-args))))))
 
-(struct hfunction [id sym-args arg-types ret-type body-builder sham-module]
+(struct hfunction [id sym-args arg-types ret-type body-builder finfo sham-module]
   #:property prop:procedure hfunction-manager)
 (struct hmodule [id func-map info (cmod #:mutable)])
 
@@ -270,25 +258,17 @@
 (define (add-to-hmodule! m hfunc)
   (hash-set! (hmodule-func-map m) (hfunction-id hfunc) hfunc))
 
-(define (compile-sham-module! hm #:opt-level (opt-level #f) #:size-level (size-level 1))
-  (match-define (hmodule id func-map info cmod) hm)
-  (when cmod
-    (error "sham-module already compiled" id))
-  (define dm (dmodule info id (get-functions (hash-values func-map))))
-  (define cm (jit-module-compile dm))
-  (when opt-level (jit-optimize-module cm #:optlevel opt-level #:size-level size-level))
-  (module-initialize-orc! cm)
-  (set-hmodule-cmod! hm cm))
-(define (get-module-func hm fid)
-  (jit-get-function fid (hmodule-cmod hm)))
-
-(define (llvm-app hfunc . args)
-  (match-define (hfunction id sargs argt rett bb sm) hfunc)
-  (apply (get-module-func sm id) args))
+(begin-for-syntax
+  (define-splicing-syntax-class function-info
+    (pattern (~seq (~datum #:module) mod:expr) #:attr info (cons 'module #'mod))
+    (pattern (~seq (~datum #:info) i:expr) #:attr info (cons 'finfo #'i))))
 
 (define-syntax (define-sham-function stx)
   (syntax-parse stx
-    [(_ [name:id (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
+    [(_ attrs:function-info ...
+        [name:id
+         (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr
+        body:expr ...)
      #`(begin
          (define name
            (hfunction (quasiquote name)
@@ -296,21 +276,13 @@
                       (list arg-types ...)
                       ret-type
                       (λ (args ...) (block^ body ...))
-                      (current-sham-module)))
-         (add-to-hmodule! (current-sham-module) name))]
-    [(_ (~datum #:module) mod:expr
-        [name:id
-         (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr
-        body:expr ...)
-     #` (begin
-          (define name
-            (hfunction (quasiquote name)
-                       (list (quasiquote args) ...)
-                       (list arg-types ...)
-                       ret-type
-                       (λ (args ...) (block^ body ...))
-                       mod))
-          (add-to-hmodule! mod name))]))
+                      #,(cond
+                          [(assoc 'finfo (attribute attrs.info)) => (λ (v) (cdr v))]
+                          [else #f])
+                      #,(cond
+                          [(assoc 'module (attribute attrs.info)) => (λ (v) (cdr v))]
+                          [else (current-sham-module)])))
+         (add-to-hmodule! mod name))]))
 
 (define-syntax (hfunction^ stx)
   (syntax-parse stx
@@ -320,11 +292,12 @@
                   (list arg-types ...)
                   ret-type
                   (λ (args ...) (block^ body ...))
+                  #f
                   (current-sham-module))]))
 
 (define (get-function-for-module hf)
-  (match-define (hfunction id sym-args arg-types ret-type body-builder sham-module) hf)
-  (dfunction #f id sym-args arg-types ret-type (apply body-builder (map v sym-args))))
+  (match-define (hfunction id sym-args arg-types ret-type body-builder finfo sham-module) hf)
+  (dfunction finfo id sym-args arg-types ret-type (apply body-builder (map v sym-args))))
 
 (define (get-functions fs)
   (map (λ (f)
