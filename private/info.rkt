@@ -1,5 +1,6 @@
 #lang racket
 
+(require "module-env.rkt")
 (provide (all-defined-out))
 
 (define (basic-empty-info)
@@ -14,6 +15,11 @@
 
 ;; module info
 (define empty-module-info basic-empty-info)
+(define (module-info-add-late-pass mod-info . passes)
+  (add-list-to-info-list mod-info module-late-pass-key passes))
+(define (module-info-add-early-pass mod-info . passes)
+  (add-list-to-info-list mod-info module-early-pass-key passes))
+
 ;; linked modules
 (define module-info-link-module-key 'linked-modules)
 (define module-info-get-link-module

@@ -406,7 +406,7 @@
      (for/fold ([module-env (env-add-info
                              (empty-env)
                              (update-info!
-                              info
+                              (hash-copy info)
                               `((,top-env-key           . ,env)
                                 (,module-key            . ,llvm-module)
                                 (,context-key           . ,context)

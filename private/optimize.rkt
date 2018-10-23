@@ -11,12 +11,19 @@
 
 ;; TODO run specific pass defined in meta information
 (define (jit-optimize-module mod-env
-                         #:opt-level [olevel 1]
-                         #:size-level [slevel 1]
-                         #:loop-vec [lvec #f]
-                         #:slp-vec [svec #f]
-                         )
+                             #:opt-level [olevel 1]
+                             #:size-level [slevel 1]
+                             #:loop-vec [lvec #f]
+                             #:slp-vec [svec #f]
+                             )
   (LLVMCustomInitializeCL 1 '("sham-jit"))
+  ;; (printf "optimize-module: ~a\n" mod-env)
+
+  (define finfo-map (env-get-per-function-info-map mod-env))
+  (for ([(key val) (in-hash finfo-map)])
+    (apply-function-info key val mod-env))
+  (run-module-passes (env-get-early-module-passes mod-env) mod-env)
+
   (define llvm-module (env-get-llvm-module mod-env))
   (define module-pass-manager (LLVMCreatePassManager))
   (define pass-manager-builder (LLVMPassManagerBuilderCreate))
@@ -31,6 +38,7 @@
   (LLVMPassManagerAddTargetIRAnalysis module-pass-manager target-machine)
   (LLVMPassManagerBuilderPopulateModulePassManager pass-manager-builder module-pass-manager)
 
+  ;; (add-module-info-passes module-pass-manager (env-get-module-info-map mod-env))
   (LLVMRunPassManager module-pass-manager llvm-module)
   (LLVMDisposePassManager module-pass-manager)
 
@@ -43,9 +51,12 @@
       (LLVMRunFunctionPassManager function-pass-manager (env-jit-function-ref (cdr m)))))
 
   (LLVMDisposePassManager function-pass-manager)
-  (LLVMPassManagerBuilderDispose pass-manager-builder))
+  (LLVMPassManagerBuilderDispose pass-manager-builder)
 
-(define (run-module-passes jit-mod passes)
+  (run-module-passes (env-get-late-module-passes mod-env) mod-env))
+
+(define (run-module-passes passes mod-env)
+  (define jit-mod (env-get-llvm-module mod-env))
   (define mpm (LLVMCreatePassManager))
   (for ([pass passes])
     (define module-pass (lookup-pass pass))
@@ -54,7 +65,7 @@
       (LLVMRunPassManager mpm jit-mod)
     (LLVMDisposePassManager mpm)))
 
-(define (do-function-info fname finfo mod-env)
+(define (apply-function-info fname finfo mod-env)
   (define jit-mod (env-get-llvm-module mod-env))
   (define context (env-get-context mod-env))
   (define envf (env-lookup fname mod-env))
@@ -63,13 +74,14 @@
     (for ([attr attrs])
       (LLVMAddAttributeAtIndex lf index (lookup-attribute attr context))))
 
-  (for ([(key val) (in-hash finfo)])
-    (match key
-      ['fn (add-attributes val function-attribute-index)]
-      ['ret (add-attributes val 0)]
-      [`(arg ,n) (add-attributes val n)]
-      ['pass (run-function-pass lf jit-mod val)]
-      [else (printf "for now doing nothing for this key in function info" key)])))
+  (when finfo
+    (for ([(key val) (in-hash finfo)])
+      (match key
+        ['attribute (add-attributes val function-attribute-index)]
+        ['ret (add-attributes val 0)]
+        [`(arg ,n) (add-attributes val n)]
+        ['pass (run-function-pass lf jit-mod val)]
+        [else (printf "for now doing nothing for this key in function info ~a." key)]))))
 
 (define (run-function-pass f jit-mod passes)
   (define fpm (LLVMCreateFunctionPassManagerForModule jit-mod))

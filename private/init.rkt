@@ -41,7 +41,7 @@
    "-"))
 
 
-(define (initialize-jit! mod-env #:opt-level [opt-level 3])
+(define (module-initialize-mcjit! mod-env #:opt-level [opt-level 3])
   ;; hmm this is not affecting performance at all, weird
   (define mcjit-options (LLVMInitializeMCJITCompilerOptions))
   (set-LLVMMCJITCompilerOptions-OptLevel! mcjit-options opt-level)
