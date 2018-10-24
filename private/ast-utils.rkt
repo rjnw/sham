@@ -150,9 +150,9 @@
 (define lshr (irs 'lshr))
 (define ashr (irs 'ashr))
 
-(define or (irs 'or))
-(define xor (irs 'xor))
-(define and (irs 'and))
+(define or^ (irs 'or))
+(define xor^ (irs 'xor))
+(define and^ (irs 'and))
 
 (define arr-malloc (irs 'arr-malloc))
 (define arr-alloca (irs 'arr-alloca))
@@ -224,7 +224,7 @@
 (define (block^ . stmts) (block stmts))
 (define (app^ rator . rands)
   (match rator
-    [(sham:ast:rator r) (app rator rands)]
+    [r #:when (sham:ast:rator? r) (app r rands)]
     [(sham:ast:expr:var md v) (app (rs v) rands)]
     [h #:when (hfunction? h) (apply h rands)]
     [s #:when (symbol? s) (app (rs s) rands)]
@@ -245,17 +245,28 @@
      (cond
        [(and (empty? kws) (andmap sham:ast? app-args))
         (app (rs id) app-args)]
+       [(and (empty? kws) (andmap (λ (x) (or (sham:ast? x)
+                                             (hfunction? x)))
+                                  app-args))
+        (app (rs id) (map (λ (x) (if (sham:ast? x) x
+                                     (v (hfunction-id x))))
+                          app-args))]
        ;; todo inline, partial, direct jit
        (else (printf "giving special arguments for function app but TODO: ~a\n" kws)
              (app (rs id) app-args))))))
 
 (struct hfunction [id sym-args arg-types ret-type body-builder finfo sham-module]
   #:property prop:procedure hfunction-manager)
+(define (sham-function-info hf)
+  (match-define (hfunction id sym-args arg-types ret-type body-builder finfo sham-module) hf)
+  (printf "hfunction: id: ~a, sym-args: ~a, arg-types: ~a, ret-type: ~a, finfo: ~a\n" id sym-args arg-types ret-type finfo)
+  hf)
+
 (struct hmodule [id func-map info (cmod #:mutable)])
 
 (define (create-empty-sham-module (id "module") (info (make-hash)))
   (hmodule id (make-hash) info #f))
-(define (add-to-hmodule! m hfunc)
+(define (add-to-sham-module! m hfunc)
   (hash-set! (hmodule-func-map m) (hfunction-id hfunc) hfunc))
 
 (begin-for-syntax
@@ -284,7 +295,7 @@
                           [(assoc 'finfo (attribute attrs.info)) => (λ (v) (cdr v))]
                           [else #f])
                       #,mod))
-         (add-to-hmodule! #,mod name))]))
+         (add-to-sham-module! #,mod name))]))
 
 (define-syntax (hfunction^ stx)
   (syntax-parse stx

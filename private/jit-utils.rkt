@@ -20,18 +20,24 @@
    i8*))
 
 
-(define (compile-sham-module! hm #:opt-level (opt-level 1) #:size-level (size-level 1))
+
+
+(define (compile-sham-module! hm
+                              #:opt-level (opt-level 1)
+                              #:size-level (size-level 1)
+                              #:loop-vec (loop-vec #f))
   (match-define (hmodule id func-map info cmod) hm)
   (when cmod
     (error "sham-module already compiled" id))
-  (define dm (dmodule info id (get-functions (hash-values func-map))))
+  (define all-defs (get-functions (hash-values func-map)))
+  (define dm (dmodule info id all-defs))
+  (when (member 'pretty (compile-options)) (for ([f all-defs]) (pretty-print f)))
   (define cm (jit-module-compile dm id))
   (when (member 'dump (compile-options)) (jit-dump-module cm))
-  (jit-optimize-module cm #:opt-level opt-level #:size-level size-level)
+  (jit-optimize-module cm #:opt-level opt-level #:size-level size-level #:loop-vec loop-vec)
   (when (member 'dump (compile-options)) (jit-dump-module cm))
-  (match (member 'jit (compile-options))
-    ['mc (module-initialize-mcjit! cm)]
-    ['orc (module-initialize-orc! cm)]
+  (cond
+    [(member 'mc-jit (compile-options)) (module-initialize-mcjit! cm)]
     [else (module-initialize-orc! cm)])
   (set-hmodule-cmod! hm cm))
 
