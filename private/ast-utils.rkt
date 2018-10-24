@@ -288,13 +288,16 @@
 
 (define-syntax (hfunction^ stx)
   (syntax-parse stx
-    [(_ name:expr [(args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
+    [(_ name:expr attrs:function-info ... [(args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
+
      #`(hfunction (quasiquote name)
                   (list (quasiquote args) ...)
                   (list arg-types ...)
                   ret-type
                   (λ (args ...) (block^ body ...))
-                  #f
+                  #,(cond
+                      [(assoc 'finfo (attribute attrs.info)) => (λ (v) (cdr v))]
+                      [else #f])
                   (current-sham-module))]))
 
 (define (get-function-for-module hf)
