@@ -5,26 +5,35 @@
          "../private/info.rkt")
 (require "../private/llvm/ffi/all.rkt")
 
-(define mod1 (create-empty-sham-module "global-module"
-                                       (module-info-add-late-pass (empty-module-info) 'AlwaysInliner)))
+(define mod1
+  (create-empty-sham-module "global-module"
+                            (module-info-add-late-pass (empty-module-info) 'AlwaysInliner)))
+(current-sham-module mod1)
 
-(define-sham-function #:module mod1 #:info (function-info-add-attributes (empty-function-info) 'alwaysinline)
-  (pow (x : i32) (n : i32)) : i32
-  ;; (return (mul x n))
-  (if^ (icmp-ule n (ui32 0))
-       (return (ui32 1))
-       (return (mul x (pow x (sub-nuw n (ui32 1))))))
-  )
+(define-sham-function
+  ;; #:info (function-info-add-attributes (empty-function-info) 'alwaysinline)
+  (pow (x : i64) (n : i64)) : i64
+  (if^ (icmp-ule n (ui64 0))
+       (return (ui64 1))
+       (return (mul x (pow x (sub-nuw n (ui64 1)))))))
 
-(define-sham-function #:module mod1
-  (pow5 (x : i32)) : i32
-  (return (pow x (ui32 5))))
+(define to-check (make-parameter 'inline))
+(define-sham-function
+  (pow5 (x : i64)) : i64
+  (return
+   (match (to-check)
+     ['normal (pow x (ui64 5))]
+     ['inline (pow #:inline 1
+                   x (ui64 5))]
+     ['specialize (pow #:specialize '(2)
+                       x (ui64 5))])))
 
-(parameterize ([compile-options (cons 'dump (compile-options))])
-  (compile-sham-module! mod1
-                        #:opt-level 3 #:size-level 3))
+(parameterize ([compile-options (list 'pretty 'dump)])
+  (compile-sham-module!
+   mod1
+   #:opt-level 3 #:size-level 3))
 
-(sham-app pow 2 2)
+(sham-app pow 2 10)
 (sham-app pow5 3)
 ;; (module+ test
 ;;   (define-module mod1-ast

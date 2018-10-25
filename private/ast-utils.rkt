@@ -242,19 +242,46 @@
      (define hf (first rest-args))
      (define app-args (rest rest-args))
      (match-define (hfunction id sym-args arg-types ret-type body-builder finfo sham-module) hf)
-     (cond
-       [(and (empty? kws) (andmap sham:ast? app-args))
-        (app (rs id) app-args)]
-       [(and (empty? kws) (andmap (λ (x) (or (sham:ast? x)
-                                             (hfunction? x)))
-                                  app-args))
-        (app (rs id) (map (λ (x) (if (sham:ast? x) x
-                                     (v (hfunction-id x))))
-                          app-args))]
-       ;; todo inline, partial, direct jit
-       (else (printf "giving special arguments for function app but TODO: ~a\n" kws)
-             (app (rs id) app-args))))))
+     (match kws
+       ['()
+        (cond
+          [(and (empty? kws) (andmap sham:ast? app-args))
+           (app (rs id) app-args)]
+          [(and (empty? kws) (andmap (λ (x) (or (sham:ast? x)
+                                                (hfunction? x)))
+                                     app-args))
+           (app (rs id) (map (λ (x) (if (sham:ast? x) x
+                                        (v (hfunction-id x))))
+                             app-args))])]
+       ['(#:inline)
+        (define inline-level (first kw-args))
+        (when (not (equal? inline-level 1))
+          (error "don't know how to inline more than once."))
+        (define nsyms (map gensym sym-args))
+        (define ret-sym (gensym 'ret))
+        (sham:ast:expr:let (cons ret-sym nsyms) (cons ret-type arg-types) (cons (evoid) app-args)
+                           (set-instead-return (apply body-builder (map v nsyms)) (v ret-sym))
+                           (v ret-sym))]
+       ['(#:specialize)
+        (define special-args (first kw-args))
+        (error 'todospecialize)
+        ]))))
+(define (set-instead-return se var)
+  (define (rec se)
+    (match se
+      [(sham:ast:stmt:set! md l r) (sham:ast:stmt:set! l (rec r))]
+      [(sham:ast:stmt:if md ch th el) (sham:ast:stmt:if (rec ch) (rec th) (rec el))]
+      [(sham:ast:stmt:while md ch bdy) (sham:ast:stmt:while ch (rec bdy))]
+      [(sham:ast:stmt:return md val) (sham:ast:stmt:set! var val)]
+      [(sham:ast:stmt:expr md e) (sham:ast:stmt:expr (rec e))]
+      [(sham:ast:stmt:block md stmts) (sham:ast:stmt:block (map rec stmts))]
 
+      [(sham:ast:expr:app md rator rands)
+       (sham:ast:expr:app rator (map rec rands))]
+      [(sham:ast:expr:let md syms vals typs s e)
+       (sham:ast:expr:let syms vals typs (rec s) (rec e))]
+      [else se]))
+  (rec se))
 (struct hfunction [id sym-args arg-types ret-type body-builder finfo sham-module]
   #:property prop:procedure hfunction-manager)
 (define (sham-function-info hf)

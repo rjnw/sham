@@ -20,8 +20,6 @@
    i8*))
 
 
-
-
 (define (compile-sham-module! hm
                               #:opt-level (opt-level 1)
                               #:size-level (size-level 1)
