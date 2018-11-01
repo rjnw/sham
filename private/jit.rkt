@@ -74,6 +74,7 @@
       [(sham:def:type info type-name t)
        (env-extend type-name (build-env-type t env) env)]
       [(sham:def:function info function-name args types ret-type body)
+       ;; (printf "registering-function: ~a\n" function-name)
        (define type (build-env-type (sham:ast:type:function types ret-type) env))
        (define function-obj (compile-function-declaration type function-name))
        (env-extend function-name (env-jit-function function-obj type) env)]
@@ -105,6 +106,7 @@
   (define builder (LLVMCreateBuilderInContext context))
 
   (define (compile-function-definition name args types ret-type body)
+    ;; (printf "compiling-function: ~a\n" name)
     (define env-function (env-lookup name env))
     (define fref (env-jit-function-ref env-function))
     (define ftype (env-jit-function-type env-function))

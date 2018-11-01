@@ -287,20 +287,79 @@
                                (v ret-sym)))]
        ['(#:specialize)
         (define special-args (first kw-args))
-        (error 'todospecialize)
-        ]))))
-
+        (define special-args-val (for/list ([aa app-args]
+                                            [i (in-range (length app-args))]
+                                            #:when (member i special-args))
+                                   aa))
+        (cond
+          [(is-specialized? sham-module id special-args special-args-val)
+           =>
+           (λ (f)
+             (apply (curry app^ f)
+                    (for/list ([aa app-args]
+                               [i (in-range (length app-args))]
+                               #:when (not (member i special-args)))
+                      aa)))]
+          [else (define minfo (hmodule-info sham-module))
+                (define new-id (gensym id))
+                (define new-body-builder
+                  (λ args ;; arguments to the function after specialization
+                    (define-values
+                      (mix-vals final-arg-i)
+                      (for/fold ([mix-vals '()] ;; values to give to old body builder
+                                 [special-i 0]) ;; number of special-args seen so far
+                                ([i (in-range (length sym-args))])
+                        (if (member i special-args)
+                            ;; if specialized argument get from app-args else from args
+                            (values (cons (list-ref app-args i) mix-vals)
+                                    (add1 special-i))
+                            (values (cons (list-ref args (- i special-i)) mix-vals)
+                                    special-i))))
+                    (apply body-builder (reverse mix-vals))))
+                (define new-stuff
+                  (for/list ([s sym-args]
+                             [t arg-types]
+                             [i (in-range (length app-args))]
+                             #:when (not (member i special-args)))
+                    (cons s t)))
+                (define new-f
+                  (hfunction new-id
+                             (map car new-stuff) (map cdr new-stuff) ret-type
+                             new-body-builder finfo sham-module))
+                (add-to-sham-module! sham-module new-f)
+                (add-specialized! sham-module id new-f special-args
+                                  (for/list ([aa app-args]
+                                             [i (in-range (length app-args))]
+                                             #:when (member i special-args))
+                                    aa))
+                ;; (printf "todo: memoize specialize")
+                (define new-app-args
+                  (for/list ([aa app-args]
+                             [i (in-range (length app-args))]
+                             #:when (not (member i special-args)))
+                    aa))
+                (apply (curry app^ new-f) new-app-args)])]))))
+(define (add-specialized! sham-module id f arg-nums arg-vals)
+  (define specialize-map (hash-ref! (hmodule-hinfo sham-module) '#%specialized (make-hash)))
+  (hash-set! specialize-map (list id arg-nums arg-vals) f))
+(define (is-specialized? sham-module id arg-nums arg-vals)
+  (define specialize-map (hash-ref! (hmodule-hinfo sham-module) '#%specialized (make-hash)))
+  (hash-ref specialize-map (list id arg-nums arg-vals) #f))
+(define (get-specialized sham-module id arg-nums arg-vals)
+  (define specialize-map (hash-ref! (hmodule-hinfo sham-module) '#%specialized (make-hash)))
+  (hash-ref specialize-map (list id arg-nums arg-vals)))
 (struct hfunction [id sym-args arg-types ret-type body-builder finfo sham-module]
   #:property prop:procedure hfunction-manager)
 (define (sham-function-info hf)
   (match-define (hfunction id sym-args arg-types ret-type body-builder finfo sham-module) hf)
-  (printf "hfunction: id: ~a, sym-args: ~a, arg-types: ~a, ret-type: ~a, finfo: ~a\n" id sym-args arg-types ret-type finfo)
+  (printf "hfunction: id: ~a, sym-args: ~a, arg-types: ~a, ret-type: ~a, finfo: ~a\n"
+          id sym-args arg-types ret-type finfo)
   hf)
 
-(struct hmodule [id func-map info (cmod #:mutable)])
+(struct hmodule [id func-map info hinfo (cmod #:mutable)])
 
 (define (create-empty-sham-module (id "module") (info (make-hash)))
-  (hmodule id (make-hash) info #f))
+  (hmodule id (make-hash) info (make-hash) #f))
 (define (add-to-sham-module! m hfunc)
   (hash-set! (hmodule-func-map m) (hfunction-id hfunc) hfunc))
 
@@ -332,10 +391,12 @@
                       #,mod))
          (add-to-sham-module! #,mod name))]))
 
-(define-syntax (hfunction^ stx)
+(define-syntax (sham-function stx)
   (syntax-parse stx
-    [(_ attrs:function-info ... name:expr [(args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr body:expr ...)
-
+    [(_ attrs:function-info ...
+        [name:expr
+         (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr
+        body:expr ...)
      #`(hfunction (quasiquote name)
                   (list (quasiquote args) ...)
                   (list arg-types ...)

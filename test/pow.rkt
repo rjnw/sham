@@ -20,7 +20,7 @@
       (return (mul x (pow x (sub-nuw n (ui64 1)))))))
 
 ;; (define pow5 (sham-specialize pow '(1) (ui32 5)))
-(define to-check (make-parameter 'inline))
+(define to-check (make-parameter 'specialize))
 (define-sham-function
   (pow5 (x : i64)) : i64
   (return
@@ -34,7 +34,7 @@
 (parameterize ([compile-options (list 'pretty 'dump)])
   (compile-sham-module!
    mod1
-   #:opt-level 3 #:size-level 3))
+   #:opt-level 0))
 
 (sham-app pow 2 10)
 (sham-app pow5 3)
