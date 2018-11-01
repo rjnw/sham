@@ -2,6 +2,7 @@
 (require "../main.rkt"
          "../private/ast-utils.rkt"
          "../private/jit-utils.rkt"
+         "../private/parameters.rkt"
          "../private/info.rkt")
 (require "../private/llvm/ffi/all.rkt")
 
@@ -10,13 +11,15 @@
                             (module-info-add-late-pass (empty-module-info) 'AlwaysInliner)))
 (current-sham-module mod1)
 
-(define-sham-function
-  ;; #:info (function-info-add-attributes (empty-function-info) 'alwaysinline)
-  (pow (x : i64) (n : i64)) : i64
-  (if^ (icmp-ule n (ui64 0))
-       (return (ui64 1))
-       (return (mul x (pow x (sub-nuw n (ui64 1)))))))
 
+(define-sham-function
+ ;; #:info (function-info-add-attributes (empty-function-info) 'alwaysinline)
+ (pow (x : i64) (n : i64)) : i64
+ (if^ (icmp-ule n (ui64 0))
+      (return (ui64 1))
+      (return (mul x (pow x (sub-nuw n (ui64 1)))))))
+
+;; (define pow5 (sham-specialize pow '(1) (ui32 5)))
 (define to-check (make-parameter 'inline))
 (define-sham-function
   (pow5 (x : i64)) : i64
@@ -25,7 +28,7 @@
      ['normal (pow x (ui64 5))]
      ['inline (pow #:inline 1
                    x (ui64 5))]
-     ['specialize (pow #:specialize '(2)
+     ['specialize (pow #:specialize '(1)
                        x (ui64 5))])))
 
 (parameterize ([compile-options (list 'pretty 'dump)])

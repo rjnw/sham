@@ -31,9 +31,11 @@
   (define dm (dmodule info id all-defs))
   (when (member 'pretty (compile-options)) (for ([f all-defs]) (pretty-print f)))
   (define cm (jit-module-compile dm id))
+  (when (member 'verify (compile-options)) (jit-verify-module cm))
   (when (member 'dump (compile-options)) (jit-dump-module cm))
   (jit-optimize-module cm #:opt-level opt-level #:size-level size-level #:loop-vec loop-vec)
   (when (member 'dump (compile-options)) (jit-dump-module cm))
+
   (cond
     [(member 'mc-jit (compile-options)) (module-initialize-mcjit! cm)]
     [else (module-initialize-orc! cm)])
