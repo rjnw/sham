@@ -20,7 +20,7 @@
          [function (args:type ... '-> ret:type)]
          [pointer  (to:type)]
          [array    (of:type size:terminal.unsigned-int)]
-         [vector   (of:type size:terminal.unsigned-nt)])
+         [vector   (of:type size:terminal.unsigned-int)])
    (rator ast
           ;; ;; Symbol for definitions
           [symbol    id:terminal.sym]

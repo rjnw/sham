@@ -1,6 +1,7 @@
 #lang racket
 
-(require "ast.rkt")
+(require "ast.rkt"
+         "parameters.rkt")
 
 (provide (all-defined-out))
 
@@ -17,8 +18,10 @@
 
 (define ui sham:ast:expr:const:ui)
 (define (ui1 v) (sham:ast:expr:const:ui v i1))
+(define (ui8 v) (sham:ast:expr:const:ui v i8))
 (define (ui32 v) (sham:ast:expr:const:ui v i32))
 (define (ui64 v) (sham:ast:expr:const:ui v i64))
+
 (define si sham:ast:expr:const:si)
 (define (si32 v) (sham:ast:expr:const:si v i32))
 (define (si64 v) (sham:ast:expr:const:si v i64))
@@ -154,6 +157,8 @@
 (define xor^ (irs 'xor))
 (define and^ (irs 'and))
 
+(define malloc^ (irs 'malloc))
+(define free^ (irs 'free))
 (define arr-malloc (irs 'arr-malloc))
 (define arr-alloca (irs 'arr-alloca))
 
@@ -360,8 +365,16 @@
 
 (define (create-empty-sham-module (id "module") (info (make-hash)))
   (hmodule id (make-hash) info (make-hash) #f))
-(define (add-to-sham-module! m hfunc)
-  (hash-set! (hmodule-func-map m) (hfunction-id hfunc) hfunc))
+(define (create-sham-module funcs (id "module") (info (make-hash)))
+  (define m (create-empty-sham-module id info))
+  (for ([f funcs])
+    (add-to-sham-module! m f))
+  m)
+(define (add-to-sham-module! m func)
+  (cond  [(hfunction? func) (hash-set! (hmodule-func-map m) (hfunction-id func) func)]
+         [else
+          (match-define (sham:def:function info id syms t ret b) func)
+          (hash-set! (hmodule-func-map m) id func)]))
 
 (begin-for-syntax
   (define-splicing-syntax-class function-info
@@ -387,7 +400,7 @@
                       (λ (args ...) (block^ body ...))
                       #,(cond
                           [(assoc 'finfo (attribute attrs.info)) => (λ (v) (cdr v))]
-                          [else #f])
+                          [else #`(common-function-info)])
                       #,mod))
          (add-to-sham-module! #,mod name))]))
 
@@ -404,7 +417,7 @@
                   (λ (args ...) (block^ body ...))
                   #,(cond
                       [(assoc 'finfo (attribute attrs.info)) => (λ (v) (cdr v))]
-                      [else #f])
+                      [else #`(common-function-info)])
                   (current-sham-module))]))
 
 (define (get-function-for-module hf)

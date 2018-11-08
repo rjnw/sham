@@ -15,6 +15,9 @@
 
 ;; module info
 (define empty-module-info basic-empty-info)
+(define (module-info-add-ffi-libs info . libs) ;libs is (cons libname ("libid" args))
+  (define orig-libs (get-info-key info ffi-lib-key '()))
+  (add-list-to-info-list info ffi-lib-key (append orig-libs libs)))
 (define (module-info-add-late-pass mod-info . passes)
   (add-list-to-info-list mod-info module-late-pass-key passes))
 (define (module-info-add-early-pass mod-info . passes)

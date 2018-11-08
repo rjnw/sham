@@ -70,9 +70,7 @@
 (define env-add-orc! (λ (mod-env orc) (env-set-info-key! mod-env orc-info-key orc)))
 (define env-add-orc-handle! (λ (mod-env orc) (env-set-info-key! mod-env orc-handle-info-key orc)))
 
-(define (mod-info-add-ffi-libs info . libs) ;libs is (cons libname ("libid" args))
-  (define orig-libs (get-info-key info ffi-lib-key '()))
-  (set-info-key! info ffi-lib-key (append orig-libs libs)))
+
 
 (define (env-add-late-module-pass! info . passes)
   (set-info-key! info module-late-pass-key (append passes (hash-ref info module-late-pass-key '()))))
