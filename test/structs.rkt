@@ -3,7 +3,7 @@
 (require "../main.rkt")
 
 
-(module+ test
+#;(module+ test
   (require rackunit)
 
   (define apr (s$:tptr (s$:tref 'size-array)))

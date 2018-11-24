@@ -1,37 +1,34 @@
 #lang racket
 
-(require "../main.rkt")
+(require sham
+         sham/ast-utils
+         sham/jit-utils)
 
 
 (module+ test
   (require rackunit)
 
-  (define mod
-    (s$:dmodule
-     (empty-mod-env-info) 'test-mod
-     (list
-      (s$:dfunction (void) 'const42 '() '() s$:i32
-                    (s$:ret (s$:ui32 42)))
-      (s$:dfunction (void) 'identity (list 'v) (list s$:i32) s$:i32
-                    (s$:ret (s$:v 'v)))
-      (s$:dfunction (void) 'even? (list 'x) (list s$:i32) s$:i32
-                    (s$:if (s$:icmp-eq (s$:urem (s$:v 'x) (s$:ui32 2))
-                                       (s$:ui32 0))
-                           (s$:ret (s$:ui32 1))
-                           (s$:ret (s$:ui32 0))))
-      )))
+  (define test-module
+    (create-empty-sham-module "test-module"))
+  (current-sham-module test-module)
 
-  (define mod-env (compile-module mod))
-  (jit-dump-module mod-env)
-  (optimize-module mod-env #:opt-level 3)
-  (jit-dump-module mod-env)
-  (initialize-jit! mod-env)
+  (define-sham-function
+    (const42) :  i32
+    (ret (ui32 42)))
+  (define-sham-function
+    (identity (v : i32)) : i32
+    (ret v))
+  (define-sham-function
+    (even? (x : i32)) : i32
+    (if^ (icmp-eq (urem x (ui32 2)) (ui32 0))
+         (ret (ui32 1))
+         (ret (ui32 0))))
+  (parameterize ([compile-options (list 'pretty 'dump)])
+    (compile-sham-module!
+     test-module
+     #:opt-level 3))
 
-  (define const42 (jit-get-function 'const42 mod-env))
-  (check-eq? (const42) 42)
-
-  (define id (jit-get-function 'identity mod-env))
-  (check-eq? (id 42) 42)
-
-  (define even-huh (jit-get-function 'even? mod-env))
-  (check-eq? (even-huh 42) 1))
+  (check-eq? (sham-app even? 42) 1)
+  (check-eq? (sham-app const42) 42)
+  (check-eq? (sham-app identity 42) 42)
+  )

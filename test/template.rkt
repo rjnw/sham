@@ -1,21 +1,23 @@
 #lang racket
 
-(require "../main.rkt")
+(require sham
+         sham/ast-utils
+         sham/jit-utils)
 
 
-(module+ test
+#;(module+ test
   (require rackunit)
 
-  (define mod
-    (s$:dmodule
-     (empty-mod-env-info) 'test-module
-     (list
-      ...)))
+  (define test-module
+    (create-empty-sham-module "test-module"))
+  (current-sham-module test-module)
 
-  (define mod-env (compile-module mod))
-  (jit-dump-module mod-env)
-  (optimize-module mod-env #:opt-level 3)
-  (jit-dump-module mod-env)
-  (initialize-jit! mod-env)
-  (define ... (jit-get-function '... mod-env))
+  (define-sham-function
+    (<id> (<arg> : <arg-type>) ...) : <return-type>
+    <body>)
+
+  (parameterize ([compile-options (list 'pretty 'dump)])
+    (compile-sham-module!
+     test-module
+     #:opt-level 3))
   (check-eq? ... ...))

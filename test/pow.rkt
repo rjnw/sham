@@ -1,10 +1,7 @@
 #lang racket
-(require "../main.rkt"
-         "../private/ast-utils.rkt"
-         "../private/jit-utils.rkt"
-         "../private/parameters.rkt"
-         "../private/info.rkt")
-(require "../private/llvm/ffi/all.rkt")
+(require sham
+         sham/ast-utils
+         sham/jit-utils)
 
 (define mod1
   (create-empty-sham-module "global-module"
@@ -13,14 +10,14 @@
 
 
 (define-sham-function
- ;; #:info (function-info-add-attributes (empty-function-info) 'alwaysinline)
+ #:info (function-info-add-attributes (empty-function-info) 'alwaysinline)
  (pow (x : i64) (n : i64)) : i64
  (if^ (icmp-ule n (ui64 0))
       (return (ui64 1))
       (return (mul x (pow x (sub-nuw n (ui64 1)))))))
 
 ;; (define pow5 (sham-specialize pow '(1) (ui32 5)))
-(define to-check (make-parameter 'specialize))
+(define to-check (make-parameter 'inline))
 (define-sham-function
   (pow5 (x : i64)) : i64
   (return
@@ -34,7 +31,7 @@
 (parameterize ([compile-options (list 'pretty 'dump)])
   (compile-sham-module!
    mod1
-   #:opt-level 0))
+   #:opt-level 3))
 
 (sham-app pow 2 10)
 (sham-app pow5 3)

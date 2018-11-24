@@ -1,8 +1,6 @@
 #lang racket
 
-(require "../main.rkt")
-(require disassemble)
-(module+ test
+#;(module+ test
   (require rackunit)
 
   (define mod

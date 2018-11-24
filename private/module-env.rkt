@@ -70,8 +70,6 @@
 (define env-add-orc! (λ (mod-env orc) (env-set-info-key! mod-env orc-info-key orc)))
 (define env-add-orc-handle! (λ (mod-env orc) (env-set-info-key! mod-env orc-handle-info-key orc)))
 
-
-
 (define (env-add-late-module-pass! info . passes)
   (set-info-key! info module-late-pass-key (append passes (hash-ref info module-late-pass-key '()))))
 (define (env-add-early-module-pass! info . passes)

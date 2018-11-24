@@ -187,9 +187,9 @@
 
 
 (define (while^ expr . stmts)
-  (while expr (apply block^ stmts)))
+  (while expr (block stmts)))
 (define (while-ule^ ind bound . stmts)
-  (while (icmp-ule ind bound) (apply block^ stmts)))
+  (while (icmp-ule ind bound) (block stmts)))
 
 ;; intrinsics
 (define (intrinsic . args)
@@ -437,15 +437,15 @@
 (define-syntax (let^ stx)
   (syntax-parse stx
     [(_ ([arg val (~datum :) typ] ...) s:expr ... e:expr)
-     #`(let ([arg (v (quote arg))] ...)
-         (sham:ast:expr:let (list (quote arg) ...) (list typ ...) (list val ...)
+     #`(let ([arg (v (quasiquote arg))] ...)
+         (sham:ast:expr:let (list (quasiquote arg) ...) (list typ ...) (list val ...)
                             (block^ s ...)
                             e))]))
 (define-syntax (slet^ stx)
   (syntax-parse stx
     [(_ ([arg val (~datum :) typ] ...) s:expr ...)
-     #`(let ([arg (v (quote arg))] ...)
-         (sham:ast:expr:let (list (quote arg) ...) (list typ ...) (list val ...)
+     #`(let ([arg (v (quasiquote arg))] ...)
+         (sham:ast:expr:let (list (quasiquote arg) ...) (list typ ...) (list val ...)
                             (block^ s ...)
                             (evoid)))]))
 ;; (define (let1 var type val stmt expr)

@@ -7,7 +7,9 @@
          "private/optimize.rkt"
          "private/module-env.rkt"
          "private/utils.rkt"
-         "private/init.rkt")
+         "private/init.rkt"
+         "private/parameters.rkt"
+         "private/info.rkt")
 
 
 (provide
@@ -18,5 +20,7 @@
   "private/dump.rkt"
   "private/optimize.rkt"
   "private/module-env.rkt"
-  "private/init.rkt")
+  "private/init.rkt"
+  "private/parameters.rkt"
+  "private/info.rkt")
  sham-diagnose)
