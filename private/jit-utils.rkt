@@ -39,7 +39,8 @@
 
   (cond
     [(member 'mc-jit (compile-options)) (module-initialize-mcjit! cm)]
-    [else (module-initialize-orc! cm)])
+    [(member 'orc (compile-options)) (module-initialize-orc! cm)]
+    [else (module-initialize-mcjit! cm)])
   (set-hmodule-cmod! hm cm))
 
 (define (get-module-func hm fid)
