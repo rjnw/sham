@@ -11,54 +11,27 @@
     (create-empty-sham-module "test-module"))
   (current-sham-module test-module)
 
-  ;; (define-sham-function
-  ;;   (<id> (<arg> : <arg-type>) ...) : <return-type>
-  ;;   <body>)
+  (define-sham-function
+    (create-box) : i32*
+    (ret (malloc^ (etype i32))))
+  (define-sham-function
+    (store-box (x : i32) (box : i32*)) : tvoid
+    (store! x box)
+    ret-void)
+  (define-sham-function
+    (open-box (box : i32*)) : i32
+    (ret (load box)))
+  (define-sham-function
+    (free-box (x : i32*)) : tvoid
+    (free^ x)
+    ret-void)
 
-  (parameterize ([compile-options (list 'pretty 'dump)])
+  (parameterize ([compile-options (list 'pretty 'dump 'mc-jit)])
     (compile-sham-module!
      test-module
      #:opt-level 3))
-  ;; (check-eq? ... ...)
-  )
 
-#;(module+ test
-  (require rackunit)
-
-  (define mod
-    (s$:dmodule
-     (empty-mod-env-info) 'test-module
-     (list
-      (s$:dfunction (void) 'create-box '() '() s$:i32*
-                    (s$:ret (s$:app^ (s$:rs 'malloc)
-                                     (s$:etype s$:i32))))
-      (s$:dfunction (void) 'store-box (list 'x 'box) (list s$:i32 s$:i32*) s$:void
-                    (s$:block^
-                     (s$:se (s$:app^ (s$:rs 'store!)
-                                     (s$:v 'x)
-                                     (s$:v 'box)))
-                     s$:ret-void))
-      (s$:dfunction (void) 'open-box (list 'x) (list s$:i32*) s$:i32
-                    (s$:ret (s$:app^ (s$:rs 'load)
-                                     (s$:v 'x))))
-      (s$:dfunction (void) 'free-box (list 'x) (list s$:i32*) (s$:tref 'void)
-                    (s$:block^
-                     (s$:se (s$:app^ (s$:rs 'free)
-                                     (s$:v 'x)))
-                     s$:ret-void)))))
-
-  (define mod-env (compile-module mod))
-  (jit-dump-module mod-env)
-  (optimize-module mod-env #:opt-level 3)
-  (jit-dump-module mod-env)
-  (initialize-jit! mod-env)
-
-  (define create-box (jit-get-function 'create-box mod-env))
-  (define store-box (jit-get-function 'store-box mod-env))
-  (define open-box (jit-get-function 'open-box mod-env))
-  (define free-box (jit-get-function 'free-box mod-env))
-
-  (define tbox (create-box))
-  (store-box 42 tbox)
-  (check-eq? (open-box tbox) 42)
-  (free-box tbox))
+  (define tbox (sham-app create-box))
+  (sham-app store-box 42 tbox)
+  (check-eq?  (sham-app open-box tbox) 42)
+  (sham-app free-box tbox))
