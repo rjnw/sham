@@ -257,7 +257,8 @@
                                      app-args))
            (app (rs id) (map (λ (x) (if (sham:ast? x) x
                                         (v (hfunction-id x))))
-                             app-args))])]
+                             app-args))]
+          [else (error "unknown arguments when applying function" id app-args)])]
        ['(#:inline)
         (define is-ret-void #f)
         ;;instead check the return type of the function to figure this out
