@@ -9,7 +9,7 @@
          "private/utils.rkt"
          "private/init.rkt"
          "private/parameters.rkt"
-         "private/info.rkt")
+         "private/ast-info.rkt")
 
 
 (provide
@@ -22,5 +22,5 @@
   "private/module-env.rkt"
   "private/init.rkt"
   "private/parameters.rkt"
-  "private/info.rkt")
+  "private/ast-info.rkt")
  sham-diagnose)
