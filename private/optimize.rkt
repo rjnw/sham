@@ -3,7 +3,7 @@
          "llvm/pass-table.rkt"
          "llvm/adjunct.rkt"
          "module-env.rkt"
-         "info.rkt"
+         "ast-info.rkt"
          "type-info.rkt"
          "env.rkt")
 
