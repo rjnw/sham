@@ -44,8 +44,8 @@
 
 (define (merge-sham-module into from)
   (define (combine-info inf1 inf2)
-    (pretty-print inf1) (pretty-print inf2)
-    (printf "TODO: combine infos")
+    ;; (pretty-print inf1) (pretty-print inf2)
+    ;; (printf "TODO: combine infos")
     inf2)
   (define (combine-hinfo inf1 inf2) inf1) ;TODO
   (match-define (hmodule into-id into-func-map into-info into-hinfo into-cmod) into)

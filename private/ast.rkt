@@ -1,5 +1,5 @@
 #lang racket
-(require "../../rcf/private/compiler.rkt"
+(require rcf/ast
          ffi/unsafe)
 (provide (all-defined-out))
 

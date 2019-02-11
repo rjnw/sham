@@ -92,7 +92,7 @@
 
 (define (ret v) (sham:ast:stmt:return v))
 (define ret-void (sham:ast:stmt:return (sham:ast:expr:void)))
-(define return-void (sham:ast:stmt:return (sham:ast:expr:void)))
+(define (return-void) (sham:ast:stmt:return (sham:ast:expr:void)))
 (define (gep^ ptr . indexes) (gep ptr indexes))
 
 ;; internal function
@@ -156,6 +156,7 @@
 (define or^ (irs 'or))
 (define xor^ (irs 'xor))
 (define and^ (irs 'and))
+(define not^ (irs 'not))
 
 (define malloc^ (irs 'malloc))
 (define free^ (irs 'free))
@@ -373,20 +374,23 @@
   m)
 (define (add-to-sham-module! m func)
   (cond  [(hfunction? func) (hash-set! (hmodule-func-map m) (hfunction-id func) func)]
-         [else
+         [(sham:def:function? func)
           (match-define (sham:def:function info id syms t ret b) func)
+          (hash-set! (hmodule-func-map m) id func)]
+         [(sham:def:global? func)
+          (match-define (sham:def:global info id t) func)
           (hash-set! (hmodule-func-map m) id func)]))
 
 (begin-for-syntax
-  (define-splicing-syntax-class function-info
+  (define-splicing-syntax-class define-info
     (pattern (~seq (~datum #:module) mod:expr) #:attr info (cons 'module #'mod))
     (pattern (~seq (~datum #:info) i:expr) #:attr info (cons 'finfo #'i))))
 (require "parameters.rkt")
 (define-syntax (define-sham-function stx)
   (syntax-parse stx
-    [(_ attrs:function-info ...
+    [(_ attrs:define-info ...
         [name:id
-         (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr
+         (args:expr (~datum :) arg-types:expr) ... (~datum :) ret-type:expr]
         body:expr ...)
      (define mod
        (cond
@@ -404,12 +408,18 @@
                           [else #`(common-function-info)])
                       #,mod))
          (add-to-sham-module! #,mod name))]))
+(define-syntax (define-sham-global stx)
+  (syntax-parse stx
+    [(_ attrs:define-info ... name:id type:expr)
+     #`(begin
+         (define name (v (quote name)))
+         (add-to-sham-module! (current-sham-module) (dglobal #f (quote name) type)))]))
 
 (define-syntax (sham-function stx)
   (syntax-parse stx
-    [(_ attrs:function-info ...
+    [(_ attrs:define-info ...
         [name:expr
-         (args:expr (~datum :) arg-types:expr) ...] (~datum :) ret-type:expr
+         (args:expr (~datum :) arg-types:expr) ... (~datum :) ret-type:expr]
         body:expr ...)
      #`(hfunction (quasiquote name)
                   (list (quasiquote args) ...)
@@ -429,6 +439,9 @@
   (map (λ (f)
          (cond [(sham:def:function? f) f]
                [(hfunction? f) (get-function-for-module f)]
+               [(sham:def:type? f) f]
+               [(sham:def:global? f) f]
+               [(sham:def:global-string? f) f]
                [else (error "unknown function for creating module.")]))
        fs))
 
