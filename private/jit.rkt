@@ -140,6 +140,10 @@
         (env-extend arg (env-jit-value p-arg l-type) env)))
 
     (define (build-statement stmt env)
+      (define (current-return?)
+        (define bbt (LLVMGetBasicBlockTerminator
+                     (LLVMGetInsertBlock builder)))
+        (if bbt (zero? (LLVMGetNumSuccessors bbt)) #f))
       (match stmt
         [(sham:ast:stmt:set! md lhs v) ;;TODO: right now lhs can only be a var
          (match lhs
@@ -163,10 +167,6 @@
 
          (LLVMPositionBuilderAtEnd builder then-block)
          (build-statement thn env)
-         (define (current-return?)
-           (define bbt (LLVMGetBasicBlockTerminator
-                        (LLVMGetInsertBlock builder)))
-           (if bbt (zero? (LLVMGetNumSuccessors bbt)) #f))
 
          (define then-return? (current-return?))
          (unless then-return?
@@ -187,24 +187,32 @@
          (define switch-entry (new-block 'switch-entry))
          (define switch-default (new-block 'switch-default))
          (define afterswitch-block (new-block 'afterswitch-block))
-
+         (LLVMBuildBr builder switch-entry)
+         (LLVMPositionBuilderAtEnd builder switch-entry)
          (define tst-value (build-expression tst env))
-
-         (define env (env-extend '#%break-block afterswitch-block env))
-         (LLVMPositionBuilderAtEnd builder switch-default)
-         (build-statement default env)
-         (LLVMBuildBr builder afterswitch-block)
-
          (define switch (LLVMBuildSwitch builder tst-value switch-default (length cases)))
 
-         (for ([val checks]
-               [stmt cases])
-           (define ve (build-expression val))
-           (define case-block (new-block 'switch-case))
-           (LLVMPositionBuilderAtEnd case-block)
-           (build-statement stmt)
-           (LLVMAddCase switch ve case-block))
-         (LLVMPositionBuilderAtEnd builder switch-default)]
+         (LLVMPositionBuilderAtEnd builder switch-default)
+         (build-statement default env)
+         (define default-return? (current-return?))
+         (unless default-return?
+           (LLVMBuildBr builder afterswitch-block))
+
+         (define all-return?
+           (for/fold ([all-return? default-return?])
+                     ([val checks]
+                      [stmt cases])
+             (define ve (build-expression val env))
+             (define case-block (new-block 'switch-case))
+             (LLVMPositionBuilderAtEnd builder case-block)
+             (build-statement stmt env)
+             (unless (current-return?)
+               (LLVMBuildBr builder afterswitch-block))
+             (LLVMAddCase switch ve case-block)
+             (and all-return? (current-return?))))
+         (when all-return?
+           (LLVMDeleteBasicBlock afterswitch-block))
+         (LLVMPositionBuilderAtEnd builder afterswitch-block)]
 
         [(sham:ast:stmt:while md tst body)
          (define prev-block (LLVMGetInsertBlock builder))
