@@ -11,7 +11,7 @@
 
 (define-sham-function
  #:info (function-info-add-attributes (empty-function-info) 'alwaysinline)
- (pow (x : i64) (n : i64)) : i64
+  (pow (x : i64) (n : i64) : i64)
  (if^ (icmp-ule n (ui64 0))
       (return (ui64 1))
       (return (mul x (pow x (sub-nuw n (ui64 1)))))))
@@ -19,7 +19,7 @@
 ;; (define pow5 (sham-specialize pow '(1) (ui32 5)))
 (define to-check (make-parameter 'inline))
 (define-sham-function
-  (pow5 (x : i64)) : i64
+  (pow5 (x : i64) : i64)
   (return
    (match (to-check)
      ['normal (pow x (ui64 5))]

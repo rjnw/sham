@@ -12,12 +12,12 @@
   (current-sham-module test-module)
 
   (define-sham-function
-    (meven? (x : i32)) : i1
+    (meven? (x : i32) : i1)
     (if^ (icmp-eq (urem x (ui32 2)) (ui32 0))
          (ret (ui1 1))
          (ret (modd? (sub x (ui32 1))))))
   (define-sham-function
-    (modd? (x : i32)) : i1
+    (modd? (x : i32) : i1)
     (if^ (icmp-eq (urem x (ui32 2)) (ui32 0))
          (ret (ui1 0))
          (ret (meven? (sub x (ui32 1))))))

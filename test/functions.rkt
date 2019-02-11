@@ -13,13 +13,13 @@
   (current-sham-module test-module)
 
   (define-sham-function
-    (const42) :  i32
+    (const42 : i32)
     (ret (ui32 42)))
   (define-sham-function
-    (identity (v : i32)) : i32
+    (identity (v : i32) : i32)
     (ret v))
   (define-sham-function
-    (even? (x : i32)) : i32
+    (even? (x : i32) : i32)
     (if^ (icmp-eq (urem x (ui32 2)) (ui32 0))
          (ret (ui32 1))
          (ret (ui32 0))))
