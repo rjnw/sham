@@ -28,21 +28,22 @@
                            (return (ui64 0)))
                   (return (ui64 1)))) ...))
      (pretty-display (syntax->datum funcs))
-     (define fs (for/list  ([s (syntax->list #`(state ...))]
-                            [sevt (syntax->list #`((evt ...) ...))]
-                            [snxs (syntax->list #`((next-state ...) ...))])
-                  (define f
-                    #`(define-sham-function (#,s (inp : i64*) (pos : i64) (len : i64) : i64)
-                        (if^ (icmp-ule pos len)
-                             (switch^ (load (gep^ inp pos))
-                                      #,@(map (λ (s ns) #`[(ui64 #,s)
-                                                           (return (#,ns inp (add pos (ui64 1))))])
-                                              (syntax->list sevt) (syntax->list snxs))
-                                      (return (ui64 0)))
-                             #,(if (set-member? end-states (syntax->datum s))
-                                   #`(return (ui64 1))
-                                   #`(return (ui64 0))))))
-                  f))
+     (define fs
+       (for/list  ([s (syntax->list #`(state ...))]
+                   [sevt (syntax->list #`((evt ...) ...))]
+                   [snxs (syntax->list #`((next-state ...) ...))])
+         (define f
+           #`(define-sham-function (#,s (inp : i64*) (pos : i64) (len : i64) : i64)
+               (if^ (icmp-ult pos len)
+                    (switch^ (load (gep^ inp pos))
+                             #,@(map (λ (s ns) #`[(ui64 #,s)
+                                                  (return (#,ns inp (add pos (ui64 1))))])
+                                     (syntax->list sevt) (syntax->list snxs))
+                             (return (ui64 0)))
+                    #,(if (set-member? end-states (syntax->datum s))
+                          #`(return (ui64 1))
+                          #`(return (ui64 0))))))
+         f))
      (pretty-display (map syntax->datum fs))
      #`(begin #,@fs)]))
 
@@ -54,10 +55,14 @@
        [2 s2]
        [4 s2])])
 
-;; (parameterize ([compile-options (list 'pretty 'dump 'verify)])
-;;   (compile-sham-module!
-;;    fsa-module
-;;    #:opt-level 3))
+(parameterize ([compile-options (list 'pretty 'dump 'verify)])
+  (compile-sham-module!
+   fsa-module
+   #:opt-level 0))
+
+(sham-app s1 #f 0 0)
+(require ffi/unsafe)
+(sham-app s1 (list->cblock '(2 0 2 2 0) _uint64) 0 5)
 
 ;; (define (s1 e)
 ;;   (match e
