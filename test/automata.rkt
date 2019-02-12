@@ -7,8 +7,10 @@
          (for-syntax syntax/parse racket/pretty racket/set))
 
 (define fsa-module
-  (create-empty-sham-module "module"))
+  (create-empty-sham-module "module" (module-info-add-late-pass (empty-module-info) 'AlwaysInliner)))
 (current-sham-module fsa-module)
+
+(define finfo (function-info-add-attributes (empty-function-info) 'alwaysinline))
 
 (define-syntax (define-fsa stx)
   (syntax-parse stx
@@ -17,15 +19,17 @@
      (map (lambda (e) (if (memq (syntax-e e) (syntax->datum #'(end ...))) #'1 #'0))
           (syntax->list #'(state ...)))
      #'(begin
-         (define-sham-function (state (inp : i64*) (pos : i64) (len : i64) : i64)
+         (define-sham-function (name (inp : i64*) (pos : i64) (len : i64) : i64)
+           (return (start inp pos len)))
+         (define-sham-function #:info finfo (state (inp : i64*) (pos : i64) (len : i64) : i64)
            (if^ (icmp-ult pos len)
                 (switch^ (load (gep^ inp pos))
                          [(ui64 evt) (return (next-state inp (add pos (ui64 1)) len))] ...
                          (return (ui64 0)))
-                (return (ui64 res))))
-         ...)]))
+                (return (ui64 res)))) ...)]))
 
 
+(require racket/unsafe/ops)
 (define-syntax (define-racket-fsa stx)
   (syntax-parse stx
     [(_ name start (end ...) [state ([evt next-state] ...)] ...)
@@ -33,9 +37,11 @@
      (map (lambda (e) (if (memq (syntax-e e) (syntax->datum #'(end ...))) #'1 #'0))
           (syntax->list #'(state ...)))
      #'(begin
+         (define (name inp pos len)
+           (start inp pos len))
          (define (state inp pos len)
            (if (< pos len)
-               (case (vector-ref inp pos)
+               (case (unsafe-vector-ref inp pos)
                  [(evt) (next-state inp (+ pos 1) len)] ...
                  [else 0])
                res)) ...)]))
@@ -61,27 +67,13 @@
     [s2 ([0 s1]
          [2 s2]
          [4 s2])])
-  (s1 #(2 0 2 2 0) 0 5))
+  (M #(2 0 2 2 0) 0 5))
 
+(require ffi/unsafe
+         racket/fixnum)
+(define inp-vec #(2 0 2 2 0))
+(define cinp-vec (vector->cpointer #(2 0 2 2 0)))
 
-(sham-app s1 #f 0 0)
-(require ffi/unsafe)
-(sham-app s1 (list->cblock '(2 0 2 2 0) _uint64) 0 5)
-
-;; (define (s1 e)
-;;   (match e
-;;     [0 s2]
-;;     [2 s1]))
-;; (define (s2 e)
-;;   (match e
-;;     [0 s1]
-;;     [2 s2]
-;;     [4 s2]))
-;; (define M (cons s1 (list s1)))
-;; (define (machine-accepts? M ls)
-;;   (define final
-;;     (for/fold ([current (car M)])
-;;               ([l ls])
-;;       (current l)))
-;;   (not (false? (member final (cdr M)))))
-;; (machine-accepts? M (list 2 0 4 0 2))
+(sham-app M #f 0 0)
+(sham-app M (list->cblock '(2 0 2 2 0) _uint64) 0 5)
+(sham-app M (vector->cblock #(2 0 2 2 0) _uint64) 0 5)
