@@ -28,7 +28,6 @@
                          (return (ui64 0)))
                 (return (ui64 res)))) ...)]))
 
-
 (require racket/unsafe/ops)
 (define-syntax (define-racket-fsa stx)
   (syntax-parse stx
@@ -49,25 +48,31 @@
 (define-fsa M
   s1 (s1)
   [s1 ([0 s2]
+       [1 s2]
        [2 s1])]
   [s2 ([0 s1]
-       [2 s2]
-       [4 s2])])
+       [1 s2]
+       [2 s2])])
 
 (parameterize ([compile-options (list 'pretty 'dump 'verify)])
   (compile-sham-module!
    fsa-module
    #:opt-level 3))
 
-(let ()
-  (define-racket-fsa M
-    s1 (s1)
-    [s1 ([0 s2]
-         [2 s1])]
-    [s2 ([0 s1]
-         [2 s2]
-         [4 s2])])
-  (M #(2 0 2 2 0) 0 5))
+(define input (for/vector ([i 1000000]) (random 3)))
+(define sham-input (time (vector->cblock input _uint64)))
+
+(time
+ (let ()
+   (define-racket-fsa M
+     s1 (s1)
+     [s1 ([0 s2]
+          [1 s2]
+          [2 s1])]
+     [s2 ([0 s1]
+          [1 s2]
+          [2 s2])])
+   (M input 0 (vector-length input))))
 
 (require ffi/unsafe
          racket/fixnum)
@@ -77,3 +82,4 @@
 (sham-app M #f 0 0)
 (sham-app M (list->cblock '(2 0 2 2 0) _uint64) 0 5)
 (sham-app M (vector->cblock #(2 0 2 2 0) _uint64) 0 5)
+(time (sham-app M sham-input 0 (vector-length input)))
