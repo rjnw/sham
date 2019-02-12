@@ -144,6 +144,7 @@
         (define bbt (LLVMGetBasicBlockTerminator
                      (LLVMGetInsertBlock builder)))
         (if bbt (zero? (LLVMGetNumSuccessors bbt)) #f))
+      (define returned #f)
       (match stmt
         [(sham:ast:stmt:set! md lhs v) ;;TODO: right now lhs can only be a var
          (match lhs
@@ -160,26 +161,27 @@
          (define tst-value (build-expression tst env))
          (define then-block (new-block 'then))
          (define else-block (new-block 'else))
-         (define end-block (new-block 'ife))
-         (env-extend '#%break-block end-block env)
-
+         (define end-block (new-block 'if-end))
          (LLVMBuildCondBr builder tst-value then-block else-block)
 
          (LLVMPositionBuilderAtEnd builder then-block)
-         (build-statement thn env)
+         (define then-return? (build-statement thn env))
 
-         (define then-return? (current-return?))
+         ;; (define then-return? (current-return?))
          (unless then-return?
            (LLVMBuildBr builder end-block))
+         (printf "then-return: ~a\n" then-return?)
 
          (LLVMPositionBuilderAtEnd builder else-block)
-         (build-statement els env)
-         (define else-return? (current-return?))
+         (define else-return? (build-statement els env))
+         ;; (define else-return? (current-return?))
          (unless else-return?
            (LLVMBuildBr builder end-block))
 
+
          (if (and then-return? else-return?)
-             (LLVMDeleteBasicBlock end-block)
+             (begin (LLVMDeleteBasicBlock end-block)
+                    (set! returned #t))
              (LLVMPositionBuilderAtEnd builder end-block))]
 
         [(sham:ast:stmt:switch md tst checks cases default)
@@ -193,8 +195,8 @@
          (define switch (LLVMBuildSwitch builder tst-value switch-default (length cases)))
 
          (LLVMPositionBuilderAtEnd builder switch-default)
-         (build-statement default env)
-         (define default-return? (current-return?))
+         (define default-return? (build-statement default env))
+         ;; (define default-return? (current-return?))
          (unless default-return?
            (LLVMBuildBr builder afterswitch-block))
 
@@ -205,12 +207,13 @@
              (define ve (build-expression val env))
              (define case-block (new-block 'switch-case))
              (LLVMPositionBuilderAtEnd builder case-block)
-             (build-statement stmt env)
-             (unless (current-return?)
+             (define threturned (build-statement stmt env))
+             (unless threturned
                (LLVMBuildBr builder afterswitch-block))
              (LLVMAddCase switch ve case-block)
-             (and all-return? (current-return?))))
+             (and all-return? threturned)))
          (when all-return?
+           (set! returned #t)
            (LLVMDeleteBasicBlock afterswitch-block))
          (LLVMPositionBuilderAtEnd builder afterswitch-block)]
 
@@ -234,20 +237,22 @@
 
          (LLVMPositionBuilderAtEnd builder afterloop-block)]
 
-        [(sham:ast:stmt:break md)
+        [(sham:ast:stmt:break md)       ;TODO
          (LLVMBuildBr builder (env-lookup '#%break-block env))]
 
         [(sham:ast:stmt:return md v)
          (if (sham:ast:expr:void? v)
              (LLVMBuildRetVoid builder)
-             (LLVMBuildRet builder (build-expression v env)))]
+             (LLVMBuildRet builder (build-expression v env)))
+         (set! returned #t)]
 
         [(sham:ast:stmt:block md stmts)
          (for ([stmt stmts])
            (build-statement stmt env))]
         [(sham:ast:stmt:void md) (void)]
         [(sham:ast:stmt:expr md e) (build-expression e env)]
-        [else (error "unknown statement while compiling sham" stmt)]))
+        [else (error "unknown statement while compiling sham" stmt)])
+      returned)
 
     (define (build-expression e env)
       (match e
