@@ -219,6 +219,24 @@
 (define ri sham:ast:rator:intrinsic)
 (define-syntax-rule (ri^ intr ret-type args ...)
   (app^ (ri (intrinsic (quote intr)) ret-type) args ...))
+(define-syntax (let^ stx)
+  (syntax-parse stx
+    [(_ ([arg val (~datum :) typ] ...) s:expr ... e:expr)
+     #`(let ([arg (v (quasiquote arg))] ...)
+         (sham:ast:expr:let (list (quasiquote arg) ...) (list typ ...) (list val ...)
+                            (block^ s ...)
+                            e))]))
+(define-syntax (slet^ stx)
+  (syntax-parse stx
+    [(_ ([arg val (~datum :) typ] ...) s:expr ...)
+     #`(let ([arg (v (quasiquote arg))] ...)
+         (sham:ast:expr:let (list (quasiquote arg) ...) (list typ ...) (list val ...)
+                            (block^ s ...)
+                            (evoid)))]))
+(define-syntax (switch^ stx)
+  (syntax-parse stx
+    [(_ v:expr [case:expr branch:expr] ... default)
+     #`(switch v (list case ...) (list branch ...) default)]))
 
 (define (block stmts)
   (sham:ast:stmt:block
@@ -448,20 +466,7 @@
 (define-syntax-rule (define-module name info funcs)
   (define name (dmodule info (quote name) (get-functions funcs))))
 
-(define-syntax (let^ stx)
-  (syntax-parse stx
-    [(_ ([arg val (~datum :) typ] ...) s:expr ... e:expr)
-     #`(let ([arg (v (quasiquote arg))] ...)
-         (sham:ast:expr:let (list (quasiquote arg) ...) (list typ ...) (list val ...)
-                            (block^ s ...)
-                            e))]))
-(define-syntax (slet^ stx)
-  (syntax-parse stx
-    [(_ ([arg val (~datum :) typ] ...) s:expr ...)
-     #`(let ([arg (v (quasiquote arg))] ...)
-         (sham:ast:expr:let (list (quasiquote arg) ...) (list typ ...) (list val ...)
-                            (block^ s ...)
-                            (evoid)))]))
+
 ;; (define (let1 var type val stmt expr)
 ;;   (let (list var) (list type) (list val) stmt expr))
 ;; (define (slet1 var type val stmt)
