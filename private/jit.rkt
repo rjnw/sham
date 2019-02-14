@@ -170,7 +170,6 @@
          ;; (define then-return? (current-return?))
          (unless then-return?
            (LLVMBuildBr builder end-block))
-         (printf "then-return: ~a\n" then-return?)
 
          (LLVMPositionBuilderAtEnd builder else-block)
          (define else-return? (build-statement els env))
