@@ -12,6 +12,8 @@
 
 (define finfo (function-info-add-attributes (empty-function-info) 'alwaysinline))
 
+(define (ri64 i) (or^ (shl (ui64 i) (ui64 1)) (ui64 1)))
+
 (define-syntax (define-fsa stx)
   (syntax-parse stx
     [(_ name start (end ...) [state ([evt next-state] ...)] ...)
@@ -24,7 +26,7 @@
          (define-sham-function #:info finfo (state (inp : i64*) (pos : i64) (len : i64) : i64)
            (if^ (icmp-ult pos len)
                 (switch^ (load (gep^ inp pos))
-                         [(ui64 evt) (return (next-state inp (add pos (ui64 1)) len))] ...
+                         [(ri64 evt) (return (next-state inp (add pos (ui64 1)) len))] ...
                          (return (ui64 0)))
                 (return (ui64 res)))) ...)]))
 
@@ -59,27 +61,20 @@
    fsa-module
    #:opt-level 3))
 
-(define input (for/vector ([i 1000000]) (random 3)))
-(define sham-input (time (vector->cblock input _uint64)))
-
-(time
- (let ()
-   (define-racket-fsa M
-     s1 (s1)
-     [s1 ([0 s2]
-          [1 s2]
-          [2 s1])]
-     [s2 ([0 s1]
-          [1 s2]
-          [2 s2])])
-   (M input 0 (vector-length input))))
-
 (require ffi/unsafe
          racket/fixnum)
-(define inp-vec #(2 0 2 2 0))
-(define cinp-vec (vector->cpointer #(2 0 2 2 0)))
+(define input (for/vector ([i 10000000]) (random 3)))
+(define sham-input (time (vector->cpointer input)))
 
-(sham-app M #f 0 0)
-(sham-app M (list->cblock '(2 0 2 2 0) _uint64) 0 5)
-(sham-app M (vector->cblock #(2 0 2 2 0) _uint64) 0 5)
+(let ()
+  (define-racket-fsa M
+    s1 (s1)
+    [s1 ([0 s2]
+         [1 s2]
+         [2 s1])]
+    [s2 ([0 s1]
+         [1 s2]
+         [2 s2])])
+  (time (M input 0 (vector-length input))))
+
 (time (sham-app M sham-input 0 (vector-length input)))
