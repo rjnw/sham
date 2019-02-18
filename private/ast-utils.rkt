@@ -90,9 +90,9 @@
 (define cvector sham:ast:expr:const:vector)
 (define (vec . vals) (sham:ast:expr:const:vector vals))
 
-(define (ret v) (sham:ast:stmt:return v))
-(define ret-void (sham:ast:stmt:return (sham:ast:expr:void)))
 (define (return-void) (sham:ast:stmt:return (sham:ast:expr:void)))
+(define (ret v) (sham:ast:stmt:return v))
+(define (ret-void) (sham:ast:stmt:return (sham:ast:expr:void)))
 (define (gep^ ptr . indexes) (gep ptr indexes))
 
 ;; internal function
@@ -400,13 +400,13 @@
           (hash-set! (hmodule-func-map m) id func)]))
 
 (begin-for-syntax
-  (define-splicing-syntax-class define-info
+  (define-splicing-syntax-class define-attrs
     (pattern (~seq (~datum #:module) mod:expr) #:attr info (cons 'module #'mod))
     (pattern (~seq (~datum #:info) i:expr) #:attr info (cons 'finfo #'i))))
 (require "parameters.rkt")
 (define-syntax (define-sham-function stx)
   (syntax-parse stx
-    [(_ attrs:define-info ...
+    [(_ attrs:define-attrs ...
         [name:id
          (args:expr (~datum :) arg-types:expr) ... (~datum :) ret-type:expr]
         body:expr ...)
@@ -428,14 +428,14 @@
          (add-to-sham-module! #,mod name))]))
 (define-syntax (define-sham-global stx)
   (syntax-parse stx
-    [(_ attrs:define-info ... name:id type:expr)
+    [(_ attrs:define-attrs ... name:id type:expr)
      #`(begin
          (define name (v (quote name)))
          (add-to-sham-module! (current-sham-module) (dglobal #f (quote name) type)))]))
 
 (define-syntax (sham-function stx)
   (syntax-parse stx
-    [(_ attrs:define-info ...
+    [(_ attrs:define-attrs ...
         [name:expr
          (args:expr (~datum :) arg-types:expr) ... (~datum :) ret-type:expr]
         body:expr ...)
