@@ -159,26 +159,23 @@
            [else (error "sham:ast:stmt:set! only supports a variable in lhs.")])]
         [(sham:ast:stmt:if md tst thn els)
          (define tst-value (build-expression tst env))
-         (define then-block (new-block 'then))
-         (define else-block (new-block 'else))
-         (define end-block (new-block 'if-end))
+         (define then-block-id (gensym 'then))
+         (define then-block (new-block then-block-id))
+         (define else-block-id (gensym 'else))
+         (define else-block (new-block else-block-id))
+         (define end-block-id (gensym 'ifend))
+         (define end-block (new-block end-block-id))
          (LLVMBuildCondBr builder tst-value then-block else-block)
 
          (LLVMPositionBuilderAtEnd builder then-block)
-         (define then-return? (build-statement thn env))
-
-         ;; (define then-return? (current-return?))
-         (unless then-return?
-           (LLVMBuildBr builder end-block))
+         (define then-return (or (current-return?) (build-statement thn env)))
+         (unless then-return (LLVMBuildBr builder end-block))
 
          (LLVMPositionBuilderAtEnd builder else-block)
-         (define else-return? (build-statement els env))
-         ;; (define else-return? (current-return?))
-         (unless else-return?
-           (LLVMBuildBr builder end-block))
+         (define else-return (or (current-return?) (build-statement els env)))
+         (unless else-return (LLVMBuildBr builder end-block))
 
-
-         (if (and then-return? else-return?)
+         (if (and then-return else-return)
              (begin (LLVMDeleteBasicBlock end-block)
                     (set! returned #t))
              (LLVMPositionBuilderAtEnd builder end-block))]
@@ -218,9 +215,12 @@
 
         [(sham:ast:stmt:while md tst body)
          (define prev-block (LLVMGetInsertBlock builder))
-         (define loop-entry (new-block 'loop-entry))
-         (define loop-block (new-block 'loop-block))
-         (define afterloop-block (new-block 'afterloop-block))
+         (define loop-entry-id (gensym 'loop-entry))
+         (define loop-entry (new-block loop-entry-id))
+         (define loop-block-id (gensym 'loop-block))
+         (define loop-block (new-block loop-block-id))
+         (define afterloop-block-id (gensym 'afterloop-block))
+         (define afterloop-block (new-block afterloop-block-id))
          (env-extend '#%break-block afterloop-block env)
          (LLVMBuildBr builder loop-entry)
 
@@ -230,7 +230,6 @@
 
          (LLVMPositionBuilderAtEnd builder loop-block)
 
-         (build-statement body env)
          (define body-end-blk (LLVMGetInsertBlock builder))
          (LLVMBuildBr builder loop-entry)
 
@@ -246,10 +245,15 @@
          (set! returned #t)]
 
         [(sham:ast:stmt:block md stmts)
-         (for ([stmt stmts])
-           (build-statement stmt env))]
+         (define returns (for/list ([stmt stmts])
+            (build-statement stmt env)))
+         (when (last returns)
+           (set! returned #t))]
         [(sham:ast:stmt:void md) (void)]
-        [(sham:ast:stmt:expr md e) (build-expression e env)]
+        [(sham:ast:stmt:expr md e)
+         (build-expression e env)
+         (when (current-return?)
+           (set! returned #t))]
         [else (error "unknown statement while compiling sham" stmt)])
       returned)
 
