@@ -55,6 +55,13 @@
   [s2 ([0 s1]
        [1 s2]
        [2 s2])])
+(define-fsa M^
+  init (end)
+  [init ([0 more])]
+  [more ([1 more]
+         [2 more]
+         [3 end])]
+  [end ()])
 
 (parameterize ([compile-options (list 'pretty 'dump 'verify)])
   (compile-sham-module!
