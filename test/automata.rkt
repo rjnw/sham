@@ -12,7 +12,10 @@
 
 (define finfo (function-info-add-attributes (empty-function-info) 'alwaysinline))
 
-(define (ri64 i) (or^ (shl (ui64 i) (ui64 1)) (ui64 1)))
+(define (ri64 i)
+  (if (eq? (system-type 'vm) 'racket)
+      (or^ (shl (ui64 i) (ui64 1)) (ui64 1))
+      (shl (ui64 i) (ui64 3))))
 
 (define-syntax (define-fsa stx)
   (syntax-parse stx
@@ -27,7 +30,7 @@
            (if^ (icmp-ult pos len)
                 (switch^ (load (gep^ inp pos))
                          [(ri64 evt) (return (next-state inp (add pos (ui64 1)) len))] ...
-                         (return (ui64 0)))
+                         (return (ui64 17)))
                 (return (ui64 res)))) ...)]))
 
 (require racket/unsafe/ops)
@@ -63,7 +66,7 @@
          [3 end])]
   [end ()])
 
-(parameterize ([compile-options (list 'pretty 'dump 'verify)])
+(parameterize ([compile-options (list 'verify)])
   (compile-sham-module!
    fsa-module
    #:opt-level 3))
@@ -71,8 +74,9 @@
 (require ffi/unsafe
          racket/fixnum)
 (define input (for/vector ([i 10000000]) (random 3)))
+'convert
 (define sham-input (time (vector->cpointer input)))
-
+'racket1
 (let ()
   (define-racket-fsa M
     s1 (s1)
@@ -83,5 +87,7 @@
          [1 s2]
          [2 s2])])
   (time (M input 0 (vector-length input))))
-
+'sham1
+(time (sham-app M sham-input 0 (vector-length input)))
+'sham2
 (time (sham-app M sham-input 0 (vector-length input)))
