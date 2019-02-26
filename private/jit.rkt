@@ -230,6 +230,7 @@
 
          (LLVMPositionBuilderAtEnd builder loop-block)
 
+         (build-statement body env)
          (define body-end-blk (LLVMGetInsertBlock builder))
          (LLVMBuildBr builder loop-entry)
 
