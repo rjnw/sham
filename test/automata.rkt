@@ -59,7 +59,7 @@
        [1 s2]
        [2 s2])])
 
-(define-fsa M^
+(define-sham-fsa M^
   init (end)
   [init ([0 more])]
   [more ([1 more]
