@@ -14,9 +14,9 @@
 
 (define (ri64 i) (or^ (shl (ui64 i) (ui64 1)) (ui64 1)))
 
-(define-syntax (define-fsa stx)
+(define-syntax (define-sham-fsa stx)
   (syntax-parse stx
-    [(_ name start (end ...) [state ([evt next-state] ...)] ...)
+    [(_ name start (end ...) [state ([input next-state] ...)] ...)
      #:with (res ...)
      (map (lambda (e) (if (memq (syntax-e e) (syntax->datum #'(end ...))) #'1 #'0))
           (syntax->list #'(state ...)))
@@ -26,14 +26,14 @@
          (define-sham-function #:info finfo (state (inp : i64*) (pos : i64) (len : i64) : i64)
            (if^ (icmp-ult pos len)
                 (switch^ (load (gep^ inp pos))
-                         [(ri64 evt) (return (next-state inp (add pos (ui64 1)) len))] ...
+                         [(ri64 input) (return (next-state inp (add pos (ui64 1)) len))] ...
                          (return (ui64 0)))
                 (return (ui64 res)))) ...)]))
 
 (require racket/unsafe/ops)
 (define-syntax (define-racket-fsa stx)
   (syntax-parse stx
-    [(_ name start (end ...) [state ([evt next-state] ...)] ...)
+    [(_ name start (end ...) [state ([input next-state] ...)] ...)
      #:with (res ...)
      (map (lambda (e) (if (memq (syntax-e e) (syntax->datum #'(end ...))) #'1 #'0))
           (syntax->list #'(state ...)))
@@ -43,11 +43,11 @@
          (define (state inp pos len)
            (if (< pos len)
                (case (unsafe-vector-ref inp pos)
-                 [(evt) (next-state inp (+ pos 1) len)] ...
+                 [(input) (next-state inp (+ pos 1) len)] ...
                  [else 0])
                res)) ...)]))
 
-(define-fsa M
+(define-sham-fsa M
   s1 (s1)
   [s1 ([0 s2]
        [1 s2]
