@@ -14,18 +14,21 @@
 
 (define (ri64 i) (or^ (shl (ui64 i) (ui64 1)) (ui64 1)))
 (define (build-mores len)
+  (define names (for/list ([i len]) (format-symbol "more-~a" i)))
   (cons
    (sham-function #:info finfo
-    (,(string->symbol (format "more-~a" (sub1 len))) (inp : i64*) : i64)
+    (,(list-ref names (sub1 len)) (inp : i64*) : i64)
     (switch^ (load (gep^ inp (ui64 len)))
              [(ri64 3) (return (ui64 1))]
              (return (ui64 0))))
-   (for/list ([i (in-range (sub1 len))])
+   (for/list ([i (in-range (sub1 len))]
+              [name names]
+              [next (cdr names)])
      (sham-function #:info finfo
-      (,(string->symbol (format "more-~a" i)) (inp : i64*) : i64)
+      (,name (inp : i64*) : i64)
       (switch^ (load (gep^ inp (ui64 i)))
-               [(ri64 1) (return (app^ (rs (string->symbol (format "more-~a" (add1 i)))) inp))]
-               [(ri64 2) (return (app^ (rs (string->symbol (format "more-~a" (add1 i)))) inp))]
+               [(ri64 1) (return (app^ (rs next) inp))]
+               [(ri64 2) (return (app^ (rs next) inp))]
                (return (ui64 0)))))))
 
 (map (curry add-to-sham-module! fsa-module) (build-mores 3))
