@@ -17,14 +17,14 @@
   (define-sham-function
     (store-box (x : i32) (box : i32*) : tvoid)
     (store! x box)
-    ret-void)
+    (return-void))
   (define-sham-function
     (open-box (box : i32*) : i32)
     (ret (load box)))
   (define-sham-function
     (free-box (x : i32*) : tvoid)
     (free^ x)
-    ret-void)
+    (return-void))
 
   (parameterize ([compile-options (list 'pretty 'dump 'mc-jit)])
     (compile-sham-module!
