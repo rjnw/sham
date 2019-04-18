@@ -248,7 +248,7 @@
         [(sham:ast:stmt:block md stmts)
          (define returns (for/list ([stmt stmts])
             (build-statement stmt env)))
-         (when (last returns)
+         (when (and (not (empty? returns)) (last returns))
            (set! returned #t))]
         [(sham:ast:stmt:void md) (void)]
         [(sham:ast:stmt:expr md e)
