@@ -21,6 +21,7 @@
     (list*
      "--shared"
      "--std=c++11"
+     "-fPIC"
      (string-split (llvm-config "--cflags" "--libs" "--ldflags"))))
   (parameterize ([current-extension-compiler (current-extension-compiler)]
                  [current-extension-compiler-flags flags])
