@@ -2,7 +2,8 @@
 
 (require
  "../llvm-config.rkt"
- ffi/unsafe)
+ ffi/unsafe
+ setup/dirs)
 
 (provide llvm-lib)
 
@@ -10,9 +11,12 @@
 (define llvm-lib-path (llvm-config "--libdir"))
 
 (define llvm-lib
-  (let ((lib-name (string-append "libLLVM-" llvm-version-string)))
-    (ffi-lib
-      (case (system-type 'os)
-        ((macosx unix) (build-path (llvm-config "--libfiles")))
-        ((windows) (string->path lib-name)))
-      #:global? #t)))
+  (ffi-lib
+   (build-path "libLLVM")
+   (list (llvm-config "--version") #f)
+   #:get-lib-dirs
+   (case (system-type 'os)
+     [(macosx unix)
+      (lambda () (list (llvm-config "--libdir")))]
+     [(windows) get-lib-search-dirs])
+   #:global? #t))
