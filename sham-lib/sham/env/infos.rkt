@@ -1,10 +1,14 @@
 #lang racket
 
-(require "module-env.rkt")
+(require "module.rkt")
 (provide (all-defined-out))
 
 (define (basic-empty-info)
   (make-immutable-hash))
+(define basic-info? hash?)
+(define function-info? basic-info?)
+(define module-info? basic-info?)
+(define type-info? basic-info?)
 
 (define (get-info-list info key)
   (hash-ref info key '()))

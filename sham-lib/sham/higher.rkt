@@ -1,7 +1,7 @@
 #lang racket
 
 (require "ast.rkt"
-         "jit/parameters.rkt")
+         "parameters.rkt")
 (require (for-syntax racket/syntax syntax/parse racket/pretty))
 
 (provide (all-defined-out))
@@ -122,14 +122,14 @@
 
 (struct hfunction [id sym-args arg-types ret-type body-builder finfo sham-module]
   #:property prop:procedure hfunction-manager)
-
+(define sham-function? hfunction?)
 (define (sham-function-info hf)
   (match-define (hfunction id sym-args arg-types ret-type body-builder finfo sham-module) hf)
   (printf "hfunction: id: ~a, sym-args: ~a, arg-types: ~a, ret-type: ~a, finfo: ~a\n"
           id sym-args arg-types ret-type finfo)
   hf)
 
-(struct hmodule [id func-map info hinfo (cmod #:mutable)])
+(struct hmodule [id func-map info hinfo (internal #:mutable)])
 
 (define (create-empty-sham-module (id "module") (info (make-hash)))
   (hmodule id (make-hash) info (make-hash) #f))

@@ -1,6 +1,6 @@
 #lang racket/base
 
-(require (for-syntax racket/base syntax/parse))
+(require (for-syntax racket/base syntax/parse racket/syntax))
 (require ffi/unsafe)
 
 (require "define.rkt")
@@ -13,8 +13,11 @@
    (pattern (type-name:id cons:id acc:id)))
   (syntax-parse stx
     ((_ p ...)
+     #:with (p? ...) (map (λ (v) (format-id v "~a?" v)) (syntax-e #'(p ...)))
      #`(begin
-         (define p (_cpointer 'p))
+         (begin
+           (define p (_cpointer 'p))
+           (define (p? v) (cpointer-has-tag? v 'p)))
          ...))))
 
 (define-llvm-types

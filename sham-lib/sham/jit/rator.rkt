@@ -3,7 +3,7 @@
 (require ffi/unsafe (prefix-in foreign: '#%foreign))
 
 (require sham/llvm/ffi/all
-         "module-env.rkt")
+         sham/env/module)
 
 (provide add-ffi-mappings add-rkt-mappings)
 

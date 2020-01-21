@@ -1,27 +1,28 @@
 #lang racket
 (require ffi/unsafe
-         sham/llvm/ffi/all)
-(require "env.rkt"
-         "types.rkt")
-(provide register-jit-internals)
+         sham/llvm/ffi/all
+         sham/env/base)
+
+(require "types.rkt")
+(provide register-llvm-internals)
 
 ;;TODO figure out how we can add constant internals
 
-(define (register-jit-internals env context)
+(define (register-llvm-internals env context)
   (register-internal-instructions env))
 
 (define (register-internal-instructions env)
   (define (get-unary-compiler llvm-builder)
-    (lambda (jit-builder args [name "v"])
-      (llvm-builder jit-builder (first args) name)))
+    (lambda (builder args [name "v"])
+      (llvm-builder builder (first args) name)))
   (define (get-binary-compiler llvm-builder)
-    (lambda (jit-builder args [name "v"])
-      (llvm-builder jit-builder (first args) (second args) name)))
+    (lambda (builder args [name "v"])
+      (llvm-builder builder (first args) (second args) name)))
   (define (get-ternary-compiler llvm-builder)
-    (lambda (jit-builder args [name "v"])
-      (llvm-builder jit-builder (first args) (second args) (third args) name)))
+    (lambda (builder args [name "v"])
+      (llvm-builder builder (first args) (second args) (third args) name)))
   (define (register-internal intr reg env)
-    (env-extend (car intr) (env-jit-intr-function (reg (cadr intr))) env))
+    (env-extend (car intr) (env-internal-function (reg (cadr intr))) env))
   (define (register-int-predicate env)
     (for/fold [(env env)]
               [(predicate '(LLVMIntEQ
@@ -45,9 +46,9 @@
                      icmp-slt
                      icmp-sle))]
       (env-extend pr
-                  (env-jit-intr-function
-                   (lambda (jit-builder args [name "ipred"])
-                     (LLVMBuildICmp jit-builder
+                  (env-internal-function
+                   (lambda (llvm-builder args [name "ipred"])
+                     (LLVMBuildICmp llvm-builder
                                     predicate
                                     (first args)
                                     (second args)
@@ -84,9 +85,9 @@
                      fcmp-ule
                      fcmp-une))]
       (env-extend pr
-                  (env-jit-intr-function
-                   (lambda (jit-builder args [name "fpred"])
-                     (LLVMBuildFCmp jit-builder
+                  (env-internal-function
+                   (lambda (llvm-builder args [name "fpred"])
+                     (LLVMBuildFCmp llvm-builder
                                     predicate
                                     (first args)
                                     (second args)
@@ -95,13 +96,13 @@
   (define (register-specials env)
     (define envs
       (env-extend 'store!
-                  (env-jit-intr-function
-                   (lambda (jit-builder args [name "v"])
-                     (LLVMBuildStore jit-builder (first args) (second args))))
+                  (env-internal-function
+                   (lambda (llvm-builder args [name "v"])
+                     (LLVMBuildStore llvm-builder (first args) (second args))))
                   env))
-    (env-extend 'free (env-jit-intr-function
-                       (lambda (jit-builder args [name "v"])
-                         (LLVMBuildFree jit-builder (first args)))) envs))
+    (env-extend 'free (env-internal-function
+                       (lambda (llvm-builder args [name "v"])
+                         (LLVMBuildFree llvm-builder (first args)))) envs))
 
   (define (register-internals intrs reg env)
     (for/fold ([env env])

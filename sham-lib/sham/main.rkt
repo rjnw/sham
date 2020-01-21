@@ -1,17 +1,13 @@
 #lang racket/base
 
-(require "jit.rkt"
+(require "init.rkt"
+         "jit.rkt"
          "ast.rkt"
+         "env.rkt"
          "utils.rkt"
          "higher.rkt"
-         "jit/env.rkt"
-         "jit/dump.rkt"
-         "jit/optimize.rkt"
-         "jit/module-env.rkt"
-         "jit/utils.rkt"
-         "jit/init.rkt"
-         "jit/parameters.rkt"
-         "jit/infos.rkt")
+         "parameters.rkt"
+         "ir.rkt")
 
 
 (provide
@@ -20,11 +16,8 @@
   "jit.rkt"
   "utils.rkt"
   "higher.rkt"
-  "jit/env.rkt"
-  "jit/dump.rkt"
-  "jit/optimize.rkt"
-  "jit/module-env.rkt"
-  "jit/init.rkt"
-  "jit/parameters.rkt"
-  "jit/infos.rkt")
- sham-diagnose)
+  "parameters.rkt"
+  "env.rkt"
+  "ir.rkt"))
+
+(initialize)

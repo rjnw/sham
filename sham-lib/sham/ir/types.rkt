@@ -1,21 +1,19 @@
 #lang racket
 
 (require ffi/unsafe
-         sham/llvm/ffi/all
-         sham/ast/core)
-(require "env.rkt")
+         sham/llvm
+         sham/ast/core
+         sham/env)
 
 (provide compile-type
          build-env-type
          register-initial-types
          internal-type-racket
-         internal-type-jit
-         empty-type-info
+         internal-type-llvm
          vector-type?)
 
-(struct internal-type (racket jit) #:prefab)
+(struct internal-type (racket llvm) #:prefab)
 
-(define (empty-type-info) (void))
 ;;returns one of env-type object
 (define (build-env-type t env)
   (env-type t (compile-type t env)))
@@ -41,41 +39,41 @@
   (define (create-racket-function-type args ret)
     (_cprocedure (map internal-type-racket args)
                  (internal-type-racket ret)))
-  (define (create-jit-function-type args ret)
-    (LLVMFunctionType (internal-type-jit ret) (map internal-type-jit args) #f))
+  (define (create-llvm-function-type args ret)
+    (LLVMFunctionType (internal-type-llvm ret) (map internal-type-llvm args) #f))
   (internal-type
    (create-racket-function-type args ret)
-   (create-jit-function-type args ret)))
+   (create-llvm-function-type args ret)))
 
 (define (create-struct-type types)
   (define (create-racket-struct-type types)
     _pointer)
-  (define (create-jit-struct-type types)
-    (LLVMStructType (map internal-type-jit types) #t))
+  (define (create-llvm-struct-type types)
+    (LLVMStructType (map internal-type-llvm types) #t))
   (internal-type
    (create-racket-struct-type types)
-   (create-jit-struct-type types)))
+   (create-llvm-struct-type types)))
 
 (define (create-array-type type size) ;; size should be a nat
-  (define jit-array-type (LLVMArrayType (internal-type-jit type) size))
+  (define llvm-array-type (LLVMArrayType (internal-type-llvm type) size))
   (define racket-array-type _pointer);; (_array/list (internal-type-racket type) size)
 
-  (internal-type racket-array-type jit-array-type))
+  (internal-type racket-array-type llvm-array-type))
 
 (define (create-vector-type type size) ;; size should be a nat
-  (define jit-vector-type (LLVMVectorType (internal-type-jit type) size))
+  (define llvm-vector-type (LLVMVectorType (internal-type-llvm type) size))
   (define racket-vector-type _pointer);(_array/vector (internal-type-racket type) size))
-  (internal-type racket-vector-type jit-vector-type))
+  (internal-type racket-vector-type llvm-vector-type))
 
 (define (create-pointer-type type)
   (define (create-racket-pointer-type type)
     _pointer)
-  (define (create-jit-pointer-type type)
-    (LLVMPointerType (internal-type-jit type) 0))
-  ;; (printf "type ~a jit-type ~a\n" type (internal-type-jit type))
+  (define (create-llvm-pointer-type type)
+    (LLVMPointerType (internal-type-llvm type) 0))
+  ;; (printf "type ~a llvm-type ~a\n" type (internal-type-llvm type))
   (internal-type
    (create-racket-pointer-type type)
-   (create-jit-pointer-type type)))
+   (create-llvm-pointer-type type)))
 
 ;TODO add couple more pointer types for basic types
 (define (register-initial-types env context)
@@ -108,13 +106,13 @@
 (define native-int-types (set _int _uint _sbyte _ubyte _short _ushort _long _ulong))
 (define (type-native-int? envtype)
   (match envtype
-    [(env-type _ (internal-type racket-type jit-type))
+    [(env-type _ (internal-type racket-type llvm-type))
      (set-member? native-int-types racket-type)]
     [else #f]))
 
 (define (type-float32? envtype)
   (match envtype
-    [(env-type _ (internal-type racket-type jit-type))
+    [(env-type _ (internal-type racket-type llvm-type))
      (equal? _float racket-type)]
     [else #f]))
 

@@ -1,6 +1,6 @@
 #lang racket
 
-(require "env.rkt")
+(require "base.rkt")
 
 (provide (all-defined-out))
 ;; module info is mutable hash
@@ -10,8 +10,8 @@
 ;; function, type, and global info are immutable
 ;; which satisfy the invariant that each key maps to a list
 
-(define info-sym '#%jit-info)
-(define module-key 'module)
+(define info-sym '#%info)
+(define llvm-module-key 'module)
 (define top-env-key 'top-env)
 (define context-key 'context)
 (define ffi-mapping-key 'ffi-mappings)
@@ -30,6 +30,9 @@
     (when v
       expr ...)))
 
+(define (llvm-module-env? e)
+  (and (hash? e)
+       (hash-has-key? e llvm-module-key)))
 (define (empty-mod-env-info) (make-hash))
 
 (define (update-info! info assocs)
@@ -61,7 +64,7 @@
 
 (define env-get-top-env (curryr env-get-info-key top-env-key))
 (define env-set-top-env! (λ (mod-env env) (env-set-info-key! mod-env top-env-key env)))
-(define env-get-llvm-module (curryr env-get-info-key module-key))
+(define env-get-llvm-module (curryr env-get-info-key llvm-module-key))
 (define env-get-context (curryr env-get-info-key context-key))
 (define env-get-mcjit (curryr env-get-info-key mcjit-info-key))
 (define env-add-mcjit! (λ (mod-env mcjit) (env-set-info-key! mod-env mcjit-info-key mcjit)))

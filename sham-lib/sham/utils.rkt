@@ -1,16 +1,12 @@
 #lang racket
 
-
-(require
- sham/llvm/ffi/all
- sham/ast/simple
- "higher.rkt"
- "jit/main.rkt"
- "jit/optimize.rkt"
- "jit/init.rkt"
- "jit/parameters.rkt"
- "jit/dump.rkt"
- ffi/unsafe)
+(require ffi/unsafe)
+(require sham/llvm
+         sham/ast
+         sham/ir
+         sham/jit)
+(require "higher.rkt"
+         "parameters.rkt")
 
 (provide (all-defined-out))
 (define (rptr->llvmptr rptr)
@@ -19,29 +15,45 @@
                       (LLVMPointerType (LLVMInt8Type) 0))
    i8*))
 
+(define (ir-built? hm)
+  (match-define (hmodule id func-map info hinfo imod) hm)
+  (not (false? imod)))
+
+(define (build-sham-ir! hm)
+  (when (ir-built? hm) (error 'sham "internal llvm module already built" id))
+  (match-define (hmodule id func-map info hinfo imod) hm)
+  (define pre-special-funcs (hash-values func-map))
+  (define all-defs (get-functions pre-special-funcs))
+  (define special-defs (filter (λ (f) (not (member f pre-special-funcs))) (hash-values func-map)))
+  (when (member 'pretty (build-options)) (for ([f all-defs]) (pretty-print f)))
+  (define dm (dmodule info id (append all-defs (get-functions special-defs))))
+  (define im (build-llvm-module dm id))
+  (when (member 'verify (build-options)) (verify-llvm-module im))
+  (when (member 'dump (build-options)) (dump-llvm-module im))
+  (set-hmodule-internal! hm im))
+
+(define (try-build-sham-ir! hm)
+  (unless (ir-built? hm) (build-sham-ir! hm)))
+
+(define (optimize-sham-module! hm
+                               #:opt-level (opt-level 1)
+                               #:size-level (size-level 1)
+                               #:loop-vec (loop-vec #f))
+  (try-build-sham-ir! hm)
+  (match-define (hmodule id func-map info hinfo lmod) hm)
+  (optimize-llvm-module lmod #:opt-level opt-level #:size-level size-level #:loop-vec loop-vec))
 
 (define (compile-sham-module! hm
                               #:opt-level (opt-level 1)
                               #:size-level (size-level 1)
                               #:loop-vec (loop-vec #f))
-  (match-define (hmodule id func-map info hinfo cmod) hm)
-  (when cmod (error "sham-module already compiled" id))
-  (define pre-special-funcs (hash-values func-map))
-  (define all-defs (get-functions pre-special-funcs))
-  (define special-defs (filter (λ (f) (not (member f pre-special-funcs))) (hash-values func-map)))
-  (define dm (dmodule info id (append all-defs (get-functions special-defs))))
-  (when (member 'pretty (compile-options)) (for ([f all-defs]) (pretty-print f)))
-  (define cm (jit-module-compile dm id))
-  (when (member 'verify (compile-options)) (jit-verify-module cm))
-  (when (member 'dump (compile-options)) (jit-dump-module cm))
-  (jit-optimize-module cm #:opt-level opt-level #:size-level size-level #:loop-vec loop-vec)
-  (when (member 'dump (compile-options)) (jit-dump-module cm))
-
+  (optimize-sham-module! hm #:opt-level opt-level #:size-level size-level #:loop-vec loop-vec)
+  (match-define (hmodule id func-map info hinfo cm) hm)
+  (when (member 'dump (compile-options)) (dump-llvm-module cm))
   (cond
     [(member 'mc-jit (compile-options)) (module-initialize-mcjit! cm)]
     [(member 'orc (compile-options)) (module-initialize-orc! cm)]
-    [else (module-initialize-mcjit! cm)])
-  (set-hmodule-cmod! hm cm))
+    [else (module-initialize-mcjit! cm)]))
 
 (define (merge-sham-module into from)
   (define (combine-info inf1 inf2)
@@ -62,8 +74,8 @@
            #f))
 
 (define (sham-module-lookup-function hm fid)
-  (if (hmodule-cmod hm)
-      (jit-get-function fid (hmodule-cmod hm))
+  (if (hmodule-internal hm)
+      (jit-get-function fid (hmodule-internal hm))
       (error "module not compiled.")))
 
 (define (sham-app hfunc . args)
@@ -75,4 +87,4 @@
 
 (define (sham-dump-llvm hm)
   (match-define (hmodule id func-map info hinfo cmod) hm)
-  (jit-dump-module cmod))
+  (dump-llvm-module cmod))
