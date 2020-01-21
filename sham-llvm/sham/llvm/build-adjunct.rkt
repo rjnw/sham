@@ -33,7 +33,10 @@
   (begin
     (unless (file-exists? adjunct-so-path)
       (compile-adjunct))
-    (ffi-lib adjunct-so-path)))
+    (if (file-exists? adjunct-so-path)
+        (ffi-lib adjunct-so-path)
+        (begin (printf "sham: couldn't build adjunct file, continuing without. Some functions not available.\n")
+               #f))))
 
 (module+ test
  (compile-adjunct))

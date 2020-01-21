@@ -1,6 +1,6 @@
 #lang racket
 (require ffi/unsafe
-         sham/llvm/ffi/all
+         sham/llvm/ffi
          sham/env/base)
 
 (require "types.rkt")

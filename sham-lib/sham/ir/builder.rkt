@@ -1,7 +1,7 @@
 #lang racket
 
 (require ffi/unsafe)
-(require sham/llvm
+(require sham/llvm/ffi
          sham/ast/core
          sham/env)
 

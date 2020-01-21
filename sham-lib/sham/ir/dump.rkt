@@ -1,6 +1,6 @@
 #lang racket
 
-(require sham/llvm
+(require sham/llvm/ffi
          sham/env)
 (provide (all-defined-out))
 
