@@ -29,7 +29,9 @@
      "-fPIC"
      (string-split (llvm-config "--cflags" "--libs" "--ldflags"))))
   (parameterize ([current-extension-compiler (current-extension-compiler)]
-                 [current-extension-compiler-flags flags])
+                 [current-extension-compiler-flags flags]
+                 ;; Suppress extension compiler output
+                 [current-error-port (open-output-nowhere)])
     (define cpp? (getenv "CPP"))
     (when cpp? (current-extension-compiler (find-executable-path cpp?)))
     (compile-extension #f adjunct-file-path adjunct-so-path '())))
@@ -52,9 +54,9 @@
           (lambda (e)
             (adjunct-is-unavailable!)
             (display
-             (append
-              "sham: Couldn't build adjunct file, continuing without.\n"
-              "Some functions will not be available.\n")))])
+             (string-append
+              "sham: Couldn't build adjunct file, continuing without."
+              " Some functions will not be available.\n")))])
         (compile-adjunct)))
     (cond
       [(file-exists? adjunct-so-path) (ffi-lib adjunct-so-path)]
