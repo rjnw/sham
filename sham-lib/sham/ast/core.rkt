@@ -30,7 +30,7 @@
          ;; ;; LLVM implementation hooks
          [intrinsic (id:terminal.sym return-type:type)]
          ;; ;; Shared object names
-         [external  (lib-id:terminal.sym id:terminal.sym ret-type:type)]
+         [external  (lib-id:terminal.sym id:terminal.sym ret-type:type var-arg?)]
          ;; ;; calls back into racket from generated code
          [racket    (id:terminal.sym racket-value:terminal.rkt full-type:type)])
   (stmt ast

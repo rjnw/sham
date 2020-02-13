@@ -77,7 +77,8 @@
 
 (define rs sham:ast:rator:symbol)
 
-(define re sham:ast:rator:external)
+(define (re lib-id id ret-type (var-arg #f))
+  (sham:ast:rator:external lib-id id ret-type var-arg))
 (define rr sham:ast:rator:racket)
 
 (define cfl sham:ast:expr:const:fl)

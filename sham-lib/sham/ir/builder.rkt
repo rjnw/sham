@@ -291,13 +291,13 @@
                  (hash-set! intrinsic-map s ref)
                  ref)))
          (LLVMBuildCall builder ref rand-values (llvm-lhs s))]
-        [(sham:ast:rator:external md lib-id id ret-type)
+        [(sham:ast:rator:external md lib-id id ret-type var-arg?)
          #:when (hash-has-key? ffi-mappings id)
          (LLVMBuildCall builder (cdr (hash-ref ffi-mappings id)) rand-values "e")]
-        [(sham:ast:rator:external md lib-id id ret-type)
+        [(sham:ast:rator:external md lib-id id ret-type var-arg?)
          (define s (symbol->string id))
          (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
-                                           (map LLVMTypeOf rand-values) #f))
+                                           (map LLVMTypeOf rand-values) var-arg?))
          (define fn-value (LLVMAddFunction llvm-module s fn-type))
          (add-ffi-mapping! id (cons lib-id fn-value))
          (LLVMBuildCall builder fn-value rand-values (llvm-lhs s))]

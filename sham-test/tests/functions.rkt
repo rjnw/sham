@@ -8,6 +8,7 @@
 
   (define test-module
     (create-empty-sham-module "test-module"))
+
   (current-sham-module test-module)
 
   (define-sham-function
