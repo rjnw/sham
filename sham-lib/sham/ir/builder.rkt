@@ -7,6 +7,7 @@
 
 (require "init.rkt"
          "types.rkt"
+         "md.rkt"
          "utils.rkt")
 
 (provide build-llvm-module
@@ -25,7 +26,7 @@
 
   (match def
     [(sham:def:type info type-name t)
-     (env-extend type-name (build-env-type t env) env)]
+     (env-extend type-name (build-env-type t env #:name type-name) env)]
     [(sham:def:function info function-name args types ret-type body)
      ;; (printf "registering-function: ~a\n" function-name)
      (define type (build-env-type (sham:ast:type:function types ret-type) env))
@@ -58,7 +59,7 @@
   (define context (env-get-context module-env))
   (define builder (LLVMCreateBuilderInContext context))
 
-  (define (compile-function-definition name args types ret-type body)
+  (define (compile-function-definition def name args types ret-type body)
     ;; (printf "compiling-function: ~a\n" name)
     (define function (env-lookup name env))
     (define fref (env-function-ref function))
@@ -200,7 +201,7 @@
 
         [(sham:ast:stmt:block md stmts)
          (define returns (for/list ([stmt stmts])
-            (build-statement stmt env)))
+                           (build-statement stmt env)))
          (when (and (not (empty? returns)) (last returns))
            (set! returned #t))]
         [(sham:ast:stmt:void md) (void)]
@@ -212,122 +213,129 @@
       returned)
 
     (define (build-expression e env)
-      (match e
-        [(sham:ast:expr:let md ids types vals st ex)
-         (define new-env
-           (for/fold ([env env])
-                     ([id-type types]
-                      [id ids]
-                      [val vals])
-             (define val-type (build-llvm-type id-type env))
-             ;; TODO add llvm lifetime metadata at the end of let
-             (define val-p (add-alloca val-type id))
-             (unless (sham:ast:expr:void? val)
-               (LLVMBuildStore builder (build-expression val env) val-p))
-             (env-extend id
-                         (env-value val-p (env-type val-type id-type))
-                         env)))
-         (build-statement st new-env)
-         (build-expression ex new-env)]
-        [(sham:ast:expr:app md rator rands)
-         (define rand-values (map (curryr build-expression env) rands))
-         (build-app rator rand-values env)]
-        [(sham:ast:expr:const:fl md value t)
-         (LLVMConstReal (build-llvm-type t env) value)]
-        [(sham:ast:expr:const:si md value t)
-         (LLVMConstInt (build-llvm-type t env) (cast value _sint64 _uint64) #f)]
-        [(sham:ast:expr:const:ui md value t)
-         (LLVMConstInt (build-llvm-type t env) value #f)]
-        [(sham:ast:expr:const:llvm md v t) v]
-        [(sham:ast:expr:const:struct md vals t)
-         (LLVMConstStruct (map (curryr build-expression env) vals))]
-        [(sham:ast:expr:const:array md vals t)
-         (LLVMConstArray (build-llvm-type t env)
-                         (map (curryr build-expression env) vals))]
-        [(sham:ast:expr:const:string md str)
-         (LLVMBuildGlobalStringPtr builder str (symbol->string (gensym 'str)))]
-        [(sham:ast:expr:const:vector md vals)
-         (LLVMConstVector (map (curryr build-expression env) vals))]
-        [(sham:ast:expr:sizeof md type)
-         (define llvm-type (build-llvm-type type env))
-         (LLVMConstInt (internal-type-llvm (env-type-prim (env-lookup 'i32 env)))
-                       (LLVMStoreSizeOfType target-data
-                                            llvm-type)
-                       #f)]
-        [(sham:ast:expr:etype md t) (build-llvm-type t env)]
-        [(sham:ast:expr:void md) (void)]
-        [(sham:ast:expr:gep md ptr indxs)
-         (LLVMBuildGEP builder
-                       (build-expression ptr env)
-                       (map (curryr build-expression env) indxs)
-                       "gep")]
-        [(sham:ast:expr:var md sym)
-         (define value (env-lookup sym env))
-         (match value
-           [(env-value jv t)
-            (LLVMBuildLoad builder jv (symbol->string sym))]
-           [(env-function jv t)
-            jv])]
-        [(sham:ast:expr:external md lib-id sym t)
-         (define value
-           (LLVMAddGlobal llvm-module
-                          (build-llvm-type t env)
-                          (symbol->string sym)))
-         (add-ffi-mapping! sym (cons lib-id value))
-         (LLVMBuildLoad builder value (symbol->string sym))]
-        [(sham:ast:expr:global md sym) (env-value-ref (env-lookup sym env))]
-        [else (error "unknown experssion while compiling sham" e)]))
+      (add-expr-llvm-md
+       e
+       (match e
+         [(sham:ast:expr:let md ids types vals st ex)
+          (define new-env
+            (for/fold ([env env])
+                      ([id-type types]
+                       [id ids]
+                       [val vals])
+              (define val-type (build-llvm-type id-type env))
+              ;; TODO add llvm lifetime metadata at the end of let
+              (define val-p (add-alloca val-type id))
+              (unless (sham:ast:expr:void? val)
+                (LLVMBuildStore builder (build-expression val env) val-p))
+              (env-extend id
+                          (env-value val-p (env-type val-type id-type))
+                          env)))
+          (build-statement st new-env)
+          (build-expression ex new-env)]
+         [(sham:ast:expr:app md rator rands)
+          (define rand-values (map (curryr build-expression env) rands))
+          (build-app rator rand-values env)]
+         [(sham:ast:expr:const:fl md value t)
+          (LLVMConstReal (build-llvm-type t env) value)]
+         [(sham:ast:expr:const:si md value t)
+          (LLVMConstInt (build-llvm-type t env) (cast value _sint64 _uint64) #f)]
+         [(sham:ast:expr:const:ui md value t)
+          (LLVMConstInt (build-llvm-type t env) value #f)]
+         [(sham:ast:expr:const:llvm md v t) v]
+         [(sham:ast:expr:const:struct md vals t)
+          (LLVMConstStruct (map (curryr build-expression env) vals))]
+         [(sham:ast:expr:const:array md vals t)
+          (LLVMConstArray (build-llvm-type t env)
+                          (map (curryr build-expression env) vals))]
+         [(sham:ast:expr:const:string md str)
+          (LLVMBuildGlobalStringPtr builder str (symbol->string (gensym 'str)))]
+         [(sham:ast:expr:const:vector md vals)
+          (LLVMConstVector (map (curryr build-expression env) vals))]
+         [(sham:ast:expr:sizeof md type)
+          (define llvm-type (build-llvm-type type env))
+          (LLVMConstInt (internal-type-llvm (env-type-prim (env-lookup 'i32 env)))
+                        (LLVMStoreSizeOfType target-data
+                                             llvm-type)
+                        #f)]
+         [(sham:ast:expr:etype md t) (build-llvm-type t env)]
+         [(sham:ast:expr:void md) (void)]
+         [(sham:ast:expr:gep md ptr indxs)
+          (LLVMBuildGEP builder
+                        (build-expression ptr env)
+                        (map (curryr build-expression env) indxs)
+                        "gep")]
+         [(sham:ast:expr:var md sym)
+          (define value (env-lookup sym env))
+          (match value
+            [(env-value jv t)
+             (LLVMBuildLoad builder jv (symbol->string sym))]
+            [(env-function jv t)
+             jv])]
+         [(sham:ast:expr:external md lib-id sym t)
+          (define value
+            (LLVMAddGlobal llvm-module
+                           (build-llvm-type t env)
+                           (symbol->string sym)))
+          (add-ffi-mapping! sym (cons lib-id value))
+          (LLVMBuildLoad builder value (symbol->string sym))]
+         [(sham:ast:expr:global md sym) (env-value-ref (env-lookup sym env))]
+         [else (error "unknown experssion while compiling sham" e)])))
 
     (define (build-app rator rand-values env)
-      (match rator
-        [(sham:ast:rator:intrinsic md str-id ret-type)
-         (define s (symbol->string str-id))
-         (define ref
-           (if (hash-has-key? intrinsic-map s)
-               (hash-ref intrinsic-map s)
-               (let* ([fn-type (LLVMFunctionType (build-llvm-type ret-type env)
-                                                 (map LLVMTypeOf rand-values) #f)]
-                      [ref (LLVMAddFunction llvm-module s fn-type)])
-                 (hash-set! intrinsic-map s ref)
-                 ref)))
-         (LLVMBuildCall builder ref rand-values (llvm-lhs s))]
-        [(sham:ast:rator:external md lib-id id ret-type var-arg?)
-         #:when (hash-has-key? ffi-mappings id)
-         (LLVMBuildCall builder (cdr (hash-ref ffi-mappings id)) rand-values "e")]
-        [(sham:ast:rator:external md lib-id id ret-type var-arg?)
-         (define s (symbol->string id))
-         (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
-                                           (map LLVMTypeOf rand-values) var-arg?))
-         (define fn-value (LLVMAddFunction llvm-module s fn-type))
-         (add-ffi-mapping! id (cons lib-id fn-value))
-         (LLVMBuildCall builder fn-value rand-values (llvm-lhs s))]
-        [(sham:ast:rator:racket md id rkt-fun type)
-         (define s (symbol->string id))
-         (define ct (compile-type type env))
-         (define fn-type (internal-type-llvm ct))
-         (define fn-value (LLVMAddFunction llvm-module s fn-type))
-         (add-rkt-mapping! s (list rkt-fun (internal-type-racket ct) fn-value))
-         (LLVMBuildCall builder fn-value rand-values (llvm-lhs s))]
-        [(sham:ast:rator:symbol md sym)
-         (if (env-contains? sym env)
-             (match (env-lookup sym env)
-               [(env-function ref type)
-                (define call-name
-                  (if (equal? (LLVMGetReturnType
-                               (internal-type-llvm (env-type-prim type)))
-                              (LLVMVoidType))
-                      ""
-                      (llvm-lhs sym)))
-                (LLVMBuildCall builder ref rand-values call-name)]
-               [(env-internal-function appbuilder)
-                (appbuilder builder rand-values)]
-               [(env-value value (env-type (sham:ast:type:pointer _ (sham:ast:type:function _ _ _)) it))
-                (LLVMBuildCall builder (LLVMBuildLoad builder value "ptrrator") rand-values "ptrcall")]
-               [v (error "cannot figure out how to apply " rator v)])
-             (error "rator symbol not found in module " sym))]))
+      (add-rator-llvm-md
+       rator
+       (match rator
+         [(sham:ast:rator:intrinsic md str-id ret-type)
+          (define s (symbol->string str-id))
+          (define ref
+            (if (hash-has-key? intrinsic-map s)
+                (hash-ref intrinsic-map s)
+                (let* ([fn-type (LLVMFunctionType (build-llvm-type ret-type env)
+                                                  (map LLVMTypeOf rand-values) #f)]
+                       [ref (LLVMAddFunction llvm-module s fn-type)])
+                  (hash-set! intrinsic-map s ref)
+                  ref)))
+          (LLVMBuildCall builder ref rand-values (llvm-lhs s))]
+         [(sham:ast:rator:external md lib-id id ret-type var-arg?)
+          #:when (hash-has-key? ffi-mappings id)
+          (LLVMBuildCall builder (cdr (hash-ref ffi-mappings id)) rand-values "e")]
+         [(sham:ast:rator:external md lib-id id ret-type var-arg?)
+          (define s (symbol->string id))
+          (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
+                                            (map LLVMTypeOf rand-values) var-arg?))
+          (define fn-value (LLVMAddFunction llvm-module s fn-type))
+          (add-ffi-mapping! id (cons lib-id fn-value))
+          (LLVMBuildCall builder fn-value rand-values (llvm-lhs s))]
+         [(sham:ast:rator:racket md id rkt-fun type)
+          (define s (symbol->string id))
+          (define ct (compile-type type env))
+          (define fn-type (internal-type-llvm ct))
+          (define fn-value (LLVMAddFunction llvm-module s fn-type))
+          (add-rkt-mapping! s (list rkt-fun (internal-type-racket ct) fn-value))
+          (LLVMBuildCall builder fn-value rand-values (llvm-lhs s))]
+         [(sham:ast:rator:symbol md sym)
+          (if (env-contains? sym env)
+              (match (env-lookup sym env)
+                [(env-function ref type)
+                 (define call-name
+                   (if (equal? (LLVMGetReturnType
+                                (internal-type-llvm (env-type-prim type)))
+                               (LLVMVoidType))
+                       ""
+                       (llvm-lhs sym)))
+                 (define info (hash-ref function-info-map sym #f))
+                 (define call  (LLVMBuildCall builder ref rand-values call-name))
+                 (if info (add-local-function-info info call) call)]
+                [(env-internal-function appbuilder)
+                 (appbuilder builder rand-values)]
+                [(env-value value (env-type (sham:ast:type:pointer _ (sham:ast:type:function _ _ _)) it))
+                 (LLVMBuildCall builder (LLVMBuildLoad builder value "ptrrator") rand-values "ptrcall")]
+                [v (error "cannot figure out how to apply " rator v)])
+              (error "rator symbol not found in module " sym))])))
     (build-statement body new-env)
     (LLVMPositionBuilderAtEnd builder alloca-block)
     (LLVMBuildBr builder entry-block)
+    (add-function-llvm-md def fref)
     function)
 
   ;; TODO return values of name and obj
@@ -342,7 +350,7 @@
      ;; (env-extend type-name (env-lookup type-name env) module-env)
      (values type-name (env-lookup type-name env))]
     [(sham:def:function info function-name args types ret-type body)
-     (compile-function-definition function-name args types ret-type body)
+     (compile-function-definition def function-name args types ret-type body)
      (define f (env-lookup function-name env))
      (define lf (env-function-ref f))
      (add-function-info! function-name info)

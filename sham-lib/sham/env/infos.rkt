@@ -55,6 +55,18 @@
   (add-list-to-info-list info function-info-metadata-key metadatas))
 (define (function-info-add-passes info . passes)
   (add-list-to-info-list info function-info-pass-key passes))
-
+(define (function-info-get-call-conv info)
+  (if (hash? info)
+      (hash-ref info call-conv-key #f)
+      #f))
+(define (function-info-set-call-conv info call-conv)
+  (hash-set info call-conv-key call-conv))
+(define (function-info-set-fastcc info)
+  (function-info-set-call-conv info 'Fast))
 ;; type info
 (define empty-type-info basic-empty-info)
+
+;; app info
+(define empty-app-info basic-empty-info)
+(define app-info-set-call-conv function-info-set-call-conv)
+(define app-info-get-call-conv function-info-get-call-conv)

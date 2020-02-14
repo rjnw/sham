@@ -15,14 +15,14 @@
 (struct internal-type (racket llvm) #:prefab)
 
 ;;returns one of env-type object
-(define (build-env-type t env)
-  (env-type t (compile-type t env)))
+(define (build-env-type t env #:name (type-name #f))
+  (env-type t (compile-type t env #:name type-name)))
 
-(define (compile-type t-obj env)
+(define (compile-type t-obj env #:name (type-name #f))
   (match t-obj
     [(sham:ast:type:ref _ t) (env-type-prim (env-lookup t env))]
     [(sham:ast:type:struct _ names types)
-     (create-struct-type (map (curryr compile-type env) types))]
+     (create-struct-type (map (curryr compile-type env) types) #:name type-name)]
     [(sham:ast:type:function _ args ret)
      (create-function-type (map (curryr compile-type env) args)
                            (compile-type ret env))]
@@ -45,11 +45,17 @@
    (create-racket-function-type args ret)
    (create-llvm-function-type args ret)))
 
-(define (create-struct-type types)
+(define (create-struct-type types #:name (type-name #f))
   (define (create-racket-struct-type types)
     _pointer)
   (define (create-llvm-struct-type types)
-    (LLVMStructType (map internal-type-llvm types) #t))
+    (if type-name
+        (let ([fields (map internal-type-llvm types)]
+              ;; todo move this to when compiling declaration for recursive struct types
+              [type (LLVMStructCreateNamed (if (string? type-name) type-name (symbol->string type-name)))])
+          (LLVMStructSetBody type fields #t)
+          type)
+        (LLVMStructType (map internal-type-llvm types) #t)))
   (internal-type
    (create-racket-struct-type types)
    (create-llvm-struct-type types)))

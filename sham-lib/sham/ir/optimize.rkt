@@ -76,6 +76,7 @@
         ['ret (add-attributes val 0)]
         [`(arg ,n) (add-attributes val n)]
         ['pass (run-function-pass lf llvm-mod val)]
+        ['call-conv (void)]
         [else (printf "for now doing nothing for this key in function info ~a." key)]))))
 
 (define (run-function-pass f llvm-mod passes)

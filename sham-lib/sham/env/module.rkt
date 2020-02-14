@@ -24,6 +24,7 @@
 (define orc-handle-info-key 'orc-handle)
 (define per-function-info-key 'per-function-info)
 (define per-type-info-key 'per-type-info)
+(define call-conv-key 'call-conv)
 
 (define-syntax-rule (do-if-info-key key info v expr ...)
   (let ([v (get-info-key info key)])

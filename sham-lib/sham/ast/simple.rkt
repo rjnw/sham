@@ -261,3 +261,17 @@
      #`(dfunction #f name (list (quote args) ...) (list arg-types ...) ret-type
                   (let ([args (v (quote args))] ...)
                     (block^ body ...)))]))
+
+;; metadata
+(define (ast-set-metadata! ast md) (set-sham:ast-metadata! ast md))
+
+;; fastcc
+(require sham/env/infos)
+(define (set-calling-conv! ast callc)
+  (define orig-md (sham:ast-metadata ast))
+  (define new-md
+    (function-info-set-call-conv (if orig-md orig-md (basic-empty-info)) callc))
+  (ast-set-metadata! ast new-md))
+(define (fastcc! ast)
+  (set-calling-conv! ast 'Fast)
+  ast)
