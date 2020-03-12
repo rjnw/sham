@@ -3,6 +3,7 @@
 (require ffi/unsafe)
 (require sham/llvm/ffi
          sham/ast/core
+         sham/ast/simple
          sham/env)
 
 (require "init.rkt"
@@ -282,6 +283,8 @@
          [else (error "unknown experssion while compiling sham" e)])))
 
     (define (build-app rator rand-values env)
+      (define (lhs ret-type name)
+        (if (tvoid? ret-type) "" (llvm-lhs name)))
       (add-rator-llvm-md
        rator
        (match rator
@@ -295,23 +298,28 @@
                        [ref (LLVMAddFunction llvm-module s fn-type)])
                   (hash-set! intrinsic-map s ref)
                   ref)))
-          (LLVMBuildCall builder ref rand-values (llvm-lhs s))]
+          (LLVMBuildCall builder ref rand-values (lhs ret-type s))]
          [(sham:ast:rator:external md lib-id id ret-type var-arg?)
           #:when (hash-has-key? ffi-mappings id)
-          (LLVMBuildCall builder (cdr (hash-ref ffi-mappings id)) rand-values "e")]
+          (define s (symbol->string id))
+          (define fn-value (cdr (hash-ref ffi-mappings id)))
+          (LLVMBuildCall builder fn-value rand-values (lhs ret-type s))]
          [(sham:ast:rator:external md lib-id id ret-type var-arg?)
           (define s (symbol->string id))
           (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
                                             (map LLVMTypeOf rand-values) var-arg?))
           (define fn-value (LLVMAddFunction llvm-module s fn-type))
           (add-ffi-mapping! id (cons lib-id fn-value))
-          (LLVMBuildCall builder fn-value rand-values (llvm-lhs s))]
+          (LLVMBuildCall builder fn-value rand-values (lhs ret-type s))]
          [(sham:ast:rator:racket md id rkt-fun type)
           (define s (symbol->string id))
           (define ct (compile-type type env))
           (define fn-type (internal-type-llvm ct))
           (define fn-value (LLVMAddFunction llvm-module s fn-type))
           (add-rkt-mapping! s (list rkt-fun (internal-type-racket ct) fn-value))
+          ;; Can a racket function ever return void?
+          ;; If so how do we check for a void return type?
+          ;; - Andre
           (LLVMBuildCall builder fn-value rand-values (llvm-lhs s))]
          [(sham:ast:rator:symbol md sym)
           (if (env-contains? sym env)
@@ -328,8 +336,9 @@
                  (if info (add-local-function-info info call) call)]
                 [(env-internal-function appbuilder)
                  (appbuilder builder rand-values)]
-                [(env-value value (env-type (sham:ast:type:pointer _ (sham:ast:type:function _ _ _)) it))
-                 (LLVMBuildCall builder (LLVMBuildLoad builder value "ptrrator") rand-values "ptrcall")]
+                [(env-value value (env-type (sham:ast:type:pointer _ (sham:ast:type:function _ _ ret-type)) it))
+                 (define name (lhs ret-type "ptrcall"))
+                 (LLVMBuildCall builder (LLVMBuildLoad builder value "ptrrator") rand-values name)]
                 [v (error "cannot figure out how to apply " rator v)])
               (error "rator symbol not found in module " sym))])))
     (build-statement body new-env)
