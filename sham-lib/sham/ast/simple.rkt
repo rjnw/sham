@@ -36,6 +36,9 @@
 (define (fl64 v) (sham:ast:expr:const:fl v f64))
 
 (define tvoid (sham:ast:type:ref 'void))
+(define (tvoid? x)
+  (and (sham:ast:type:ref? x)
+       (eq? (sham:ast:type:ref-to x) 'void)))
 
 (define dmodule sham:def:module)
 (define dfunction sham:def:function)
