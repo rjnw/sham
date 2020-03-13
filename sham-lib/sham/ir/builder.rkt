@@ -229,7 +229,7 @@
               (unless (sham:ast:expr:void? val)
                 (LLVMBuildStore builder (build-expression val env) val-p))
               (env-extend id
-                          (env-value val-p (env-type val-type id-type))
+                          (env-value val-p (env-type id-type val-type))
                           env)))
           (build-statement st new-env)
           (build-expression ex new-env)]
