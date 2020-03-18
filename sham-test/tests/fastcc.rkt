@@ -1,6 +1,7 @@
 #lang racket
 
-(require sham)
+(require sham
+         disassemble)
 
 
 (module+ test
@@ -18,8 +19,8 @@
     (if^ (icmp-eq i (ui64 0))
          (ret res)
          (ret (fastcc! (b1 (sub i (ui64 1))
-                          v
-                          (add-nuw res v))))))
+                           v
+                           (add-nuw res v))))))
   (define-sham-function
     #:info (function-info-set-fastcc (empty-function-info))
     (b1 (i : i64) (v : i64) (res : i64) : i64)
@@ -69,8 +70,14 @@
      normal-module
      #:opt-level 3))
 
-  (time (sham-app wrap1 10000000000))
-  (time (sham-app wrap2 10000000000))
+  ;; (time (sham-app wrap1 10000000000))
+  ;; (time (sham-app wrap2 10000000000))
+  (begin (disassemble-ffi-function (jit-get-function-ptr 'a1 (hmodule-internal fastcc-module)) #:size 100)
+         (disassemble-ffi-function (jit-get-function-ptr 'a2 (hmodule-internal normal-module)) #:size 100))
+
+  (begin (disassemble-ffi-function (jit-get-function-ptr 'b1 (hmodule-internal fastcc-module)) #:size 100)
+         (disassemble-ffi-function (jit-get-function-ptr 'b2 (hmodule-internal normal-module)) #:size 100))
+
   )
 
 ;; fastcc: cpu time: 2392 real time: 2393 gc time: 0
