@@ -278,7 +278,7 @@
                            (build-llvm-type t env)
                            (symbol->string sym)))
           (add-ffi-mapping! sym (cons lib-id value))
-          (LLVMBuildLoad builder value (symbol->string sym))]
+          value]
          [(sham:ast:expr:global md sym) (env-value-ref (env-lookup sym env))]
          [else (error "unknown experssion while compiling sham" e)])))
 
