@@ -9,7 +9,8 @@
 (require "init.rkt"
          "types.rkt"
          "md.rkt"
-         "utils.rkt")
+         "utils.rkt"
+         "../logging.rkt")
 
 (provide build-llvm-module
          module-add-function
@@ -95,6 +96,7 @@
         (env-extend arg (env-value p-arg l-type) env)))
 
     (define (build-statement stmt env)
+      (debug off 'build-statement stmt)
       (define (current-return?)
         (define bbt (LLVMGetBasicBlockTerminator
                      (LLVMGetInsertBlock builder)))
@@ -153,15 +155,20 @@
 
          (define all-return?
            (for/fold ([all-return? default-return?])
-                     ([val checks]
+                     ([val/vals checks]
                       [stmt cases])
-             (define ve (build-expression val env))
              (define case-block (new-block 'switch-case))
              (LLVMPositionBuilderAtEnd builder case-block)
              (define threturned (build-statement stmt env))
              (unless threturned
                (LLVMBuildBr builder afterswitch-block))
-             (LLVMAddCase switch ve case-block)
+             (define vals
+               (cond
+                 [(not (list? val/vals)) (list val/vals)]
+                 [else val/vals]))
+             (for ([val (in-list vals)])
+               (define ve (build-expression val env))
+               (LLVMAddCase switch ve case-block))
              (and all-return? threturned)))
          (when all-return?
            (set! returned #t)
@@ -169,14 +176,13 @@
          (LLVMPositionBuilderAtEnd builder afterswitch-block)]
 
         [(sham:ast:stmt:while md tst body)
-         (define prev-block (LLVMGetInsertBlock builder))
          (define loop-entry-id (gensym 'loop-entry))
          (define loop-entry (new-block loop-entry-id))
          (define loop-block-id (gensym 'loop-block))
          (define loop-block (new-block loop-block-id))
          (define afterloop-block-id (gensym 'afterloop-block))
          (define afterloop-block (new-block afterloop-block-id))
-         (env-extend '#%break-block afterloop-block env)
+
          (LLVMBuildBr builder loop-entry)
 
          (LLVMPositionBuilderAtEnd builder loop-entry)
@@ -184,14 +190,14 @@
          (LLVMBuildCondBr builder tst-value loop-block afterloop-block)
 
          (LLVMPositionBuilderAtEnd builder loop-block)
+         
+         (build-statement body (env-extend '#%break-block afterloop-block env))
 
-         (build-statement body env)
-         (define body-end-blk (LLVMGetInsertBlock builder))
          (LLVMBuildBr builder loop-entry)
 
          (LLVMPositionBuilderAtEnd builder afterloop-block)]
 
-        [(sham:ast:stmt:break md)       ;TODO
+        [(sham:ast:stmt:break md)
          (LLVMBuildBr builder (env-lookup '#%break-block env))]
 
         [(sham:ast:stmt:return md v)
@@ -214,6 +220,7 @@
       returned)
 
     (define (build-expression e env)
+      (debug off 'build-expression e)
       (add-expr-llvm-md
        e
        (match e
@@ -273,16 +280,20 @@
             [(env-function jv t)
              jv])]
          [(sham:ast:expr:external md lib-id sym t)
-          (define value
-            (LLVMAddGlobal llvm-module
-                           (build-llvm-type t env)
-                           (symbol->string sym)))
-          (add-ffi-mapping! sym (cons lib-id value))
-          value]
+          (cond
+            [(hash-ref ffi-mappings sym #f) => cdr]
+            [else
+             (define value
+               (LLVMAddGlobal llvm-module
+                              (build-llvm-type t env)
+                              (symbol->string sym)))
+             (add-ffi-mapping! sym (cons lib-id value))
+             value])]
          [(sham:ast:expr:global md sym) (env-value-ref (env-lookup sym env))]
          [else (error "unknown experssion while compiling sham" e)])))
 
     (define (build-app rator rand-values env)
+      (debug off 'build-ap rator rand-values)
       (define (lhs ret-type name)
         (if (tvoid? ret-type) "" (llvm-lhs name)))
       (add-rator-llvm-md
@@ -304,10 +315,16 @@
           (define s (symbol->string id))
           (define fn-value (cdr (hash-ref ffi-mappings id)))
           (LLVMBuildCall builder fn-value rand-values (lhs ret-type s))]
-         [(sham:ast:rator:external md lib-id id ret-type var-arg?)
+         [(sham:ast:rator:external md lib-id id ret-type var-args)
           (define s (symbol->string id))
-          (define fn-type (LLVMFunctionType (build-llvm-type ret-type env)
-                                            (map LLVMTypeOf rand-values) var-arg?))
+          (define fn-type
+            (if var-args
+                (LLVMFunctionType (build-llvm-type ret-type env)
+                                  (map (curryr build-llvm-type env) var-args)
+                                  #t)
+                (LLVMFunctionType (build-llvm-type ret-type env)
+                                  (map LLVMTypeOf rand-values)
+                                  #f)))
           (define fn-value (LLVMAddFunction llvm-module s fn-type))
           (add-ffi-mapping! id (cons lib-id fn-value))
           (LLVMBuildCall builder fn-value rand-values (lhs ret-type s))]
@@ -357,7 +374,8 @@
      ;; for now we can use opaque pointer and then cast everytime HACK!!
      (add-type-info! type-name info)
      ;; (env-extend type-name (env-lookup type-name env) module-env)
-     (values type-name (env-lookup type-name env))]
+     (define type-ref (env-lookup type-name env))
+     (values type-name type-ref)]
     [(sham:def:function info function-name args types ret-type body)
      (compile-function-definition def function-name args types ret-type body)
      (define f (env-lookup function-name env))

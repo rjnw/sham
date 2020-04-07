@@ -80,8 +80,8 @@
 
 (define rs sham:ast:rator:symbol)
 
-(define (re lib-id id ret-type (var-arg #f))
-  (sham:ast:rator:external lib-id id ret-type var-arg))
+(define (re lib-id id ret-type (var-args #f))
+  (sham:ast:rator:external lib-id id ret-type var-args))
 (define rr sham:ast:rator:racket)
 
 (define cfl sham:ast:expr:const:fl)

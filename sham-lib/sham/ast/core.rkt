@@ -30,12 +30,18 @@
          ;; ;; LLVM implementation hooks
          [intrinsic (id:terminal.sym return-type:type)]
          ;; ;; Shared object names
-         [external  (lib-id:terminal.sym id:terminal.sym ret-type:type var-arg?)]
+         ;; var-args : when not false it indicates that a function takes variable arguments
+         ;; and thus it's external type declaration cannot be infered. The contents of
+         ;; var-args should be the list of mandatory arguments.
+         [external  (lib-id:terminal.sym id:terminal.sym ret-type:type var-args)]
          ;; ;; calls back into racket from generated code
          [racket    (id:terminal.sym racket-value:terminal.rkt full-type:type)])
   (stmt ast
         [set!     (lhs:expr.var val:expr)]
         [if       (test:expr then:stmt else:stmt)]
+        ;; check:expr can also be (check:expr ...) not sure how to express that or migrate your
+        ;; code that already uses switch. This gives the switch statement semantics similar to
+        ;; case expressions in racket. --Andre
         [switch   (test:expr (check:expr body:stmt) ... default:expr)]
         [break    ()]
         [while    (test:expr body:stmt)]
