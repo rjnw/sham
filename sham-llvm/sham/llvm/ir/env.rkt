@@ -17,13 +17,17 @@
 (define (assoc-env-extend env key value)
   (cons (cons key value) env))
 
+(struct llvm-value [ref type] #:prefab)
+(struct llvm-function llvm-value [] #:prefab)
+(struct llvm-env [module-ref context-ref ast value-refs])
 
-(struct llvm-module-env [module-ref context-ref ast value-refs])
-(define (env-lookup-value-ref env key)
-  (hash-ref (llvm-module-env-value-refs env) key))
+(define (llvm-env-lookup-value env key)
+  (hash-ref (llvm-env-value-refs env) key))
+(define (llvm-env-values env)
+  (hash-values (llvm-env-value-refs env)))
 
-(define (env-contains-value-ref? env key)
-  (hash-has-key? (llvm-module-env-value-refs env) key))
+(define (llvm-env-contains-value? env key)
+  (hash-has-key? (llvm-env-value-refs env) key))
 
-(define (env-add-value-ref! env key value)
-  (hash-set! (llvm-module-env-value-refs env) key value))
+(define (llvm-env-add-value! env key value)
+  (hash-set! (llvm-env-value-refs env) key value))

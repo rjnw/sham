@@ -176,11 +176,8 @@
     (xor ,LLVMBuildXor)
     (and ,LLVMBuildAnd)
 
-    (arr-malloc ,LLVMBuildArrayMalloc)
-    (arr-alloca ,LLVMBuildArrayAlloca)
-
     ;; vector
-    (extractelement ,LLVMBuildExtractElement)
+    (extract-element ,LLVMBuildExtractElement)
 
     ;;casts
     (trunc  ,LLVMBuildTrunc)
@@ -195,12 +192,12 @@
     (ptr->int ,LLVMBuildPtrToInt)
     (int->ptr ,LLVMBuildIntToPtr)
     (bitcast  ,LLVMBuildBitCast)
-    (addrspacecast ,LLVMBuildAddrSpaceCast)
-    (zextorbitcast ,LLVMBuildZExtOrBitCast)
-    (sextorbitcast ,LLVMBuildSExtOrBitCast)
-    (ptrcast  ,LLVMBuildPointerCast)
-    (intcast  ,LLVMBuildIntCast)
-    (fpcast   ,LLVMBuildFPCast)))
+    (addr-space-cast ,LLVMBuildAddrSpaceCast)
+    (zext-or-bit-cast ,LLVMBuildZExtOrBitCast)
+    (sext-or-bit-cast ,LLVMBuildSExtOrBitCast)
+    (ptr-cast  ,LLVMBuildPointerCast)
+    (int-cast  ,LLVMBuildIntCast)
+    (fp-cast   ,LLVMBuildFPCast)))
 
 
 (define unary-internals
@@ -210,10 +207,7 @@
     (fneg ,LLVMBuildFNeg)
 
     (not ,LLVMBuildNot)
-    (load ,LLVMBuildLoad)
-    (malloc ,LLVMBuildMalloc)
-
-    (alloca ,LLVMBuildAlloca)))
+    (load ,LLVMBuildLoad)))
 
 
 (module+ test

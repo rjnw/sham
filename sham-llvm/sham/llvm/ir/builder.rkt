@@ -4,11 +4,9 @@
          sham/llvm/ir/env
          sham/llvm/ir/init
          sham/llvm/ir/internals
+         sham/llvm/ir/md
          sham/llvm/ffi
          ffi/unsafe)
-
-(struct llvm-value [ref type] #:prefab)
-(struct llvm-function llvm-value [] #:prefab)
 
 (define diagnose-builder (make-parameter #f))
 
@@ -113,7 +111,6 @@
           [(llvm:ast:block md name instructions terminator)
            (hash-set! block-map name (append-block! name))]
           [else (error 'sham:llvm "invalid block in function definitions ~a" b)]))
-      (define (add-function-def-info! value info) (void))
       (define (build-block! b)
         (define (compile-value v)
           (match v
@@ -180,8 +177,6 @@
       (add-function-def-info! function-ref (llvm:def-info def)))
 
     (define (compile-type-definition! def name type)
-      (define (add-type-def-info! ref info)
-        (void))
       (define type-ref (assoc-env-lookup decl-env name))
       (match type
         [(llvm:ast:type:struct _ fields)
@@ -207,7 +202,7 @@
        (for/fold ([decl-env (empty-assoc-env)])
                  ([def defs])
          (register-define def internal-env decl-env)))
-     (llvm-module-env
+     (llvm-env
       llvm-module
       llvm-context
       module-ast
