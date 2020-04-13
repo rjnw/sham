@@ -1,0 +1,23 @@
+on: [push, pull_request]
+name: ci
+jobs:
+  build:
+    name: "Sham on '${{ matrix.racket-version }}' (${{ matrix.racket-variant }})"
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        racket-version: ["current"]
+        racket-variant: ["regular", "CS"]
+    steps:
+      - uses: actions/checkout@master
+      - uses: Bogdanp/setup-racket@v0.3
+        with:
+          architecture: x64
+          distribution: full
+          variant: ${{ matrix.racket-variant }}
+          version: ${{ matrix.racket-version }}
+      - run: |
+             bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
+             raco pkg install --auto -t dir sham-astg sham-llvm sham-lib sham-test sham
+      - run: raco test -x -p sham-test
