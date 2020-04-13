@@ -4,6 +4,8 @@ jobs:
   build:
     name: "Sham on '${{ matrix.racket-version }}' (${{ matrix.racket-variant }})"
     runs-on: ubuntu-latest
+    env:
+      LLVM_CONFIG: /usr/bin/llvm-config-10
     strategy:
       fail-fast: false
       matrix:
@@ -20,7 +22,5 @@ jobs:
       - run: |
              sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
              sudo apt-get install libllvm10 llvm-10 llvm-10-dev llvm-10-runtime
-             find /usr/bin
-             find / -name 'llvm-config.*' -print
-             raco pkg install --auto -t dir sham-astg sham-llvm sham-test
+      - run: raco pkg install --auto -t dir sham-astg sham-llvm sham-test
       - run: raco test -x -p sham-test
