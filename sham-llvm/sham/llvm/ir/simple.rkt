@@ -6,6 +6,7 @@
                      racket/match))
 
 (require sham/llvm/ir/ast)
+(provide (all-defined-out))
 
 (define def-module llvm:def:module)
 (define def-function llvm:def:function)
@@ -26,7 +27,8 @@
 (define const-ui llvm:ast:constant:ui)
 (define const-string llvm:ast:constant:string)
 (define const-llvm llvm:ast:constant:llvm)
-(define const-struct llvm:ast:constant:struct)
+(define const-basic-struct llvm:ast:constant:basic-struct)
+(define const-named-struct llvm:ast:constant:named-struct)
 (define const-array llvm:ast:constant:array)
 (define const-vector llvm:ast:constant:vector)
 
@@ -53,12 +55,12 @@
          [(p empty) empty]))
      #`(begin #,@(apply append (map (λ (n) (rec #f n)) name-list)))]))
 
-(define-ref-types i1 i8 i16 i32 i64 f32 f64 tvoid)
+(define-ref-types i1 i8 i16 i32 i64 f32 f64 void)
 
 (define-syntax (define-basic-ops stx)
   (syntax-parse stx
     [(_ op-name:id ...)
-     #`(begin (define (op-name result flags args) (ast-op result (quote op-name) flags args)) ...)]))
+     #`(begin (define (op-name result args #:flags (flags #f)) (ast-op result (quote op-name) flags args)) ...)]))
 
 (define-basic-ops
   icmp-eq icmp-ne icmp-ugt icmp-uge icmp-ult icmp-ule icmp-sgt icmp-sge icmp-slt icmp-sle
@@ -71,11 +73,11 @@
   urem srem frem
   shl lshr ashr
   or xor and
-  extract-element
+  extract-element insert-element
   trunc zext sext fp->ui fp->si ui->fp si->fp
   fp-trunc fp-ext ptr->int int->ptr
   bitcast addr-space-cast zext-or-bit-cast sext-or-bit-cast
   ptr-cast int-cast fp-cast
   neg neg-nsw neg-nuw fneg
   not load malloc alloca free store! array-malloc array-alloca
-  gep)
+  gep phi)

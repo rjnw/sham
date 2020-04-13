@@ -33,11 +33,12 @@
               [bru (destinition)]
               [switch (condition default (value dest) ...)])
   (constant ast
-            [fl     (value:terminal.float        type:type)]
-            [si     (value:terminal.signed-int   type:type)]
-            [ui     (value:terminal.unsigned-int type:type)]
-            [string (value:terminal.string)]
-            [llvm   (value:terminal.llvm         type:type)]
-            [struct (value:terminal.struct       type:type)]
-            [array  (value:terminal.array        type:type)]
-            [vector (value:terminal.vector)]))
+            [fl     ((? fixnum?) type:type)]
+            [si     ((? exact-integer?) type:type)]
+            [ui     ((? exact-nonnegative-integer?) type:type)]
+            [string ((? string?))]
+            [llvm   (value type:type)]
+            [basic-struct (fields)]
+            [named-struct (fields type)]
+            [array  (value type:type)]
+            [vector (value ...)]))

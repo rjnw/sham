@@ -7,7 +7,25 @@
 (provide create-internal-environment)
 
 (define (create-internal-environment context)
-  (register-llvm-internal-instructions (empty-assoc-env) context))
+  (register-llvm-internal-types
+   (register-llvm-internal-instructions (empty-assoc-env))
+   context))
+
+(define (register-llvm-internal-types env context)
+  (define (register-types ts)
+    (for/fold [(env env)]
+              [(t ts)]
+      (assoc-env-extend env (car t) (cadr t))))
+  (register-types
+   `((i1 ,(LLVMInt1TypeInContext context))
+     (i8 ,(LLVMInt8TypeInContext context))
+     (i16 ,(LLVMInt16TypeInContext context))
+     (i32 ,(LLVMInt32TypeInContext context))
+     (i64 ,(LLVMInt64TypeInContext context))
+     (i128 ,(LLVMInt128TypeInContext context))
+     (f32 ,(LLVMFloatTypeInContext context))
+     (f64 ,(LLVMDoubleTypeInContext context))
+     (void ,(LLVMVoidTypeInContext context)))))
 
 (define (register-llvm-internal-instructions env)
   (define (unary-builder llvm-op)
@@ -21,7 +39,7 @@
       (define args^ (map compile-value args))
       (llvm-op llvm-builder (first args^) (second args^) (third args^) result-name)))
   (define (register-basic-internals intr reg env)
-    (assoc-env-extend env (car intr) (reg (cdr intr))))
+    (assoc-env-extend env (car intr) (reg (cadr intr))))
   (define (register-int-predicates env)
     (for/fold [(env env)]
               [(predicate '(LLVMIntEQ
@@ -141,7 +159,7 @@
         env)))))))
 
 (define ternary-internals
-  `((insertelement ,LLVMBuildInsertElement)))
+  `((insert-element ,LLVMBuildInsertElement)))
 
 (define binary-internals
   `((add ,LLVMBuildAdd)
