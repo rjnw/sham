@@ -19,5 +19,5 @@ jobs:
           version: ${{ matrix.racket-version }}
       - run: |
              sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
-             raco pkg install --auto -t dir sham-astg sham-llvm
+             raco pkg install --auto -t dir sham-astg sham-llvm sham-test
       - run: raco test -x -p sham-test
