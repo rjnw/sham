@@ -135,9 +135,14 @@
           (cons 'gep
                 (λ (llvm-builder flags args compile-type compile-value result-name)
                   (LLVMBuildGEP llvm-builder
-                                (compile-type (first args))
+                                (compile-value (first args))
                                 (map compile-value (cdr args))
-                                result-name)))))
+                                result-name)))
+          (cons 'app
+                (λ (llvm-builder flags args compile-type compile-value result-name)
+                  (LLVMBuildCall llvm-builder (compile-value (car args))
+                                 (map compile-value (cdr args))
+                                 result-name)))))
   (define (register-specials env)
     (for/fold ([env env])
               ([special specials])

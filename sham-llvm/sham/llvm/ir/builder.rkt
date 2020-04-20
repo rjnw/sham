@@ -13,12 +13,6 @@
 
 (define diagnose-builder (make-parameter #f))
 
-(define (to-string s)
-  (match s
-    [(? symbol?) (symbol->string s)]
-    [(? string?) s]
-    [else (error 'sham "invalid name for llvm values ~a" s)]))
-
 (define (build-llvm-module module-ast
                            [llvm-context (global-context)]
                            [llvm-target-triple (LLVMGetDefaultTargetTriple)]
@@ -51,7 +45,13 @@
        (define value (LLVMAddGlobal llvm-module type (to-string name)))
        (LLVMSetInitializer value
                            (if v (compile-constant v internal-env decl-env) (LLVMConstNull type)))
-       (assoc-env-extend decl-env name (llvm-value value type))]))
+       (assoc-env-extend decl-env name (llvm-value value type))]
+      [(llvm:def:external info name type)
+       (define type-ref (compile-type type internal-env decl-env))
+       (define value-ref (LLVMAddGlobal llvm-module
+                                        type-ref
+                                        (to-string name)))
+       (assoc-env-extend decl-env name (llvm-external value-ref type-ref))]))
 
   ;; llvm:ast:type env -> LLVMTypeRef
   (define (compile-type type internal-env decl-env)
@@ -136,31 +136,31 @@
              value]
             [else (build-instruction! instruction)]))
         (define (build-instruction! instruction)
-          (define (add-function-call-md! value md) value) ;; TODO
           (match instruction
             [(llvm:ast:instruction:op md result op flags args)
              (add-local-var!
               result
-              (cond
-                [(assoc-env-ref internal-env op)
-                 => (λ (opbuilder) (opbuilder llvm-builder flags args
-                                              (curryr compile-type internal-env decl-env)
-                                              compile-value
-                                              (to-string result)))]
-                [(assoc-env-ref decl-env op)
-                 => (λ (v)
-                      (match v
-                        [(llvm-value value _)
-                         (add-function-call-md! (LLVMBuildCall llvm-builder value
-                                                               (map compile-value args)
-                                                               (to-string result)) md)]
-                        [else (error 'sham:llvm "cannot figure out how to apply value ~a of ~a" v op)]))]
-                [(local-var-ref op)
-                 => (λ (value)
-                      (add-function-call-md! (LLVMBuildCall llvm-builder value
-                                                            (map compile-value args)
-                                                            (to-string result))
-                                             md))]))]))
+              (add-instruction-md!
+               (cond
+                 [(assoc-env-ref internal-env op)
+                  => (λ (opbuilder) (opbuilder llvm-builder (cons md flags) args
+                                               (curryr compile-type internal-env decl-env)
+                                               compile-value
+                                               (to-string result)))]
+                 [(assoc-env-ref decl-env op)
+                  => (λ (v)
+                       (match v
+                         [(llvm-value value _)
+                          (LLVMBuildCall llvm-builder value
+                                         (map compile-value args)
+                                         (to-string result))]
+                         [else (error 'sham:llvm "cannot figure out how to apply value ~a of ~a" v op)]))]
+                 [(local-var-ref op)
+                  => (λ (value)
+                       (LLVMBuildCall llvm-builder value
+                                      (map compile-value args)
+                                      (to-string result)))])
+               md flags))]))
         (define (build-terminator-instruction! terminator)
           (match terminator
             [(llvm:ast:instruction:terminator:ret md value)
@@ -207,6 +207,8 @@
        (compile-function-definition! def function-name args types ret-type body)
        (values function-name (assoc-env-lookup decl-env function-name))]
       [(llvm:def:global _ id _ _)
+       (values id (assoc-env-lookup decl-env id))]
+      [(llvm:def:external _ id _)
        (values id (assoc-env-lookup decl-env id))]))
 
   (match module-ast

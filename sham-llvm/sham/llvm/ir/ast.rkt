@@ -12,6 +12,7 @@
     [type          (type:type)]
     [global        (type:type value:constant)]
     [global-string (str:terminal.string)]
+    [external      (type:type)]
     #:common-mutable info
     #:common id:terminal.sym)
   (ast [block [name:terminal.sym instructions:instruction ... term:terminator]]

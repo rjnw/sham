@@ -2,6 +2,15 @@
 
 (provide (all-defined-out))
 
+(define (to-string s)
+  (match s
+    [(? symbol?) (symbol->string s)]
+    [(? string?) s]
+    [(? false?) s]
+    [else (error 'sham "invalid name for llvm values ~a" s)]))
+(define (assoc-env? v)
+  (and (list? v)
+       (andmap cons? v)))
 (define (empty-assoc-env) '())
 (define (assoc-env-lookup env key)
   (cond
@@ -19,6 +28,8 @@
 
 (struct llvm-value [ref type] #:prefab)
 (struct llvm-function llvm-value [] #:prefab)
+(struct llvm-external llvm-value [] #:prefab)
+
 (struct llvm-env [module-ref context-ref ast value-refs])
 
 (define (llvm-env-lookup-value env key)
@@ -31,3 +42,7 @@
 
 (define (llvm-env-add-value! env key value)
   (hash-set! (llvm-env-value-refs env) key value))
+
+;; external mapping
+
+(struct external-mapping [name ptr type])

@@ -20,6 +20,12 @@
 (define-llvm LLVMInitializeCodeGen (_fun LLVMPassRegistryRef -> _void))
 (define-llvm LLVMInitializeTarget (_fun LLVMPassRegistryRef -> _void))
 
+(require racket/splicing)
+(splicing-let ([llvm-initialized? (box #f)])
+  (define (checked-initialize-llvm)
+    (unless (unbox llvm-initialized?)
+      (llvm-initialize-all)
+      (set-box! llvm-initialized? #t))))
 
 (define (llvm-initialize-all)
   (LLVMLinkInMCJIT)
