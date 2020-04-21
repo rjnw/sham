@@ -44,12 +44,20 @@
 ;; module info
 (define (empty-module-info) (make-hash))
 
-(define module-info-external-mapping-key 'external-mappings)
+(define module-info-external-mapping-key 'llvm-external-mappings)
 
 (define (info-lambda key)
   (case-lambda
-    [(info) (hash-ref info key)]
-    [(info value) (hash-set! info key value) info]))
+    [(info) (cond [(hash? info) (hash-ref info key #f)]
+                  [(assoc-env? info) (assoc-env-ref info key)]
+                  [else #f])]
+    [(info value) (cond
+                    [(and (immutable? info) (hash? info)) (hash-set info key value)]
+                    [(hash? info) (begin (hash-set! info key value) info)]
+                    [(assoc-env? info) (assoc-env-extend info key value)]
+                    [(false? info) (hash-set! (empty-module-info) key value)]
+                    [else (error 'sham:llvm "unknown module info value:~a" info)])]))
+
 (define module-info-external-mappings (info-lambda module-info-external-mapping-key))
 
 ;; function info

@@ -24,7 +24,7 @@
   (require rackunit
            ffi/unsafe)
   (define t-module
-    (def-module #f 'function-jit-test-module
+    (def-module (empty-module-info) 'function-jit-test-module
       (list size-array-t identity-f new-array-f pow-f)))
   (define t-env (build-llvm-module t-module))
   (dump-llvm-module t-env)

@@ -2,7 +2,7 @@ on: [push, pull_request]
 name: ci
 jobs:
   build:
-    name: "Sham on '${{ matrix.racket-version }}' (${{ matrix.racket-variant }})"
+    name: "sham-test"
     runs-on: ubuntu-latest
     env:
       LLVM_CONFIG: /usr/bin/llvm-config-10
@@ -10,7 +10,7 @@ jobs:
       fail-fast: false
       matrix:
         racket-version: ["current"]
-        racket-variant: ["regular", "CS"]
+        racket-variant: ["regular"]
     steps:
       - uses: actions/checkout@master
       - uses: Bogdanp/setup-racket@v0.3

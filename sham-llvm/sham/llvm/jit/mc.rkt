@@ -25,10 +25,11 @@
   (match-define (llvm-env mref cref ast vrefs) env)
   (match-define (llvm:def:module minfo mid mdefs) ast)
   (define external-mappings (module-info-external-mappings minfo))
-  (for ([m external-mappings])
-    (match-define (external-mapping name uintptr) m)
-    (match-define (llvm-external value-ref type-ref) (llvm-env-lookup-value env name))
-    (LLVMAddGlobalMapping mcjit-ref value-ref uintptr)))
+  (when external-mappings
+    (for ([m external-mappings])
+      (match-define (external-mapping name uintptr) m)
+      (match-define (llvm-external value-ref type-ref) (llvm-env-lookup-value env name))
+      (LLVMAddGlobalMapping mcjit-ref value-ref uintptr))))
 
 (define (mcjit-function-address env fname)
   (match-define (llvm-mcjit-env lenv jit-ref) env)
