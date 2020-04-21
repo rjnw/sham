@@ -45,4 +45,4 @@
 
 ;; external mapping
 
-(struct external-mapping [name ptr type])
+(struct external-mapping [name uintptr] #:prefab)

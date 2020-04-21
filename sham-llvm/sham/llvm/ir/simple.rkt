@@ -13,6 +13,7 @@
 (define def-type llvm:def:type)
 (define def-global llvm:def:global)
 (define def-global-string llvm:def:global-string)
+(define def-external llvm:def:external)
 
 (define ast-block llvm:ast:block)
 (define ast-op llvm:ast:instruction:op)

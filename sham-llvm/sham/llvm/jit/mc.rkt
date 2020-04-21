@@ -18,15 +18,15 @@
     (LLVMCreateMCJITCompilerForModule (llvm-env-module-ref env) mcjit-options))
   (when status
     (error 'sham:jit:mc "error initializing llvm mcjit ~a ~a" status err))
+  (add-external-mappings env mcjit)
   (llvm-mcjit-env env mcjit))
 
-(define (add-external-mappings! external-mappings mcjit-env)
-  (match-define (llvm-mcjit-env env mcjit-ref) mcjit-env)
+(define (add-external-mappings env mcjit-ref)
   (match-define (llvm-env mref cref ast vrefs) env)
   (match-define (llvm:def:module minfo mid mdefs) ast)
-  (define external-mappings (module-info-llvm-external-mappings minfo))
+  (define external-mappings (module-info-external-mappings minfo))
   (for ([m external-mappings])
-    (match-define (external-mapping name uintptr type) m)
+    (match-define (external-mapping name uintptr) m)
     (match-define (llvm-external value-ref type-ref) (llvm-env-lookup-value env name))
     (LLVMAddGlobalMapping mcjit-ref value-ref uintptr)))
 

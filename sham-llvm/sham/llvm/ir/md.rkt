@@ -45,14 +45,12 @@
 (define (empty-module-info) (make-hash))
 
 (define module-info-external-mapping-key 'external-mappings)
-(define module-info-llvm-external-mapping-key 'llvm-external-mappings)
 
 (define (info-lambda key)
   (case-lambda
     [(info) (hash-ref info key)]
-    [(info value) (hash-set! info key value)]))
+    [(info value) (hash-set! info key value) info]))
 (define module-info-external-mappings (info-lambda module-info-external-mapping-key))
-(define module-info-llvm-external-mappings (info-lambda module-info-llvm-external-mapping-key))
 
 ;; function info
 (define (empty-function-info) (make-hash))
