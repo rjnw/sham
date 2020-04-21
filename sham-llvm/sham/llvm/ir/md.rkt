@@ -53,3 +53,6 @@
     [(info value) (hash-set! info key value)]))
 (define module-info-external-mappings (info-lambda module-info-external-mapping-key))
 (define module-info-llvm-external-mappings (info-lambda module-info-llvm-external-mapping-key))
+
+;; function info
+(define (empty-function-info) (make-hash))
