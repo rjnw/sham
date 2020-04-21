@@ -6,7 +6,7 @@
          sham/llvm/jit/mc)
 
 (define call-rkt-f
-  (def-function #f
+  (def-function (empty-function-info)
     'call-ex `(a) (list i64) i64
     (list (ast-block 'entry
                      (list

@@ -29,6 +29,7 @@
 (struct llvm-value [ref type] #:prefab)
 (struct llvm-function llvm-value [] #:prefab)
 (struct llvm-external llvm-value [] #:prefab)
+(struct llvm-intrinsic llvm-value [] #:prefab)
 
 (struct llvm-env [module-ref context-ref ast value-refs])
 

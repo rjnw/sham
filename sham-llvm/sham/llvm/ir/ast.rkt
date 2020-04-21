@@ -8,23 +8,24 @@
   #:custom-write #t
   (def
     [module (defs:def ...)]
-    [function      ((arg-ids:terminal.sym arg-types:type) ... ret-type:type blocks:ast.block ...)]
-    [type          (type:type)]
-    [global        (type:type value:constant)]
-    [global-string (str:terminal.string)]
-    [external      (type:type)]
+    [function      ((arg-ids arg-types) ... ret-type blocks:ast.block ...)]
+    [type          (type)]
+    [global        (type value:constant)]
+    [global-string (str)]
+    [external      (type)]
+    [intrinsic     (str type)]
     #:common-mutable info
-    #:common id:terminal.sym)
-  (ast [block [name:terminal.sym instructions:instruction ... term:terminator]]
+    #:common id)
+  (ast [block [name instructions:instruction ... term:terminator]]
        #:common-auto-mutable metadata)
   (type ast
         [internal ()]
-        [ref      (to:terminal.sym)]
+        [ref      (to)]
         [struct   (fields:type ...)]
         [function (args:type ... ret:type)]
         [pointer  (to:type)]
-        [array    (of:type size:terminal.unsigned-int)]
-        [vector   (of:type size:terminal.unsigned-int)])
+        [array    (of:type size)]
+        [vector   (of:type size)])
   (instruction ast
                [op (result op flags args ...)])
   (terminator instruction

@@ -8,7 +8,7 @@
          sham/test/llvm/ir/function)
 
 (define new-array-f
-  (def-function #f
+  (def-function (empty-function-info)
     'new-array `(s arr) (list i32 i32*) size-array-ref
     (list (ast-block 'entry
                      (list

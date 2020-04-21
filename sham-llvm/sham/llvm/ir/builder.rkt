@@ -51,7 +51,13 @@
        (define value-ref (LLVMAddGlobal llvm-module
                                         type-ref
                                         (to-string name)))
-       (assoc-env-extend decl-env name (llvm-external value-ref type-ref))]))
+       (assoc-env-extend decl-env name (llvm-external value-ref type-ref))]
+      [(llvm:def:intrinsic info id name type)
+       (define type-ref (compile-type type internal-env decl-env))
+       (define value-ref (LLVMAddFunction llvm-module
+                                          (to-string name)
+                                          type-ref))
+       (assoc-env-extend decl-env id (llvm-intrinsic value-ref type-ref))]))
 
   ;; llvm:ast:type env -> LLVMTypeRef
   (define (compile-type type internal-env decl-env)
@@ -206,9 +212,7 @@
       [(llvm:def:function info function-name args types ret-type body)
        (compile-function-definition! def function-name args types ret-type body)
        (values function-name (assoc-env-lookup decl-env function-name))]
-      [(llvm:def:global _ id _ _)
-       (values id (assoc-env-lookup decl-env id))]
-      [(llvm:def:external _ id _)
+      [(llvm:def _ id)
        (values id (assoc-env-lookup decl-env id))]))
 
   (match module-ast
