@@ -8,7 +8,7 @@
   #:custom-write #t
   (def
     [module (defs:def ...)]
-    [function      ((arg-ids arg-types) ... ret-type blocks:ast.block ...)]
+    [function      (type blocks:ast.block ...)]
     [type          (type)]
     [global        (type value:constant)]
     [global-string (str)]
@@ -22,7 +22,7 @@
         [internal ()]
         [ref      (to)]
         [struct   (fields:type ...)]
-        [function (args:type ... ret:type)]
+        [function (args:type ... var-arg? ret:type)]
         [pointer  (to:type)]
         [array    (of:type size)]
         [vector   (of:type size)])
@@ -43,4 +43,5 @@
             [basic-struct (fields)]
             [named-struct (fields type)]
             [array  (value type:type)]
-            [vector (value ...)]))
+            [vector (value ...)]
+            [sizeof (type)]))

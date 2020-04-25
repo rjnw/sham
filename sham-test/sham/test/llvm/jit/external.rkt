@@ -7,10 +7,10 @@
 
 (define call-rkt-f
   (def-function (empty-function-info)
-    'call-ex `(a) (list i64) i64
+    'call-ex (type-function (list i64) #f i64)
     (list (ast-block 'entry
                      (list
-                      (ast-op 'ret 'ex-rkt #f (list 'a)))
+                      (ast-op 'ret 'ex-rkt #f `(0)))
                      (ast-ret 'ret)))))
 
 (module+ test
@@ -25,7 +25,7 @@
                                                               _pointer
                                                               _uintptr))))
       'external-jit-test-module
-      (list (def-external #f 'ex-rkt (type-function (list i64) i64)) call-rkt-f)))
+      (list (def-external #f 'ex-rkt (type-function (list i64) #f i64)) call-rkt-f)))
   (define t-env (build-llvm-module t-module))
   (dump-llvm-module t-env)
   (test-true "verify-external" (verify-llvm-module t-env))

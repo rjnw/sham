@@ -6,10 +6,10 @@
 
 (define pow-f
   (def-function (empty-function-info)
-    'pow-f `(val power) (list f64 f64) f64
+    'pow-f (type-function (list f64 f64) #f f64)
     (list (ast-block 'entry
                      (list
-                      (ast-op 'ret 'pow #f (list 'val 'power)))
+                      (ast-op 'ret 'pow #f `(0 1)))
                      (ast-ret 'ret)))))
 
 (module+ test
@@ -18,7 +18,7 @@
   (define t-module
     (def-module (empty-module-info)
       'intrinsic-test-module
-      (list (def-intrinsic #f 'pow "llvm.pow.f64" (type-function (list f64 f64) f64))
+      (list (def-intrinsic #f 'pow "llvm.pow.f64" (type-function (list f64 f64) #f f64))
             pow-f)))
   (define l-module (build-llvm-module t-module))
   (dump-llvm-module l-module)

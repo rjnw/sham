@@ -8,31 +8,31 @@
 
 (define identity-f
   (def-function #f
-    'identity `(a) (list i32) i32
+    'identity (type-function (list i32) #f i32)
     (list (ast-block 'entry
                      '()
-                     (ast-ret 'a)))))
+                     (ast-ret 0)))))
 
 (define new-array-f
   (def-function #f
-    'new-array `(s arr) (list i32 i32*) size-array-ref
+    'new-array (type-function (list i32 i32*) #f size-array-ref)
     (list (ast-block 'entry '()
-                     (ast-ret (const-named-struct `(s arr) size-array-ref))))))
+                     (ast-ret (const-named-struct `(0 1) size-array-ref))))))
 
 (define pow-f
   (def-function #f
-    'pow `(x n) (list i64 i64) i64
+    'pow (type-function (list i64 i64) #f i64)
     (list (ast-block 'entry
-                     (list (icmp-ule 'check (list 'n (const-ui 0 i64))))
+                     (list (icmp-ule 'check (list '1 (const-ui 0 i64))))
                      (ast-br 'check 'thn 'els))
           (ast-block 'thn
                      '()
                      (ast-ret (const-ui 1 i64)))
           (ast-block 'els
                      (list
-                      (sub-nuw 'subn (list 'n (const-ui 1 i64)))
-                      (ast-op 'rec 'pow #f (list 'x 'subn))
-                      (mul 'result (list 'x 'rec)))
+                      (sub-nuw 'subn (list 1 (const-ui 1 i64)))
+                      (ast-op 'rec 'pow #f (list 0 'subn))
+                      (mul 'result (list 0 'rec)))
                      (ast-ret 'result)))))
 
 (module+ test

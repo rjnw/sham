@@ -9,14 +9,14 @@
 
 (define new-array-f
   (def-function (empty-function-info)
-    'new-array `(s arr) (list i32 i32*) size-array-ref
+    'new-array (type-function (list i32 i32*) #f size-array-ref)
     (list (ast-block 'entry
                      (list
                       (alloca 'ret-ptr (list size-array-ref))
                       (gep 'ret-size (list 'ret-ptr (const-ui 0 i32) (const-ui 0 i32)))
-                      (store! #f (list 's 'ret-size))
+                      (store! #f (list '0 'ret-size))
                       (gep 'ret-arr (list 'ret-ptr (const-ui 0 i32) (const-ui 1 i32)))
-                      (store! #f (list 'arr 'ret-arr))
+                      (store! #f (list '1 'ret-arr))
                       (load 'ret (list 'ret-ptr)))
                      (ast-ret 'ret)))))
 

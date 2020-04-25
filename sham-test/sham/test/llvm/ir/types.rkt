@@ -19,18 +19,18 @@
                       (type-struct (list size-array-ref
                                          ll-node-ref
                                          (type-vector i32 4)
-                                         (type-pointer (type-function (list i32 i32) void))))))
+                                         (type-pointer (type-function (list i32 i32) #f void))))))
   (define at (type-ref 'all-types))
 
   (define tfun
     (def-function #f
-      'testf `(a) (list at) at
+      'testf (type-function (list at) #f at)
       (list (ast-block 'entry
                        (list
                         (int->ptr 'null-i32* (list (const-ui 0 i32) i32*))
                         (int->ptr 'null-void* (list (const-ui 0 i32) void*))
                         (int->ptr 'null-fptr (list (const-ui 0 i32)
-                                                   (type-pointer (type-function (list i32 i32) void)))))
+                                                   (type-pointer (type-function (list i32 i32) #f void)))))
                        (ast-ret (const-named-struct
                                  (list
                                   (const-named-struct (list (const-ui 42 i32) 'null-i32*)

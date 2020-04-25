@@ -36,16 +36,16 @@
        (if (llvm:ast:type:struct? t)
            (assoc-env-extend decl-env name (LLVMStructCreateNamed llvm-context (to-string name)))
            decl-env)]
-      [(llvm:def:function info name args arg-types ret-type body)
-       (define type (compile-type (llvm:ast:type:function arg-types ret-type) internal-env decl-env))
-       (define value (LLVMAddFunction llvm-module (to-string name) type))
-       (assoc-env-extend decl-env name (llvm-function value type))]
-      [(llvm:def:global info name t v)
-       (define type (compile-type t internal-env decl-env))
-       (define value (LLVMAddGlobal llvm-module type (to-string name)))
-       (LLVMSetInitializer value
-                           (if v (compile-constant v internal-env decl-env) (LLVMConstNull type)))
-       (assoc-env-extend decl-env name (llvm-value value type))]
+      [(llvm:def:function info name type body)
+       (define type-ref (compile-type type internal-env decl-env))
+       (define value-ref (LLVMAddFunction llvm-module (to-string name) type-ref))
+       (assoc-env-extend decl-env name (llvm-function value-ref type-ref))]
+      [(llvm:def:global info name type value)
+       (define type-ref (compile-type type internal-env decl-env))
+       (define value-ref (LLVMAddGlobal llvm-module type-ref (to-string name)))
+       (LLVMSetInitializer value-ref
+                           (if value (compile-constant value internal-env decl-env) (LLVMConstNull type-ref)))
+       (assoc-env-extend decl-env name (llvm-value value-ref type-ref))]
       [(llvm:def:external info name type)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddGlobal llvm-module
@@ -68,10 +68,10 @@
            (assoc-env-lookup internal-env t))]
       [(llvm:ast:type:struct _ fields)
        (LLVMStructType (map (curryr compile-type internal-env decl-env) fields) #f)]
-      [(llvm:ast:type:function _ args ret)
+      [(llvm:ast:type:function _ args var-arg? ret)
        (LLVMFunctionType (compile-type ret internal-env decl-env)
                          (map (curryr compile-type internal-env decl-env) args)
-                         #f)]
+                         var-arg?)]
       [(llvm:ast:type:pointer _ to)
        (LLVMPointerType (compile-type to internal-env decl-env) 0)]
       [(llvm:ast:type:array _ of size)
@@ -99,10 +99,12 @@
       [(llvm:ast:constant:string md str)
        (LLVMBuildGlobalStringPtr llvm-builder str (to-string (gensym 'str)))]
       [(llvm:ast:constant:vector md vals)
-       (LLVMConstVector (map (curryr value-compiler internal-env decl-env) vals))]))
+       (LLVMConstVector (map (curryr value-compiler internal-env decl-env) vals))]
+      [(llvm:ast:constant:sizeof md type)
+       (LLVMSizeOf (compile-type type internal-env decl-env))]))
 
   (define (compile-define def internal-env decl-env)
-    (define (compile-function-definition! def name args types ret-type blocks)
+    (define (compile-function-definition! def name type blocks)
       (define function (assoc-env-lookup decl-env name))
       (define function-ref (llvm-value-ref function))
       (define function-type (llvm-value-type function))
@@ -117,9 +119,6 @@
       (define (append-block! n)
         (LLVMAppendBasicBlockInContext (LLVMGetModuleContext llvm-module)
                                        function-ref (to-string n)))
-      (for ([a args]
-            [i (length args)])
-        (add-local-var! a (LLVMGetParam function-ref i)))
       (for ([b blocks])
         (match b
           [(llvm:ast:block md name instructions terminator)
@@ -133,6 +132,7 @@
             [(? llvm:ast:constant?) (compile-constant v internal-env decl-env
                                                       (λ (v ie de) (compile-value v)))]
             [(? llvm:ast:type?) (compile-type v internal-env decl-env)]
+            [(? exact-nonnegative-integer?) (LLVMGetParam function-ref v)]
             [else (error 'sham:llvm "unknown value ~a" v)]))
         (define (build-initial-instruction! instruction)
           (match instruction
@@ -209,8 +209,8 @@
       [(llvm:def:type info type-name t)
        (compile-type-definition! def type-name t)
        (values type-name (assoc-env-lookup decl-env type-name))]
-      [(llvm:def:function info function-name args types ret-type body)
-       (compile-function-definition! def function-name args types ret-type body)
+      [(llvm:def:function info function-name type body)
+       (compile-function-definition! def function-name type body)
        (values function-name (assoc-env-lookup decl-env function-name))]
       [(llvm:def _ id)
        (values id (assoc-env-lookup decl-env id))]))
