@@ -10,14 +10,14 @@
   (def-function (fastcc! (empty-function-info))
     'a (type-function (list i64 i64 i64) #f i64)
     (list (ast-block 'entry
-                     (list (icmp-eq 'cond (list 0 (const-ui 0 i64))))
+                     (list (icmp-eq 'cond (list 0 (val-ui 0 i64))))
                      (ast-br 'cond 'then 'else))
           (ast-block 'then
                      `()
                      (ast-ret 2))
           (ast-block 'else
                      (list
-                      (sub 'subi (list 0 (const-ui 1 i64)))
+                      (sub 'subi (list 0 (val-ui 1 i64)))
                       (add-nuw 'resv (list 2 1))
                       (fastcc! (ast-op 'ret 'b #f (list 'subi 1 'resv))))
                      (ast-ret 'ret)))))
@@ -26,14 +26,14 @@
   (def-function (fastcc! (empty-function-info))
     'b (type-function (list i64 i64 i64) #f i64)
     (list (ast-block 'entry
-                     (list (icmp-eq 'cond (list 0 (const-ui 0 i64))))
+                     (list (icmp-eq 'cond (list 0 (val-ui 0 i64))))
                      (ast-br 'cond 'then 'else))
           (ast-block 'then
                      `()
                      (ast-ret 2))
           (ast-block 'else
                      (list
-                      (sub 'subi (list 0 (const-ui 1 i64)))
+                      (sub 'subi (list 0 (val-ui 1 i64)))
                       (fastcc! (ast-op 'ret 'a #f (list 'subi 1 2))))
                      (ast-ret 'ret)))))
 (define wrap-f
@@ -41,7 +41,7 @@
     'wrap (type-function (list i64) #f i64)
     (list (ast-block 'entry
                      (list
-                      (fastcc! (ast-op 'ret 'b #f (list 0 0 (const-ui 1 i64)))))
+                      (fastcc! (ast-op 'ret 'b #f (list 0 0 (val-ui 1 i64)))))
                      (ast-ret 'ret)))))
 
 (module+ test

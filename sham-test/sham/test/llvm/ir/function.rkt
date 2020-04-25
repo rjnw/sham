@@ -17,20 +17,20 @@
   (def-function #f
     'new-array (type-function (list i32 i32*) #f size-array-ref)
     (list (ast-block 'entry '()
-                     (ast-ret (const-named-struct `(0 1) size-array-ref))))))
+                     (ast-ret (val-named-struct `(0 1) size-array-ref))))))
 
 (define pow-f
   (def-function #f
     'pow (type-function (list i64 i64) #f i64)
     (list (ast-block 'entry
-                     (list (icmp-ule 'check (list '1 (const-ui 0 i64))))
+                     (list (icmp-ule 'check (list '1 (val-ui 0 i64))))
                      (ast-br 'check 'thn 'els))
           (ast-block 'thn
                      '()
-                     (ast-ret (const-ui 1 i64)))
+                     (ast-ret (val-ui 1 i64)))
           (ast-block 'els
                      (list
-                      (sub-nuw 'subn (list 1 (const-ui 1 i64)))
+                      (sub-nuw 'subn (list 1 (val-ui 1 i64)))
                       (ast-op 'rec 'pow #f (list 0 'subn))
                       (mul 'result (list 0 'rec)))
                      (ast-ret 'result)))))

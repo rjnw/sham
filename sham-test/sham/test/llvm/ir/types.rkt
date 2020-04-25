@@ -27,20 +27,20 @@
       'testf (type-function (list at) #f at)
       (list (ast-block 'entry
                        (list
-                        (int->ptr 'null-i32* (list (const-ui 0 i32) i32*))
-                        (int->ptr 'null-void* (list (const-ui 0 i32) void*))
-                        (int->ptr 'null-fptr (list (const-ui 0 i32)
+                        (int->ptr 'null-i32* (list (val-ui 0 i32) i32*))
+                        (int->ptr 'null-void* (list (val-ui 0 i32) void*))
+                        (int->ptr 'null-fptr (list (val-ui 0 i32)
                                                    (type-pointer (type-function (list i32 i32) #f void)))))
-                       (ast-ret (const-named-struct
+                       (ast-ret (val-named-struct
                                  (list
-                                  (const-named-struct (list (const-ui 42 i32) 'null-i32*)
+                                  (val-named-struct (list (val-ui 42 i32) 'null-i32*)
                                                       size-array-ref)
-                                  (const-named-struct (list 'null-void* 'null-void*)
+                                  (val-named-struct (list 'null-void* 'null-void*)
                                                       ll-node-ref)
-                                  (const-vector (list (const-ui 21 i32)
-                                                      (const-ui 42 i32)
-                                                      (const-ui 84 i32)
-                                                      (const-ui 168 i32)))
+                                  (val-vector (list (val-ui 21 i32)
+                                                      (val-ui 42 i32)
+                                                      (val-ui 84 i32)
+                                                      (val-ui 168 i32)))
                                   'null-fptr)
                                  at))))))
   (define t-module

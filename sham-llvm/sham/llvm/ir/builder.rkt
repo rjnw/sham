@@ -8,15 +8,15 @@
          sham/llvm/ffi
          ffi/unsafe)
 
-(provide diagnose-builder
+(provide diagnose-llvm-builder
          build-llvm-module)
 
-(define diagnose-builder (make-parameter #f))
+(define diagnose-llvm-builder (make-parameter #f))
 
 (define (build-llvm-module module-ast
                            [llvm-context (global-context)]
-                           [llvm-target-triple (LLVMGetDefaultTargetTriple)]
-                           [llvm-data-layout #f])
+                           #:target-triple [llvm-target-triple (LLVMGetDefaultTargetTriple)]
+                           #:data-layout [llvm-data-layout #f])
   (when (diagnose-builder)
     (define (diag-handler dinfo voidp)
       (define diag-desc (LLVMGetDiagInfoDescription dinfo))
@@ -81,26 +81,26 @@
 
   (define (compile-constant v internal-env decl-env (value-compiler compile-constant))
     (match v
-      [(llvm:ast:constant:fl md value t)
+      [(llvm:ast:value:fl md value t)
        (LLVMConstReal (compile-type t internal-env decl-env) value)]
-      [(llvm:ast:constant:si md value t)
+      [(llvm:ast:value:si md value t)
        (LLVMConstInt (compile-type t internal-env decl-env) (cast value _sint64 _uint64) #f)]
-      [(llvm:ast:constant:ui md value t)
+      [(llvm:ast:value:ui md value t)
        (LLVMConstInt (compile-type t internal-env decl-env) value #f)]
-      [(llvm:ast:constant:llvm md v t) v]
-      [(llvm:ast:constant:basic-struct md fields)
+      [(llvm:ast:value:llvm md v) v]
+      [(llvm:ast:value:basic-struct md fields)
        (LLVMConstStruct (map (curryr value-compiler internal-env decl-env) fields) #f)]
-      [(llvm:ast:constant:named-struct md fields type)
+      [(llvm:ast:value:named-struct md fields type)
        (LLVMConstNamedStruct (compile-type type internal-env decl-env)
                              (map (curryr value-compiler internal-env decl-env) fields))]
-      [(llvm:ast:constant:array md vals t)
+      [(llvm:ast:value:array md vals t)
        (LLVMConstArray (compile-type t internal-env decl-env)
                        (map (curryr value-compiler internal-env decl-env) vals))]
-      [(llvm:ast:constant:string md str)
+      [(llvm:ast:value:string md str)
        (LLVMBuildGlobalStringPtr llvm-builder str (to-string (gensym 'str)))]
-      [(llvm:ast:constant:vector md vals)
+      [(llvm:ast:value:vector md vals)
        (LLVMConstVector (map (curryr value-compiler internal-env decl-env) vals))]
-      [(llvm:ast:constant:sizeof md type)
+      [(llvm:ast:value:sizeof md type)
        (LLVMSizeOf (compile-type type internal-env decl-env))]))
 
   (define (compile-define def internal-env decl-env)
@@ -129,8 +129,8 @@
           (match v
             [(? (curry assoc-env-contains? decl-env)) (assoc-env-lookup decl-env v)]
             [(? symbol?) (local-var-ref v)]
-            [(? llvm:ast:constant?) (compile-constant v internal-env decl-env
-                                                      (λ (v ie de) (compile-value v)))]
+            [(? llvm:ast:value?) (compile-constant v internal-env decl-env
+                                                   (λ (v ie de) (compile-value v)))]
             [(? llvm:ast:type?) (compile-type v internal-env decl-env)]
             [(? exact-nonnegative-integer?) (LLVMGetParam function-ref v)]
             [else (error 'sham:llvm "unknown value ~a" v)]))

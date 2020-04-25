@@ -9,8 +9,8 @@
   (def
     [module (defs:def ...)]
     [function      (type blocks:ast.block ...)]
-    [type          (type)]
-    [global        (type value:constant)]
+    [type          (ast:type)]
+    [global        (type value)]
     [global-string (str)]
     [external      (type)]
     [intrinsic     (str type)]
@@ -29,19 +29,19 @@
   (instruction ast
                [op (result op flags args ...)])
   (terminator instruction
-              [ret (value)]
-              [retv ()]
-              [br (condition iftrue iffalse)]
-              [bru (destinition)]
+              [ret    (value)]
+              [retv   ()]
+              [br     (condition iftrue iffalse)]
+              [bru    (destinition)]
               [switch (condition default (value dest) ...)])
-  (constant ast
-            [fl     ((? fixnum?) type:type)]
-            [si     ((? exact-integer?) type:type)]
-            [ui     ((? exact-nonnegative-integer?) type:type)]
-            [string ((? string?))]
-            [llvm   (value type:type)]
-            [basic-struct (fields)]
-            [named-struct (fields type)]
-            [array  (value type:type)]
-            [vector (value ...)]
-            [sizeof (type)]))
+  (value ast
+         [fl     ((? fixnum?) type:type)]
+         [si     ((? exact-integer?) type:type)]
+         [ui     ((? exact-nonnegative-integer?) type:type)]
+         [string ((? string?))]
+         [llvm   (ref)]
+         [basic-struct (fields)]
+         [named-struct (fields type)]
+         [array  (value type:type)]
+         [vector (value ...)]
+         [sizeof (type)]))

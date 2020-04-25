@@ -62,3 +62,6 @@
 
 ;; function info
 (define (empty-function-info) (make-hash))
+
+;; struct ifno
+(define (empty-struct-info) (make-hash))

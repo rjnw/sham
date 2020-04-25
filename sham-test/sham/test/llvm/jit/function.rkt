@@ -13,9 +13,9 @@
     (list (ast-block 'entry
                      (list
                       (alloca 'ret-ptr (list size-array-ref))
-                      (gep 'ret-size (list 'ret-ptr (const-ui 0 i32) (const-ui 0 i32)))
+                      (gep 'ret-size (list 'ret-ptr (val-ui 0 i32) (val-ui 0 i32)))
                       (store! #f (list '0 'ret-size))
-                      (gep 'ret-arr (list 'ret-ptr (const-ui 0 i32) (const-ui 1 i32)))
+                      (gep 'ret-arr (list 'ret-ptr (val-ui 0 i32) (val-ui 1 i32)))
                       (store! #f (list '1 'ret-arr))
                       (load 'ret (list 'ret-ptr)))
                      (ast-ret 'ret)))))
