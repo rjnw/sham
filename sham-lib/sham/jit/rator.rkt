@@ -1,23 +1,13 @@
 #lang racket
 
-(require ffi/unsafe (prefix-in foreign: '#%foreign))
+(require ffi/unsafe)
 
 (require sham/llvm/ffi/all
          sham/env/module)
 
 (provide add-ffi-mappings add-rkt-mappings)
 
-(define-cstruct _scheme_object  ([typetag _short]   [key _short]))
-(define-cstruct _ffi_obj_struct
-  ([iso _scheme_object]
-   [obj _uintptr]
-   [name _string]
-   [flib _pointer]))
 
-(define (get-ffi-pointer ffi-lib fname)
-  (define fptr-obj (foreign:ffi-obj (string->bytes/locale fname) ffi-lib))
-  (define fname-ffi-obj (cast fptr-obj _scheme _ffi_obj_struct-pointer))
-  (ffi_obj_struct-obj fname-ffi-obj))
 
 (define (load-ffi-libs mod-env)
   (for/hash ([fl (env-get-info-key mod-env ffi-lib-key '())])
