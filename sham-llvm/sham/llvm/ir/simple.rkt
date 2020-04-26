@@ -25,7 +25,7 @@
 (define-alias (ast- llvm:ast:instruction:terminator:)
   [retv ret br bru switch])
 (define-alias (val- llvm:ast:value:)
-  [fl si ui string llvm basic-struct named-struct array vector])
+  [param ref fl si ui string llvm basic-struct named-struct array vector])
 (define-alias (type- llvm:ast:type:)
   [internal ref struct function pointer array vector])
 
@@ -54,7 +54,7 @@
 (define-syntax (define-ops stx)
   (syntax-parse stx
     [(_ op-name:id ...)
-     #`(begin (define (op-name result args #:flags (flags #f)) (ast-op result (quote op-name) flags args)) ...)]))
+     #`(begin (define (op-name #:flags (flags #f) result . args) (ast-op result (quote op-name) flags (flatten args))) ...)]))
 
 (define-syntax basic-ops
   `(

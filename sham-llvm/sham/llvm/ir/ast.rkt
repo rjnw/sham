@@ -35,6 +35,8 @@
               [bru    (destinition)]
               [switch (condition default (value dest) ...)])
   (value ast
+         [param  ((? exact-nonnegative-integer?))]
+         [ref    (to)]
          [fl     ((? fixnum?) type:type)]
          [si     ((? exact-integer?) type:type)]
          [ui     ((? exact-nonnegative-integer?) type:type)]

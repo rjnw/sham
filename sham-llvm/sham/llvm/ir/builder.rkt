@@ -129,10 +129,13 @@
           (match v
             [(? (curry assoc-env-contains? decl-env)) (assoc-env-lookup decl-env v)]
             [(? symbol?) (local-var-ref v)]
+            [(? exact-nonnegative-integer?) (LLVMGetParam function-ref v)]
+            [(llvm:ast:value:ref md sym)
+             (if (assoc-env-contains? decl-env sym) (assoc-env-lookup decl-env sym) (local-var-ref sym))]
+            [(llvm:ast:value:param md i) (LLVMGetParam function-ref i)]
             [(? llvm:ast:value?) (compile-constant v internal-env decl-env
                                                    (λ (v ie de) (compile-value v)))]
             [(? llvm:ast:type?) (compile-type v internal-env decl-env)]
-            [(? exact-nonnegative-integer?) (LLVMGetParam function-ref v)]
             [else (error 'sham:llvm "unknown value ~a" v)]))
         (define (build-initial-instruction! instruction)
           (match instruction
