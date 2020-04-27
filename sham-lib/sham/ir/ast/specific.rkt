@@ -1,6 +1,6 @@
 #lang racket
 
-(require sham/ast/core
+(require sham/ir/ast/core
          sham/llvm/ir/ast
          (prefix-in llvm- sham/llvm/ir/simple))
 

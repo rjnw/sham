@@ -1,8 +1,28 @@
 #lang racket
 
-(require sham/ast/core
+(require sham/ir/ast/core
+         sham/ir/ast/simple
          sham/llvm/ir/ast
-         sham/llvm/ir/simple)
+         (prefix-in llvm- sham/llvm/ir/simple))
+
+(require (for-syntax syntax/parse racket/syntax)
+         syntax/parse/define)
+
+(provide (except-out (all-defined-out)
+                     define-llvm-alias
+                     definer-for-llvm-ops
+                     defines-for-llvm-ops))
+
+(define-simple-macro (define-llvm-alias names:id ...)
+  #:with (llvm-names ...) (map (λ (n) (format-id n "llvm-~a" n))
+                               (syntax->list #`(names ...)))
+  (begin (define names llvm-names) ...))
+
+(define-llvm-alias
+  def-module def-function def-type def-global def-global-string def-external def-intrinsic
+  ast-block ast-op ast-retv ast-ret ast-br ast-bru ast-switch
+  val-ref val-param val-fl val-si val-ui val-string val-llvm val-basic-struct val-named-struct val-array val-vector
+  type-internal type-ref type-struct type-function type-pointer type-array type-vector)
 
 (define d-global def-global)
 (define d-global-string def-global-string)
@@ -18,10 +38,10 @@
 (define-syntax (defines-for-llvm-ops stx)
   (syntax-parse stx
     [(_ op-name:id ...)
-     #:with def-name (format-id #'op-name "e-llvm-~a" #'op-name)
+     #:with (def-name ...) (map (λ (n) (format-id n "e-llvm-~a" n)) (syntax->list #`(op-name ...)))
      #`(begin
          (define (def-name #:flags (flags #f) args)
            (e-op (quote op-name) flags args))
          ...)]))
 
-(definer-for-llvm-ops basic-ops)
+(definer-for-llvm-ops llvm-basic-ops)

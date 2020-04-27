@@ -1,6 +1,7 @@
 #lang racket
 
-(require sham/ast/core
+(require sham/ir/ast/core
+         sham/ir/ast/simple
          sham/llvm/ir/ast
          sham/llvm/ir/md
          (prefix-in llvm- sham/llvm/ir/simple))
@@ -33,7 +34,7 @@
       (stmt-block stmts)))
 
 (define (while^ expr . stmts)
-  (s-while expr (block stmts)))
+  (s-while expr (stmt-block stmts)))
 
 (define-syntax (let^ stx)
   (syntax-parse stx
@@ -62,16 +63,16 @@
 (define op^ e-op)
 (define-syntax (access^ stx)
   (syntax-parse stx
-    [(_ struct-field value) (e-access struct-field value)]
-    [(_ struct-name:id field-name:id value) (e-access (cons struct-name field-name) value)]))
+    [(_ struct-field value) #`(e-access struct-field value)]
+    [(_ struct-name:id field-name:id value) #`(e-access (cons struct-name field-name) value)]))
 (define evoid^ e-void)
 (define etype e-etype)
 
 (define (app^ rator #:flags (flags #f) . rands)
   (match rator
-    [(? sham:ast:rator?) (e-op r flags rands)]
+    [(? sham:ast:rator?) (e-op rator flags rands)]
     [(sham:ast:expr:ref md v) (e-op (r-reference v) flags rands)]
-    [(? symbol?) (e-op (r-reference s) flags rands)]
+    [(? symbol?) (e-op (r-reference rator) flags rands)]
     [(? string?)
      (if (type? (car rands))
          (e-op (r-intrinsic rator (car rands)) flags (cdr rands))

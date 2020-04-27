@@ -1,7 +1,7 @@
 #lang racket
 
-(require sham/ast/core
-         sham/ast/ll
+(require sham/ir/ast/core
+         sham/ir/ast/ll
          sham/llvm/ir/ast)
 
 (require (for-syntax racket/syntax syntax/parse))

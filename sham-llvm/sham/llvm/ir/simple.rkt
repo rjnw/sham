@@ -14,7 +14,10 @@
         [names:id ...])
      #:with (to-names ...) (map (λ (n) (format-id n "~a~a" #'to-prefix n)) (syntax->list #`(names ...)))
      #:with (from-names ...) (map (λ (n) (format-id n "~a~a" #'from-prefix n)) (syntax->list #`(names ...)))
-     #`(begin (define to-names from-names) ...)]))
+     #:with (to-check-names ...) (map (λ (n) (format-id n "~a~a?" #'to-prefix n)) (syntax->list #`(names ...)))
+     #:with (from-check-names ...) (map (λ (n) (format-id n "~a~a?" #'from-prefix n)) (syntax->list #`(names ...)))
+     #`(begin (define to-names from-names) ...
+              (define to-check-names from-check-names) ...)]))
 
 (define-alias (def- llvm:def:)
   [module function type global global-string external intrinsic])
