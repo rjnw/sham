@@ -2,7 +2,7 @@
 
 (require sham/llvm/ir/ast
          sham/llvm/ir/env
-         sham/llvm/ir/init
+         sham/llvm/ir/context
          sham/llvm/ir/internals
          sham/llvm/ir/md
          sham/llvm/ffi
@@ -14,10 +14,10 @@
 (define diagnose-llvm-builder (make-parameter #f))
 
 (define (build-llvm-module module-ast
-                           [llvm-context (global-context)]
+                           [llvm-context (global-llvm-context)]
                            #:target-triple [llvm-target-triple (LLVMGetDefaultTargetTriple)]
                            #:data-layout [llvm-data-layout #f])
-  (when (diagnose-builder)
+  (when (diagnose-llvm-builder)
     (define (diag-handler dinfo voidp)
       (define diag-desc (LLVMGetDiagInfoDescription dinfo))
       (eprintf "llvm-diagnose: ~a\n" (cast diag-desc _pointer _string))
