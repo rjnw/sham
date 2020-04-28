@@ -10,7 +10,7 @@
     [module (defs:def ...)]
     [function (type body:stmt)]
     [struct ((field-name field-type:type) ...)]
-    [racket (value type)]
+    [racket (value type rkt-type)]
     #:common-mutable info
     #:common id)
   (ast #:common-auto-mutable metadata)
