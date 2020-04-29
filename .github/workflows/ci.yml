@@ -22,5 +22,5 @@ jobs:
       - run: |
              sudo bash -c "$(wget -O - https://apt.llvm.org/llvm.sh)"
              sudo apt-get install libllvm10 llvm-10 llvm-10-dev llvm-10-runtime
-      - run: raco pkg install --auto -t dir sham-astg sham-llvm sham-test
+      - run: raco pkg install --auto -t dir sham-astg sham-llvm sham-lib sham-test
       - run: raco test -x -p sham-test
