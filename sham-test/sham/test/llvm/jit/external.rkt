@@ -26,11 +26,11 @@
                                                               _uintptr))))
       'external-jit-test-module
       (list (def-external #f 'ex-rkt (type-function (list i64) #f i64)) call-rkt-f)))
-  (define t-env (build-llvm-module t-module))
-  (dump-llvm-module t-env)
+  (define t-env (build-llvm-env t-module))
+  (dump-llvm-ir t-env)
   (test-true "verify-external" (verify-llvm-module t-env))
-  (define tc-module (llvm-initialize-mcjit t-env))
+  (define tc-env (llvm-initialize-mcjit t-env))
 
-  (define call-uintptr (mcjit-function-address tc-module 'call-ex))
+  (define call-uintptr (mcjit-function-address tc-env 'call-ex))
   (define call-func (cast call-uintptr _uintptr (_fun _uint64 -> _uint64)))
   (test-eq? "llvm-external:call" (call-func 41) 42))

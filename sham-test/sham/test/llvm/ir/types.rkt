@@ -46,6 +46,6 @@
   (define t-module
     (def-module #f 'types-test-module
       (list size-array-t linked-list-t all-types tfun)))
-  (define l-module (build-llvm-module t-module))
-  (dump-llvm-module l-module)
-  (test-true "llvm-types" (verify-llvm-module l-module)))
+  (define l-env (build-llvm-env t-module))
+  (dump-llvm-ir l-env)
+  (test-true "llvm-types" (verify-llvm-module l-env)))

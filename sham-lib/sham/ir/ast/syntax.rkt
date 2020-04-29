@@ -91,7 +91,7 @@
      #:with (arg-type-names ...) (generate-temporaries #`(args ...))
      #`(let ([arg-type-names arg-types] ...)
          (d-function (~? info (empty-function-info))
-                     (quasiquote name) (t-fun (list arg-type-names ...) ret-type)
+                     (quasiquote name) (t-function (list arg-type-names ...) ret-type)
                      (slet^ ([args (llvm-val-param arg-nums) : arg-type-names] ...)
                             body ...
                             (e-void))))]))

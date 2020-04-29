@@ -5,7 +5,7 @@
          sham/ir/context)
 (provide (all-defined-out))
 
-(define global-sham-context (sham-context (global-llvm-context)))
+(define global-sham-context (make-parameter (sham-context (global-llvm-context))))
 
 (define current-sham-module (make-parameter #f))
 (define current-function-info (make-parameter (empty-function-info)))

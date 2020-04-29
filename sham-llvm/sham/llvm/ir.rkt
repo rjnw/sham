@@ -4,7 +4,7 @@
          sham/llvm/ir/builder
          sham/llvm/ir/dump
          sham/llvm/ir/env
-         sham/llvm/ir/init
+         sham/llvm/ir/context
          sham/llvm/ir/md
          sham/llvm/ir/optimize
          sham/llvm/ir/verify)
@@ -14,7 +14,7 @@
           sham/llvm/ir/builder
           sham/llvm/ir/dump
           sham/llvm/ir/env
-          sham/llvm/ir/init
+          sham/llvm/ir/context
           sham/llvm/ir/md
           sham/llvm/ir/optimize
           sham/llvm/ir/verify))

@@ -26,17 +26,17 @@
   (define t-module
     (def-module (empty-module-info) 'function-jit-test-module
       (list size-array-t identity-f new-array-f pow-f)))
-  (define t-env (build-llvm-module t-module))
-  (dump-llvm-module t-env)
-  ;; (write-llvm-module t-env "/tmp/function-test.ll")
+  (define t-env (build-llvm-env t-module))
+  (dump-llvm-ir t-env)
+  ;; (write-llvm-ir t-env "/tmp/function-test.ll")
   (verify-llvm-module t-env)
-  (define tc-module (llvm-initialize-mcjit t-env))
+  (define tc-env (llvm-initialize-mcjit t-env))
 
-  (define pow-uintptr (mcjit-function-address tc-module 'pow))
+  (define pow-uintptr (mcjit-function-address tc-env 'pow))
   (define pow-func (cast pow-uintptr _uintptr (_fun _uint64 _uint64 -> _uint64)))
   (test-eq? "llvm-function:pow" (pow-func 2 10) 1024)
 
-  (define new-array-uintptr (mcjit-function-address tc-module 'new-array))
+  (define new-array-uintptr (mcjit-function-address tc-env 'new-array))
   (define-cstruct _size-array ([size _uint64] [arr _pointer]))
   (define new-array-func (cast new-array-uintptr _uintptr (_fun _uint64 _pointer -> _size-array)))
   (define a (new-array-func 42 #f))

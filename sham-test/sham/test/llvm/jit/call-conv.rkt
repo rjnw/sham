@@ -49,11 +49,11 @@
   (define t-module
     (def-module (empty-module-info) 'call-conv-test-module
       (list a-f b-f wrap-f)))
-  (define l-module (build-llvm-module t-module))
-  (dump-llvm-module l-module)
-  (test-true "verify-call-conv" (verify-llvm-module l-module))
+  (define l-env (build-llvm-env t-module))
+  (dump-llvm-ir l-env)
+  (test-true "verify-call-conv" (verify-llvm-module l-env))
 
-  (define mc-module (llvm-initialize-mcjit l-module))
-  (define wrap-uintptr (mcjit-function-address mc-module 'wrap))
+  (define mc-env (llvm-initialize-mcjit l-env))
+  (define wrap-uintptr (mcjit-function-address mc-env 'wrap))
   (define wrap-func (cast wrap-uintptr _uintptr (_fun _uint64 -> _uint64)))
   (test-eq? "call-conv-wrap" (wrap-func 100000) 5000000001))

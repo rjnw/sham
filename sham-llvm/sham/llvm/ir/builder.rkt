@@ -9,14 +9,14 @@
          ffi/unsafe)
 
 (provide diagnose-llvm-builder
-         build-llvm-module)
+         build-llvm-env)
 
 (define diagnose-llvm-builder (make-parameter #f))
 
-(define (build-llvm-module module-ast
-                           [llvm-context (global-llvm-context)]
-                           #:target-triple [llvm-target-triple (LLVMGetDefaultTargetTriple)]
-                           #:data-layout [llvm-data-layout #f])
+(define (build-llvm-env module-ast
+                        [llvm-context (global-llvm-context)]
+                        #:target-triple [llvm-target-triple (LLVMGetDefaultTargetTriple)]
+                        #:data-layout [llvm-data-layout #f])
   (when (diagnose-llvm-builder)
     (define (diag-handler dinfo voidp)
       (define diag-desc (LLVMGetDiagInfoDescription dinfo))

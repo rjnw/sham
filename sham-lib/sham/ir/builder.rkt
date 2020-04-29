@@ -11,17 +11,26 @@
          sham/ffi)
 
 (provide diagnose-sham-builder
-         build-llvm-ir)
+         build-sham-env
+         build-sham-module)
 
 (define diagnose-sham-builder (make-parameter #f))
 
 (define ((add-to-list-box! b) v)
   (set-box! b (cons v (unbox b))))
 
-(define (build-llvm-ir module-ast
-                       [sham-context (global-sham-context)]
-                       [llvm-target-triple #f]
-                       [llvm-data-layout #f])
+(define (build-sham-env module-ast
+                        [sham-context (global-sham-context)]
+                        [llvm-target-triple #f]
+                        [llvm-data-layout #f])
+  (define s-mod (build-sham-module module-ast sham-context llvm-target-triple llvm-data-layout))
+  (match-define (sham-module ast l-ast extrs) s-mod)
+  (sham-env s-mod (build-llvm-env l-ast)))
+
+(define (build-sham-module module-ast
+                           [sham-context (global-sham-context)]
+                           [llvm-target-triple #f]
+                           [llvm-data-layout #f])
   (match-define (sham:def:module module-info module-name module-defs) module-ast)
   (define def-map (for/hash ([def module-defs]) (values (sham:def-id def) def)))
   (define (lookup-def name) (hash-ref def-map name))
@@ -55,7 +64,7 @@
       (unless (llvm:ast:instruction:terminator? terminator)
         (error 'sham:ir:builder "expected llvm terminator instruction for terminating block ~a/~a"
                block-name terminator))
-      (define block-instrs (hash-ref incomplete-blocks block-name))
+      (define block-instrs (hash-ref incomplete-blocks block-name '()))
       (hash-remove! incomplete-blocks block-name)
       (collect-block! (ast-block block-name (reverse block-instrs) terminator))
       #f)
@@ -78,6 +87,7 @@
           (error 'sham:ir:builder "~a value for ~a terminated block while building expr ~a" value type expr)))
 
       (match expr
+        [(? llvm:ast:value?) (values expr current-block)]
         [(sham:ast:expr:ref _ sym)
          (define expr-value (gensym 'ref))
          (add-instruction! current-block (load expr-value sym))
@@ -132,9 +142,9 @@
         [(sham:ast:expr:etype _ t) (values (translate-type t) current-block)]
         [(sham:ast:expr:let _ ids vals types stmt-body expr-body)
          (define let-val-block (gensym 'let-values))
-         (add-allocas! vals types)
-         (terminate-block! current-block (ast-br let-val-block))
-         (define-values (let-vals block*)
+         (add-allocas! ids types)
+         (terminate-block! current-block (ast-bru let-val-block))
+         (define block*
            (for/fold ([block* let-val-block])
                      ([v vals]
                       [i ids])
@@ -261,6 +271,6 @@
       [(? sham:def:racket?) (collect-sham-racket! def)]))
 
   (map translate&collect-def! module-defs)
-  (sham-env module-ast
-            (llvm:def:module module-info module-name (reverse (unbox defs)))
-            (unbox externals)))
+  (sham-module module-ast
+               (llvm:def:module module-info module-name (reverse (unbox defs)))
+               (unbox externals)))
