@@ -8,6 +8,8 @@
 
 (require (for-syntax racket/syntax syntax/parse))
 
+(provide (all-defined-out))
+
 ;; stmt
 (define set!^ s-set!)
 (define if^ s-if)
@@ -40,7 +42,7 @@
   (syntax-parse stx
     [(_ ([arg (~optional val) (~datum :) typ] ...) s:expr ... e:expr)
      #`(let ([arg (e-ref (quasiquote arg))] ...)
-         (e-let (list arg ...) (list typ ...) (list (~? val) ...)
+         (e-let `(arg ...) (list (~? val #f) ...) (list typ ...)
                 (block^ s ...)
                 e))]))
 
@@ -98,10 +100,10 @@
 
 (define-syntax (struct^ stx)
   (syntax-parse stx
-    [(_ name:id (field-name:id field-type:expr) ...)
-     #`(d-struct (empty-struct-info) name:id (list field-name ...) (list field-type ...))]))
+    [(_ (~optional (~seq #:info info)) name:id (field-name:id field-type:expr) ...)
+     #`(d-struct (~? info (empty-struct-info)) (quasiquote name) `(field-name ...) (list field-type ...))]))
 
 (define-syntax (module^ stx)
   (syntax-parse stx
-    [(_ (~optional (~seq #:info info)) name:id defs ...)
-     #`(d-module (~? info (empty-module-info)) name (list defs ...))]))
+    [(_ (~optional (~seq #:info info)) name:id (defs ...))
+     #`(d-module (~? info (empty-module-info)) (quasiquote name) (list defs ...))]))

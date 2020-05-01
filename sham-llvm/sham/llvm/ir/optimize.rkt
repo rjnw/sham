@@ -3,22 +3,23 @@
          sham/llvm/ir/ast
          sham/llvm/ir/env)
 
-(provide optimize-llvm-module)
+(provide optimize-llvm-module!)
 
 ;; TODO run specific pass defined in meta information
-(define (optimize-llvm-module mod-env
-                             #:opt-level [olevel 1]
-                             #:size-level [slevel 1]
-                             #:loop-vec [lvec #f]
-                             #:slp-vec [svec #f]
-                             )
+(define (optimize-llvm-module! mod-env
+                               #:opt-level [olevel 1]
+                               #:size-level [slevel 1]
+                               #:loop-vec [lvec #f]
+                               #:slp-vec [svec #f]
+                               )
   (LLVMCustomInitializeCL 1 '("sham"))
   ;; (printf "optimize-module: ~a\n" mod-env)
 
   (define finfo-map (llvm:def-info (llvm-env-ast mod-env)))
   (for ([(key val) (in-hash finfo-map)])
     (apply-function-info key val mod-env))
-  (run-module-passes! (hash-ref finfo-map 'module-pass) mod-env)
+  (define m-passes (hash-ref finfo-map 'module-pass '()))
+  (run-module-passes! m-passes mod-env)
 
   (define llvm-module (llvm-env-module-ref mod-env))
   (define module-pass-manager (LLVMCreatePassManager))
@@ -49,7 +50,8 @@
   (LLVMDisposePassManager function-pass-manager)
   (LLVMPassManagerBuilderDispose pass-manager-builder)
 
-  (run-module-passes! (hash-ref finfo-map 'module-pass) mod-env))
+  (run-module-passes! m-passes mod-env)
+  mod-env)
 
 (define (run-module-passes! passes env)
   (define llvm-mod (llvm-env-module-ref env))

@@ -19,7 +19,6 @@
   (ast [block [name instructions:instruction ... term:terminator]]
        #:common-auto-mutable metadata)
   (type ast
-        [internal ()]
         [ref      (to)]
         [struct   (fields:type ...)]
         [function (args:type ... var-arg? ret:type)]

@@ -22,7 +22,7 @@
   def-module def-function def-type def-global def-global-string def-external def-intrinsic
   ast-block ast-op ast-retv ast-ret ast-br ast-bru ast-switch
   val-ref val-param val-fl val-si val-ui val-string val-llvm val-basic-struct val-named-struct val-array val-vector
-  type-internal type-ref type-struct type-function type-pointer type-array type-vector)
+  type-ref type-struct type-function type-pointer type-array type-vector)
 
 (define d-global def-global)
 (define d-global-string def-global-string)

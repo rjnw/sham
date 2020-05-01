@@ -25,7 +25,7 @@
                         [llvm-data-layout #f])
   (define s-mod (build-sham-module module-ast sham-context llvm-target-triple llvm-data-layout))
   (match-define (sham-module ast l-ast extrs) s-mod)
-  (sham-env s-mod (build-llvm-env l-ast)))
+  (sham-env s-mod (build-llvm-env l-ast) (make-hash)))
 
 (define (build-sham-module module-ast
                            [sham-context (global-sham-context)]

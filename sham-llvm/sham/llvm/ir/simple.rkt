@@ -30,7 +30,7 @@
 (define-alias (val- llvm:ast:value:)
   [param ref fl si ui string llvm basic-struct named-struct array vector])
 (define-alias (type- llvm:ast:type:)
-  [internal ref struct function pointer array vector])
+  [ref struct function pointer array vector])
 
 (define-syntax (define-ref-types stx)
   (syntax-parse stx
