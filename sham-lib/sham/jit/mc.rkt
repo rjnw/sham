@@ -22,5 +22,5 @@
                (thunk
                 (define rkt-type (sham-env-rkt-type s-env fname))
                 (define fptr (mcjit-function-address ll-jit-env fname))
-                (sham-jit-value fptr (cast fptr _pointer rkt-type)))))
+                (sham-jit-value fptr (cast (cast fptr _uintptr _pointer) _pointer rkt-type)))))
   rkt-value)

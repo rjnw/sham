@@ -40,6 +40,6 @@
               (list identity-f pow-f)))
   (define s-env (build-sham-env t-module))
   (sham-dump-llvm-ir s-env)
-  (sham-env-optimize! s-env #:opt-level 2)
+  (sham-env-optimize-llvm! s-env #:opt-level 2)
   (sham-dump-llvm-ir s-env)
-  (test-true "sham-raw-functions" (sham-verify-llvm-ir s-env)))
+  (test-true "sham:verify:raw-functions" (sham-verify-llvm-ir s-env)))

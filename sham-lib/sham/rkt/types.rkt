@@ -44,6 +44,12 @@
                 [(sham:def:struct _ _ _ _) #f]))])]
         [(llvm:ast:type:pointer _ _) _pointer]
         [(llvm:ast:type:array _ _ _) _pointer]
+        [(llvm:ast:type:function _ args var-arg? ret)
+         (define arg-types (map rec args))
+         (define ret-type (rec ret))
+         (if (or (ormap false? arg-types) (false? ret-type))
+             (error 'sham:rkt:type "error one of the type for a function cannot be converted to racket ~a:~a=~a:~a" args ret arg-types ret-type)
+             (_cprocedure arg-types ret-type))]
         [else #f]))
     (values f-name (rec t-ast))))
 
@@ -62,4 +68,4 @@
   (define special-types (hash-ref s-info special-key))
   (cond
     [(hash-ref special-types fname #f) => identity]
-    [else (hash-ref (hash-ref s-info generic-key fname))]))
+    [else (hash-ref (hash-ref s-info generic-key) fname)]))
