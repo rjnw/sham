@@ -14,7 +14,7 @@
     [global-string (str)]
     [external      (type)]
     [intrinsic     (str type)]
-    #:common-mutable info
+    #:common-mutable metadata
     #:common id)
   (ast [block [name instructions:instruction ... term:terminator]]
        #:common-auto-mutable metadata)
@@ -46,3 +46,12 @@
          [array  (value type:type)]
          [vector (value ...)]
          [sizeof (type)]))
+
+(define (llvm-metadata v)
+  (cond [(llvm:def? v) (llvm:def-metadata v)]
+        [(llvm:ast? v) (llvm:ast-metadata v)]))
+(define llvm-md llvm-metadata)
+(define (llvm-metadata! v md)
+  (cond [(llvm:def? v) (set-llvm:def-metadata! v md)]
+        [(llvm:ast? v) (set-llvm:ast-metadata! v md)]))
+(define llvm-md! llvm-metadata!)

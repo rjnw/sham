@@ -8,7 +8,7 @@
 (require (for-syntax syntax/parse racket/syntax)
          syntax/parse/define)
 
-(provide (except-out (all-defined-out)
+(provide (except-out (prefix-out ll- (all-defined-out))
                      define-llvm-alias
                      definer-for-llvm-ops
                      defines-for-llvm-ops))
@@ -38,7 +38,7 @@
 (define-syntax (defines-for-llvm-ops stx)
   (syntax-parse stx
     [(_ op-name:id ...)
-     #:with (def-name ...) (map (λ (n) (format-id n "e-llvm-~a" n)) (syntax->list #`(op-name ...)))
+     #:with (def-name ...) (map (λ (n) (format-id n "e-~a" n)) (syntax->list #`(op-name ...)))
      #`(begin
          (define (def-name #:flags (flags #f) args)
            (e-op (quote op-name) flags args))

@@ -1,12 +1,13 @@
 #lang racket
 
-(require sham/llvm/ir
+(require sham/md
+         sham/llvm/ir
          sham/llvm/ir/md
          sham/llvm/ir/simple
          sham/llvm/jit/mc)
 
 (define call-rkt-f
-  (def-function (empty-function-info)
+  (def-function (empty-function-md)
     'call-ex (type-function (list i64) #f i64)
     (list (ast-block 'entry
                      (list
@@ -18,8 +19,8 @@
            ffi/unsafe)
   (define rkt-f add1)
   (define t-module
-    (def-module (module-info-external-mappings
-                 (empty-module-info) (list (external-mapping 'ex-rkt
+    (def-module (set-module-md-jit-external-mappings!
+                 (empty-module-md) (list (external-mapping 'ex-rkt
                                                              (cast
                                                               (function-ptr rkt-f (_fun _uint64 -> _uint64))
                                                               _pointer

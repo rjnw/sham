@@ -8,7 +8,8 @@
          sham/ir/ast/core
          sham/ir/env
          sham/parameters
-         sham/ffi)
+         sham/rkt/ffi
+         sham/rkt/conv)
 
 (provide diagnose-sham-builder
          build-sham-env
@@ -31,7 +32,7 @@
                            [sham-context (global-sham-context)]
                            [llvm-target-triple #f]
                            [llvm-data-layout #f])
-  (match-define (sham:def:module module-info module-name module-defs) module-ast)
+  (match-define (sham:def:module module-md module-name module-defs) module-ast)
   (define def-map (for/hash ([def module-defs]) (values (sham:def-id def) def)))
   (define (lookup-def name) (hash-ref def-map name))
   (define defs (box '()))
@@ -41,8 +42,8 @@
   (define intrinsic-map (make-hash))
   (define external-map (make-hash))
   (define (collect-jit-rkt-external! llvm-def sham-def)
-    (match-define (sham:def:racket info name value type rkt-type) sham-def)
-    (collect-external! (external-mapping name (get-rkt-uintptr value rkt-type))))
+    (match-define (sham:def:racket md name value type rkt-type) sham-def)
+    (collect-external! (external-mapping name (raw-uintptr value rkt-type))))
   (define (collect-jit-lib-external! llvm-def sham-rator)
     (match-define (sham:ast:rator:external _ lib-id id type var-arg?) sham-rator)
     (match-define (llvm:def:external _ name llvm-type) llvm-def)
@@ -68,7 +69,7 @@
       (hash-remove! incomplete-blocks block-name)
       (collect-block! (ast-block block-name (reverse block-instrs) terminator))
       #f)
-    (define (check-terminate! block-name terminator)
+    (define-simple-macro (check-terminate! block-name terminator)
       (when (block? block-name)
         (terminate-block! block-name terminator)))
     (define allocas (box '()))
@@ -109,17 +110,17 @@
               rator-value]
              [(sham:ast:rator:reference _ s) s]
              [(sham:ast:rator:llvm _ s) s]
-             [(sham:ast:rator:intrinsic info id type)
+             [(sham:ast:rator:intrinsic md id type)
               (hash-ref! intrinsic-map rator
                          (thunk
                           (let ([intrinsic-name (gensym (if (string? id) (string->symbol id) id))])
-                            (collect-def! (llvm:def:intrinsic info intrinsic-name id type))
+                            (collect-def! (llvm:def:intrinsic md intrinsic-name id type))
                             intrinsic-name)))]
-             [(sham:ast:rator:external info lib-id id type var-arg?)
+             [(sham:ast:rator:external md lib-id id type var-arg?)
               (hash-ref! external-map rator
                          (thunk
                           (define external-name (gensym (string->symbol (format "~a-~a" lib-id id))))
-                          (define llvm-def (llvm:def:external info external-name (translate-type type)))
+                          (define llvm-def (llvm:def:external md external-name (translate-type type)))
                           (collect-def! llvm-def)
                           (collect-jit-lib-external! llvm-def rator)
                           external-name))]
@@ -141,13 +142,18 @@
         [(sham:ast:expr:void _) (values #f current-block)]
         [(sham:ast:expr:etype _ t) (values (translate-type t) current-block)]
         [(sham:ast:expr:let _ ids vals types stmt-body expr-body)
+         (define (id-sym v)
+           (match v
+             [(? symbol?) v]
+             [(sham:ast:expr:ref _ sym) sym]))
+         (define id-names (map id-sym ids))
          (define let-val-block (gensym 'let-values))
-         (add-allocas! ids types)
+         (add-allocas! id-names types)
          (terminate-block! current-block (ast-bru let-val-block))
          (define block*
            (for/fold ([block* let-val-block])
                      ([v vals]
-                      [i ids])
+                      [i id-names])
              (define-values (v-val v*) (build-expr! v block* continue-block break-block))
              (add-instruction! v* (store! #f v-val i))
              v*))
@@ -205,7 +211,7 @@
              (for/fold ([fin? #t])
                        ([t thns]
                         [b case-blocks]
-                        [n (append (cdr case-blocks) (list after-block))])
+                        [n (append (cdr case-blocks) (list dflt-block))])
                (define t* (build-stmt! t b continue-block after-block))
                (check-terminate! t* (ast-bru n))
                (and (not (block? t*)) fin?)))
@@ -250,17 +256,17 @@
     (build-stmt! body entry-block #f #f)
     (cons (alloca-block) (reverse (unbox finished-blocks))))
   (define (collect-sham-function! def)
-    (match-define (sham:def:function info name type body) def)
-    (collect-def! (llvm:def:function info name
+    (match-define (sham:def:function md name type body) def)
+    (collect-def! (llvm:def:function md name
                                      (translate-type type)
                                      (stmt->llvm-blocks body))))
   (define (collect-sham-struct! def)
-    (match-define (sham:def:struct info name fields types) def)
+    (match-define (sham:def:struct md name fields types) def)
     (define llvm-struct (llvm:ast:type:struct (map translate-type types)))
-    (collect-def! (llvm:def:type info name llvm-struct)))
+    (collect-def! (llvm:def:type md name llvm-struct)))
   (define (collect-sham-racket! def)
-    (match-define (sham:def:racket info name value type _) def)
-    (define llvm-def (llvm:def:external info name (translate-type type)))
+    (match-define (sham:def:racket md name value type _) def)
+    (define llvm-def (llvm:def:external md name (translate-type type)))
     (collect-def! llvm-def)
     (collect-jit-rkt-external! llvm-def def))
   (define (translate&collect-def! def)
@@ -272,5 +278,5 @@
 
   (map translate&collect-def! module-defs)
   (sham-module module-ast
-               (llvm:def:module module-info module-name (reverse (unbox defs)))
+               (llvm:def:module module-md module-name (reverse (unbox defs)))
                (unbox externals)))

@@ -1,12 +1,7 @@
 #lang racket
 
-(require sham/ir/ast/syntax
-         sham/ir/ast/op
-         sham/ir/ast/simple
-         sham/ir/ast/specific
-         sham/ir/optimize
-         sham/ir/builder
-         sham/llvm/ir/md
+(require sham/md
+         sham/ir
          (prefix-in llvm- sham/llvm/ir/simple))
 
 (provide (all-defined-out))
@@ -21,14 +16,10 @@
                   (return^ (mul^ x (app^ 'pow x (sub-nuw^ n (ui64 1))))))))
 
 (module+ test
-  (require rackunit
-           sham/ir/env
-           sham/ir/dump
-           sham/ir/verify)
+  (require rackunit)
   (define t-module
     (module^ raw-sham-function-test-module
              [identity-f pow-f]))
-  (define s-mod (build-sham-module t-module))
   (define s-env (build-sham-env t-module))
   (sham-dump-llvm-ir s-env)
   (sham-env-optimize-llvm! s-env #:opt-level 2)

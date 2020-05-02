@@ -1,6 +1,7 @@
 #lang racket
 
-(require sham/llvm/ir
+(require sham/md
+         sham/llvm/ir
          sham/llvm/ir/simple)
 
 (provide (all-defined-out))

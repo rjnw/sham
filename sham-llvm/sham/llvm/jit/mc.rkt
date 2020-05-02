@@ -1,9 +1,10 @@
 #lang racket
 
-(require sham/llvm/ffi/all
+(require sham/md
+         sham/private/env
+         sham/llvm/ffi/all
          sham/llvm/ir/ast
          sham/llvm/ir/env
-         sham/llvm/ir/md
          sham/llvm/jit/env)
 
 (provide (all-defined-out))
@@ -23,8 +24,8 @@
 
 (define (add-external-mappings env mcjit-ref)
   (match-define (llvm-env mref cref ast vrefs) env)
-  (match-define (llvm:def:module minfo mid mdefs) ast)
-  (define external-mappings (module-info-external-mappings minfo))
+  (match-define (llvm:def:module md mid mdefs) ast)
+  (define external-mappings (ref-module-md-jit-external-mappings md))
   (when external-mappings
     (for ([m external-mappings])
       (match-define (external-mapping name uintptr) m)

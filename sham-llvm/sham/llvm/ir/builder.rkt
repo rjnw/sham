@@ -2,6 +2,7 @@
 
 (require sham/llvm/ir/ast
          sham/llvm/ir/env
+         sham/private/env
          sham/llvm/ir/context
          sham/llvm/ir/internals
          sham/llvm/ir/md
@@ -18,12 +19,12 @@
                         #:target-triple [llvm-target-triple (LLVMGetDefaultTargetTriple)]
                         #:data-layout [llvm-data-layout #f])
   (when (diagnose-llvm-builder)
-    (define (diag-handler dinfo voidp)
-      (define diag-desc (LLVMGetDiagInfoDescription dinfo))
+    (define (diag-handler dmd voidp)
+      (define diag-desc (LLVMGetDiagInfoDescription dmd))
       (eprintf "llvm-diagnose: ~a\n" (cast diag-desc _pointer _string))
       (LLVMDisposeMessage diag-desc))
     (LLVMContextSetDiagnosticHandler llvm-context diag-handler #f))
-  (match-define (llvm:def:module module-info module-name module-defs) module-ast)
+  (match-define (llvm:def:module module-md module-name module-defs) module-ast)
   (define llvm-module (LLVMModuleCreateWithNameInContext (to-string module-name) llvm-context))
   (define llvm-builder (LLVMCreateBuilderInContext llvm-context))
   (when llvm-data-layout (LLVMSetDataLayout llvm-module llvm-data-layout))
@@ -32,27 +33,27 @@
   ;; llvm:def LLVMModuleRef env -> env
   (define (register-define def internal-env decl-env)
     (match def
-      [(llvm:def:type info name t)
+      [(llvm:def:type md name t)
        (if (llvm:ast:type:struct? t)
            (assoc-env-extend decl-env name (LLVMStructCreateNamed llvm-context (to-string name)))
            decl-env)]
-      [(llvm:def:function info name type body)
+      [(llvm:def:function md name type body)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddFunction llvm-module (to-string name) type-ref))
        (assoc-env-extend decl-env name (llvm-function value-ref type-ref))]
-      [(llvm:def:global info name type value)
+      [(llvm:def:global md name type value)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddGlobal llvm-module type-ref (to-string name)))
        (LLVMSetInitializer value-ref
                            (if value (compile-constant value internal-env decl-env) (LLVMConstNull type-ref)))
        (assoc-env-extend decl-env name (llvm-value value-ref type-ref))]
-      [(llvm:def:external info name type)
+      [(llvm:def:external md name type)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddGlobal llvm-module
                                         type-ref
                                         (to-string name)))
        (assoc-env-extend decl-env name (llvm-external value-ref type-ref))]
-      [(llvm:def:intrinsic info id name type)
+      [(llvm:def:intrinsic md id name type)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddFunction llvm-module
                                           (to-string name)
@@ -197,7 +198,7 @@
         (build-terminator-instruction! terminator))
 
       (map build-block! blocks)
-      (add-function-def-info! function-ref (llvm:def-info def)))
+      (add-function-def-md! function-ref (llvm:def-metadata def)))
 
     (define (compile-type-definition! def name type)
       (match type
@@ -205,21 +206,21 @@
          (define field-types (map (curryr compile-type internal-env decl-env) fields))
          (define type-ref (assoc-env-lookup decl-env name))
          (LLVMStructSetBody type-ref field-types #f)
-         (add-type-def-info! type-ref (llvm:def-info def))]
+         (add-type-def-md! type-ref (llvm:def-metadata def))]
         [else (error 'sham:llvm "trying to add type to declaration for non struct type")]))
 
     (match def
-      [(llvm:def:type info type-name t)
+      [(llvm:def:type md type-name t)
        (compile-type-definition! def type-name t)
        (values type-name (assoc-env-lookup decl-env type-name))]
-      [(llvm:def:function info function-name type body)
+      [(llvm:def:function md function-name type body)
        (compile-function-definition! def function-name type body)
        (values function-name (assoc-env-lookup decl-env function-name))]
       [(llvm:def _ id)
        (values id (assoc-env-lookup decl-env id))]))
 
   (match module-ast
-    [(llvm:def:module info id defs)
+    [(llvm:def:module md id defs)
      (define internal-env (create-internal-environment llvm-context))
      (define decl-env
        (for/fold ([decl-env (empty-assoc-env)])

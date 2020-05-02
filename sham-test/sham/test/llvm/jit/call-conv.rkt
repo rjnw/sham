@@ -1,13 +1,13 @@
 #lang racket
 
-(require sham/llvm/ir
-         sham/llvm/ir/md
+(require sham/md
+         sham/llvm/ir
          sham/llvm/ir/simple
          sham/llvm/jit/mc
          sham/llvm/ir/callconv/fastcc)
 
 (define a-f
-  (def-function (fastcc! (empty-function-info))
+  (def-function (fastcc! (empty-function-md))
     'a (type-function (list i64 i64 i64) #f i64)
     (list (ast-block 'entry
                      (list (icmp-eq 'cond (list 0 (val-ui 0 i64))))
@@ -23,7 +23,7 @@
                      (ast-ret 'ret)))))
 
 (define b-f
-  (def-function (fastcc! (empty-function-info))
+  (def-function (fastcc! (empty-function-md))
     'b (type-function (list i64 i64 i64) #f i64)
     (list (ast-block 'entry
                      (list (icmp-eq 'cond (list 0 (val-ui 0 i64))))
@@ -37,7 +37,7 @@
                       (fastcc! (ast-op 'ret 'a #f (list 'subi 1 2))))
                      (ast-ret 'ret)))))
 (define wrap-f
-  (def-function (empty-function-info)
+  (def-function (empty-function-md)
     'wrap (type-function (list i64) #f i64)
     (list (ast-block 'entry
                      (list
@@ -47,7 +47,7 @@
 (module+ test
   (require rackunit ffi/unsafe)
   (define t-module
-    (def-module (empty-module-info) 'call-conv-test-module
+    (def-module (empty-module-md) 'call-conv-test-module
       (list a-f b-f wrap-f)))
   (define l-env (build-llvm-env t-module))
   (dump-llvm-ir l-env)

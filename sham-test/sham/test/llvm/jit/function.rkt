@@ -2,13 +2,14 @@
 
 (require sham/llvm/ir
          sham/llvm/ir/simple
-         sham/llvm/jit/mc)
+         sham/llvm/jit/mc
+         sham/md)
 
 (require sham/test/llvm/ir/types
          sham/test/llvm/ir/function)
 
 (define new-array-f
-  (def-function (empty-function-info)
+  (def-function (empty-function-md)
     'new-array (type-function (list i32 i32*) #f size-array-ref)
     (list (ast-block 'entry
                      (list
@@ -24,7 +25,7 @@
   (require rackunit
            ffi/unsafe)
   (define t-module
-    (def-module (empty-module-info) 'function-jit-test-module
+    (def-module (empty-module-md) 'function-jit-test-module
       (list size-array-t identity-f new-array-f pow-f)))
   (define t-env (build-llvm-env t-module))
   (dump-llvm-ir t-env)

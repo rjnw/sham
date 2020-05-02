@@ -1,8 +1,6 @@
 #lang racket
 
-(require sham/llvm/ir/env
-         sham/llvm/jit/mc
-         sham/llvm/jit/env
+(require sham/llvm/jit/mc
          sham/ir/env
          sham/jit/env
          sham/rkt/types)
@@ -20,7 +18,6 @@
   (match-define (sham-jit-value _ rkt-value)
     (hash-ref! value-refs fname
                (thunk
-                (define rkt-type (sham-env-rkt-type s-env fname))
                 (define fptr (mcjit-function-address ll-jit-env fname))
-                (sham-jit-value fptr (cast (cast fptr _uintptr _pointer) _pointer rkt-type)))))
+                (sham-jit-value fptr (rkt-jit-cast s-env fname fptr)))))
   rkt-value)

@@ -1,12 +1,13 @@
 #lang racket
 
-(require sham/ir/ast/core
+(require sham/md
+         sham/ir/ast/core
          sham/ir/ast/simple
          sham/llvm/ir/ast
-         sham/llvm/ir/md
          (prefix-in llvm- sham/llvm/ir/simple))
 
-(require (for-syntax racket/syntax syntax/parse))
+(require (for-syntax racket/syntax syntax/parse)
+         syntax/parse/define)
 
 (provide (all-defined-out))
 
@@ -41,24 +42,19 @@
 (define-syntax (let^ stx)
   (syntax-parse stx
     [(_ ([arg (~optional val) (~datum :) typ] ...) s:expr ... e:expr)
-     #`(let ([arg (e-ref (quasiquote arg))] ...)
-         (e-let `(arg ...) (list (~? val #f) ...) (list typ ...)
+     #`(let ([arg (e-ref (gensym (quasiquote arg)))] ...)
+         (e-let (list arg ...) (list (~? val #f) ...) (list typ ...)
                 (block^ s ...)
                 e))]))
 
-(define-syntax (slet^ stx)
-  (syntax-parse stx
-    [(_ args ...) #`(s-expr (let^ args ...))]))
+(define-simple-macro (slet^ args ...)
+  (s-expr (let^ args ...)))
 
-(define-syntax (switch^ stx)
-  (syntax-parse stx
-    [(_ v:expr [check:expr body:expr ...] ... default)
-     #`(s-switch v (list check ...) (list (block^ body ...) ...) default)]))
+(define-simple-macro (switch^ v:expr [check:expr body:expr ...] ... default)
+  (s-switch v (list check ...) (list (block^ body ...) ...) default))
 
-(define-syntax (label^ stx)
-  (syntax-parse stx
-    [(_ name:id s:expr ...) #`(s-label (quote name) (block^ s ...))]
-    [(_ name:expr s:expr ...) #`(s-label name (block^ s ...))]))
+(define-simple-macro (label^ name:id stmt ...)
+  (s-label (quasiquote name) (block^ stmt ...)))
 
 ;; expr
 (define ref^ e-ref)
@@ -85,14 +81,14 @@
 ;; defs
 (define-syntax (function^ stx)
   (syntax-parse stx
-    [(_ (~optional (~seq #:info info))
+    [(_ (~optional (~seq #:md md))
         (name:expr (args:id (~datum :) arg-types:expr) ... (~datum :) ret-type:expr)
         body:expr ...)
      #:with (arg-nums ...) (build-list (length (syntax->list #`(args ...)))
                                  (λ (i) #`#,i))
      #:with (arg-type-names ...) (generate-temporaries #`(args ...))
      #`(let ([arg-type-names arg-types] ...)
-         (d-function (~? info (empty-function-info))
+         (d-function (~? md (empty-function-md))
                      (quasiquote name) (t-function (list arg-type-names ...) ret-type)
                      (slet^ ([args (llvm-val-param arg-nums) : arg-type-names] ...)
                             body ...
@@ -100,10 +96,10 @@
 
 (define-syntax (struct^ stx)
   (syntax-parse stx
-    [(_ (~optional (~seq #:info info)) name:id (field-name:id field-type:expr) ...)
-     #`(d-struct (~? info (empty-struct-info)) (quasiquote name) `(field-name ...) (list field-type ...))]))
+    [(_ (~optional (~seq #:md md)) name:id (field-name:id field-type:expr) ...)
+     #`(d-struct (~? md (empty-struct-md)) (quasiquote name) `(field-name ...) (list field-type ...))]))
 
 (define-syntax (module^ stx)
   (syntax-parse stx
-    [(_ (~optional (~seq #:info info)) name:id (defs ...))
-     #`(d-module (~? info (empty-module-info)) (quasiquote name) (list defs ...))]))
+    [(_ (~optional (~seq #:md md)) name:id (defs ...))
+     #`(d-module (~? md (empty-module-md)) (quasiquote name) (list defs ...))]))

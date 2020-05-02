@@ -1,6 +1,7 @@
 #lang racket
 
-(require sham/astg/ast)
+(require sham/astg/ast
+         sham/llvm/ir/ast)
 
 (provide (all-defined-out))
 
@@ -11,7 +12,7 @@
     [function (type body:stmt)]
     [struct ((field-name field-type:type) ...)]
     [racket (value type rkt-type)]
-    #:common-mutable info
+    #:common-mutable metadata
     #:common id)
   (ast #:common-auto-mutable metadata)
   (rator ast
@@ -42,3 +43,14 @@
                     ...)
                    stmt:stmt
                    expr:expr)]))
+
+(define (sham-metadata v)
+  (cond [(sham:def? v) (sham:def-metadata v)]
+        [(sham:ast? v) (sham:ast-metadata v)]
+        [else (llvm-metadata v)]))
+(define sham-md sham-metadata)
+(define (sham-metadata! v md)
+  (cond [(sham:def? v) (set-sham:def-metadata! v md)]
+        [(sham:ast? v) (set-sham:ast-metadata! v md)]
+        [else (llvm-metadata! v md)]))
+(define sham-md! sham-metadata!)

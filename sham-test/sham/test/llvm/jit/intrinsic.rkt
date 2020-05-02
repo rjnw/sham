@@ -1,11 +1,12 @@
 #lang racket
 
-(require sham/llvm/ir
+(require sham/md
+         sham/llvm/ir
          sham/llvm/ir/simple
          sham/llvm/jit/mc)
 
 (define pow-f
-  (def-function (empty-function-info)
+  (def-function (empty-function-md)
     'pow-f (type-function (list f64 f64) #f f64)
     (list (ast-block 'entry
                      (list
@@ -16,7 +17,7 @@
   (require rackunit
            ffi/unsafe)
   (define t-module
-    (def-module (empty-module-info)
+    (def-module (empty-module-md)
       'intrinsic-test-module
       (list (def-intrinsic #f 'pow "llvm.pow.f64" (type-function (list f64 f64) #f f64))
             pow-f)))
