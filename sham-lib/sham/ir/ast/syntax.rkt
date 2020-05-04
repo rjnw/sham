@@ -23,13 +23,14 @@
 
 (define (stmt-block stmts)
   (s-block
-   (append-map
-    (λ (v) (cond [(sham:ast:expr? v) (s-expr v)]
-                 [(sham:ast:stmt:block? stmts) stmts]
-                 [(sham:ast:stmt? v) v]
-                 [(list? v) v]
-                 [else (error "block expects a stmt/expr given: " v)]))
-    stmts)))
+   (flatten
+    (map
+     (λ (v) (cond [(sham:ast:expr? v) (s-expr v)]
+                  [(sham:ast:stmt:block? stmts) stmts]
+                  [(sham:ast:stmt? v) v]
+                  [(list? v) v]
+                  [else (error "block expects a stmt/expr given: " v)]))
+     stmts))))
 
 (define (block^ . stmts)
   (if (eq? (length stmts) 1)

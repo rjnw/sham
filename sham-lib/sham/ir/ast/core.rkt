@@ -52,5 +52,6 @@
 (define (sham-metadata! v md)
   (cond [(sham:def? v) (set-sham:def-metadata! v md)]
         [(sham:ast? v) (set-sham:ast-metadata! v md)]
-        [else (llvm-metadata! v md)]))
+        [else (llvm-metadata! v md)])
+  v)
 (define sham-md! sham-metadata!)

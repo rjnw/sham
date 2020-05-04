@@ -152,7 +152,8 @@
          (define block*
            (for/fold ([block* let-val-block])
                      ([v vals]
-                      [i id-names])
+                      [i id-names]
+                      #:when v)
              (define-values (v-val v*) (build-expr! v block* continue-block break-block))
              (add-instruction! v* (store! #f v-val i))
              v*))
@@ -207,13 +208,15 @@
                c-val))
            (terminate-block! tst* (ast-switch tst-val dflt-block check-values case-blocks))
            (define fin?
-             (for/fold ([fin? #t])
-                       ([t thns]
-                        [b case-blocks]
-                        [n (append (cdr case-blocks) (list dflt-block))])
-               (define t* (build-stmt! t b continue-block after-block))
-               (check-terminate! t* (ast-bru n))
-               (and (not (block? t*)) fin?)))
+             (if (null? case-blocks)
+                 #t
+                 (for/fold ([fin? #t])
+                           ([t thns]
+                            [b case-blocks]
+                            [n (append (cdr case-blocks) (list dflt-block))])
+                   (define t* (build-stmt! t b continue-block after-block))
+                   (check-terminate! t* (ast-bru n))
+                   (and (not (block? t*)) fin?))))
            (define dflt* (build-stmt! dflt dflt-block continue-block after-block))
            (check-terminate! dflt* (ast-bru after-block))
            (if (or (not fin?) (block? dflt*)) after-block #f))]

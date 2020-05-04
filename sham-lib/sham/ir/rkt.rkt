@@ -1,6 +1,6 @@
 #lang racket
 
-(provide type-sym sym sym-case
+(provide type-sym sym sym-case e-sym-case sym*
          bool true false
          type-ri64
          vector list
@@ -8,6 +8,7 @@
 
 (require sham/ir/ast/specific
          sham/ir/ast/simple
+         sham/ir/derived
          sham/ir/ast/core
          sham/llvm/ir/ast
          sham/md
@@ -18,15 +19,17 @@
          ffi/unsafe
          syntax/parse/define)
 
-(define type-sym i64)
+(define type-sym (sham-metadata! i64 (set-type-md-special-rkt! (empty-type-md)
+                                                               (make-ctype _uint64 rkt-raw-uintptr rkt-unraw-uintptr))))
 (define-syntax (sym stx)
   (syntax-parse stx
-    [(_ v) #`(rkt-raw-uintptr `v)]
+    [(_ v) #`(ui64 (rkt-raw-uintptr `v))]
     [(~literal sym) #`type-sym]))
+(define sym* (t-pointer type-sym))
 
 (define bool i64)
-(define true (rkt-raw-uintptr rkt:true))
-(define false (rkt-raw-uintptr rkt:false))
+(define true (ui64 (rkt-raw-uintptr rkt:true)))
+(define false (ui64 (rkt-raw-uintptr rkt:false)))
 
 (define type-ri64 i64)
 
@@ -35,7 +38,10 @@
     [(_ v) #`(ui64 (untag-int v))]
     [(~literal ri64) #`type-ri64]))
 
-(define-simple-macro (sym-case type test [(datum:id ...) body] ... [(~datum else) default])
+(define-simple-macro (sym-case test [(datum:id ...) body ...] ... [(~datum else) default])
+  (m-switch^ type test [((sym datum) ...) body ...] ... default))
+
+(define-simple-macro (e-sym-case type test [(datum:id ...) body] ... [(~datum else) default])
   (e-m-switch^ type test [((sym datum) ...) body] ... default))
 
 (define (from-llvm-type sym)

@@ -29,12 +29,11 @@
 (define (assoc-env-extend env key value)
   (cons (cons key value) env))
 
-(define (assoc-default assc keys (defaultf #f))
+(define (assoc-default assc keys defaultf)
   (cond
     [(not (list? keys)) (assoc-default assc (list keys) defaultf)]
     [(for/first [(a assc)
                  #:when (member (car a) keys)]
        (cdr a))]
     [(procedure? defaultf) (defaultf)]
-    [defaultf]
-    [else (error 'sham:assoc "error looking up association list ~a,~a" assc keys)]))
+    [else defaultf]))

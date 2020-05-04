@@ -53,5 +53,6 @@
 (define llvm-md llvm-metadata)
 (define (llvm-metadata! v md)
   (cond [(llvm:def? v) (set-llvm:def-metadata! v md)]
-        [(llvm:ast? v) (set-llvm:ast-metadata! v md)]))
+        [(llvm:ast? v) (set-llvm:ast-metadata! v md)])
+  v)
 (define llvm-md! llvm-metadata!)

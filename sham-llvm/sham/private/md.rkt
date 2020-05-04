@@ -54,6 +54,6 @@
   #:with (key-names ...) (map (λ (k) (format-id k "~a-~a" #'md-name k))
                               (syntax->list #`(keys ...)))
   (begin
-    (define (empty-name (assocs null)) (make-hash (list (cons (list metadata-kind `md-kind-key) assocs))))
+    (define (empty-name (assocs null)) (make-hash (cons (cons metadata-kind `md-kind-key) assocs)))
     (define (check-name v) (and (metadata? v) (equal? (md-ref v metadata-kind) `md-kind-key)))
     (define-key key-names) ...))

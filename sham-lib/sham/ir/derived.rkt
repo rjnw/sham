@@ -10,9 +10,10 @@
 
 (define (multi-switch test checkss bodys default)
   (define check-bodys
-    (map (λ (cs b) (append (cdr (map (const (s-void)) cs)) (list (block^ b (s-break)))))
+    (map (λ (cs b) (append (cdr (map (const (s-void)) cs))
+                           (list (block^ b (s-break)))))
          checkss bodys))
-  (s-switch test (flatten checkss) check-bodys default))
+  (s-switch test (flatten checkss) (flatten check-bodys) default))
 (define m-switch multi-switch)
 
 (define-simple-macro (m-switch^ test [(checks ...) body] ... default)
@@ -29,5 +30,10 @@
                    (set!^ switch-result default))
         switch-result))
 
-(define (array-ref array index) (load^ (gep^ array index)))
-(define (array-set! array index value) (store!^ (gep^ array index) value))
+(define (e-if^ type test thn els)
+  (let^ ([if-result : type])
+        (if^ test (set!^ if-result thn) (set!^ if-result els))
+        if-result))
+
+(define (array-ref^ array index) (load^ (gep^ array index)))
+(define (array-set!^ array index value) (store!^ (gep^ array index) value))
