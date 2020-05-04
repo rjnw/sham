@@ -1,8 +1,7 @@
 #lang racket
 
 (require sham/md
-         sham/llvm/ir
-         sham/llvm/ir/simple)
+         sham/llvm/ir)
 
 (provide (all-defined-out))
 
@@ -28,9 +27,9 @@
       'testf (type-function (list at) #f at)
       (list (ast-block 'entry
                        (list
-                        (int->ptr 'null-i32* (list (val-ui 0 i32) i32*))
-                        (int->ptr 'null-void* (list (val-ui 0 i32) void*))
-                        (int->ptr 'null-fptr (list (val-ui 0 i32)
+                        (op-int->ptr 'null-i32* (list (val-ui 0 i32) i32*))
+                        (op-int->ptr 'null-void* (list (val-ui 0 i32) void*))
+                        (op-int->ptr 'null-fptr (list (val-ui 0 i32)
                                                    (type-pointer (type-function (list i32 i32) #f void)))))
                        (ast-ret (val-named-struct
                                  (list

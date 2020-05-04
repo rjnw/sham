@@ -84,7 +84,7 @@
   (make-hash
    (map
     (λ (ap) (match-define (cons asym attr) ap)
-       (cons (normalize-id asym) attr))
+       (cons (normalize-id asym) (to-string attr)))
     `((alwaysinline                . alwaysinline)
       (sanitizeaddress             . sanitize_address)
       (argmemonly                  . argmemonly)

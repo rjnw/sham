@@ -3,13 +3,13 @@
 (require sham/ir/ast/core
          sham/ir/ast/ll
          sham/llvm/ir/ast
-         (prefix-in llvm- sham/llvm/ir/simple))
+         (prefix-in llvm- sham/llvm/ir/op))
 
 (require (for-syntax racket/syntax syntax/parse))
 
 (provide (except-out (all-defined-out)
                      definer-for-llvm-ops
-                     app app^))
+                     app app^ or xor not and))
 
 (define-syntax (definer-for-llvm-ops stx)
   (syntax-parse stx

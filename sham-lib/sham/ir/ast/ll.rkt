@@ -3,7 +3,9 @@
 (require sham/ir/ast/core
          sham/ir/ast/simple
          sham/llvm/ir/ast
-         (prefix-in llvm- sham/llvm/ir/simple))
+         (prefix-in llvm- sham/llvm/ir/simple)
+         (rename-in sham/llvm/ir/op
+                    [basic-ops llvm-basic-ops]))
 
 (require (for-syntax syntax/parse racket/syntax)
          syntax/parse/define)

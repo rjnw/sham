@@ -1,6 +1,6 @@
 #lang racket
+
 (require sham/llvm/ir
-         sham/llvm/ir/simple
          sham/md)
 
 (require "types.rkt")
@@ -24,16 +24,16 @@
   (def-function (empty-function-md)
     'pow (type-function (list i64 i64) #f i64)
     (list (ast-block 'entry
-                     (list (icmp-ule 'check (list '1 (val-ui 0 i64))))
+                     (list (op-icmp-ule 'check (list '1 (val-ui 0 i64))))
                      (ast-br 'check 'thn 'els))
           (ast-block 'thn
                      '()
                      (ast-ret (val-ui 1 i64)))
           (ast-block 'els
                      (list
-                      (sub-nuw 'subn (list 1 (val-ui 1 i64)))
+                      (op-sub-nuw 'subn (list 1 (val-ui 1 i64)))
                       (ast-op 'rec 'pow #f (list 0 'subn))
-                      (mul 'result (list 0 'rec)))
+                      (op-mul 'result (list 0 'rec)))
                      (ast-ret 'result)))))
 
 (module+ test

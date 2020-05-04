@@ -8,6 +8,7 @@
 
 (require sham/ir/ast/specific
          sham/ir/ast/simple
+         sham/ir/ast/syntax
          sham/ir/derived
          sham/ir/ast/core
          sham/llvm/ir/ast
@@ -41,8 +42,8 @@
     [(_ v) #`(ui64 (untag-int v))]
     [(~literal ri64) #`type-ri64]))
 
-(define-simple-macro (sym-case test [(datum:id ...) body ...] ... [(~datum else) default])
-  (m-switch^ type test [((sym datum) ...) body ...] ... default))
+(define-simple-macro (sym-case test [(~or single-datum:id (datum:id ...)) body ...] ... [(~datum else) default])
+  (m-switch^ test [(~? ((sym single-datum)) ((sym datum) ...)) (block^ body ...)] ... default))
 
 (define-simple-macro (e-sym-case type test [(datum:id ...) body] ... [(~datum else) default])
   (e-m-switch^ type test [((sym datum) ...) body] ... default))

@@ -95,14 +95,52 @@
            [r end])]
     [end ()])
 
-  (parameterize ([sham-compile-options `(;; dump-sham
-                                         ;; dump-llvm
-                                         dump-llvm-ir-after-opt
-                                         verify-with-error)])
-    (sham-jit-compile! fsa-module #:opt-level 3))
+  (sham-jit-compile! fsa-module #:opt-level 3)
   (values (benchmark (format "sham-fsa-simple:~a" input-length)
                      (M-simple input 0 input-length))
           (benchmark (format "sham-fsa-cadr:~a" input-length)
+                     (M-cadr input 0 input-length))))
+
+(define (basic-block-automata input input-length)
+  (define-current-sham-env fsa-module)
+
+  (define-syntax (define-fsa stx)
+    (syntax-parse stx
+      [(_ name start (end ...) [state ([input next-state] ...)] ...)
+       #:with (res ...)
+       (map (lambda (e) (if (memq (syntax-e e) (syntax->datum #'(end ...))) #'rkt-true #'rkt-false))
+            (syntax->list #'(state ...)))
+       #`(define-sham-function
+           (name (inp : rkt-sym*) (pos : i64) (len : i64) : rkt-bool)
+           (label^ state
+                   (if^ (icmp-ult^ pos len)
+                        (rkt-sym-case (array-ref^ inp pos)
+                                      [(input) (set!^ pos (add^ pos (ui64 1)))
+                                               (label-jump^ next-state)] ...
+                                      [else (return^ rkt-false)])
+                        (return^ res))) ...)]))
+
+  (define-fsa M-simple
+    s1 (s1)
+    [s1 ([c s2]
+         [a s2]
+         [d s1])]
+    [s2 ([c s1]
+         [a s2]
+         [r s2])])
+
+  (define-fsa M-cadr
+    init (end)
+    [init ([c more])]
+    [more ([a more]
+           [d more]
+           [r end])]
+    [end ()])
+
+  (sham-jit-compile! fsa-module #:opt-level 3)
+  (values (benchmark (format "bb-fsa-simple:~a" input-length)
+                     (M-simple input 0 input-length))
+          (benchmark (format "bb-fsa-cadr:~a" input-length)
                      (M-cadr input 0 input-length))))
 
 
@@ -118,13 +156,17 @@
                                                      [else (random-ref `(a d))]))))
     (define sham-input (benchmark (format "sham-rkt-vector-cast:~a" input-length)
                                   (rkt-vector rkt-sym input)))
-    (for/list ([i repeat-count])
+    (for ([i repeat-count])
       (define info (format ":test ~a" i))
       (define-values (r-simple r-cadr) (racket-automata input input-length))
       (define-values (s-simple s-cadr) (sham-automata sham-input input-length))
-      (test-equal? (format "automata~a:~a simple" info input-length) r-simple s-simple)
-      (test-equal? (format "automata~a:~a cadr" info input-length) r-cadr s-cadr)
-      (list (cons r-simple r-cadr))))
+      (define-values (b-simple b-cadr) (basic-block-automata sham-input input-length))
+      (test-equal? (format "automata~a:~a sham:simple" info input-length) r-simple s-simple)
+      (test-equal? (format "automata~a:~a sham:cadr" info input-length) r-cadr s-cadr)
+      (test-equal? (format "automata~a:~a bb:simple" info input-length) r-simple b-simple)
+      (test-equal? (format "automata~a:~a bb:cadr" info input-length) r-cadr b-cadr)))
 
-  (run-test! 4)
+  (parameterize ([sham-compile-options `(;; dump-sham dump-llvm dump-llvm-ir-after-opt verify-with-error
+                                         )])
+    (run-test! 4))
   (pretty-print bench-times))

@@ -2,23 +2,22 @@
 
 (require sham/md
          sham/llvm/ir
-         sham/llvm/ir/simple
-         sham/llvm/jit/mc
-         sham/llvm/ir/callconv)
+         sham/llvm/ir/callconv
+         sham/llvm/jit/mc)
 
 (define a-f
   (def-function (fastcc! (empty-function-md))
     'a (type-function (list i64 i64 i64) #f i64)
     (list (ast-block 'entry
-                     (list (icmp-eq 'cond (list 0 (val-ui 0 i64))))
+                     (list (op-icmp-eq 'cond (list 0 (val-ui 0 i64))))
                      (ast-br 'cond 'then 'else))
           (ast-block 'then
                      `()
                      (ast-ret 2))
           (ast-block 'else
                      (list
-                      (sub 'subi (list 0 (val-ui 1 i64)))
-                      (add-nuw 'resv (list 2 1))
+                      (op-sub 'subi (list 0 (val-ui 1 i64)))
+                      (op-add-nuw 'resv (list 2 1))
                       (fastcc! (ast-op 'ret 'b #f (list 'subi 1 'resv))))
                      (ast-ret 'ret)))))
 
@@ -26,14 +25,14 @@
   (def-function (fastcc! (empty-function-md))
     'b (type-function (list i64 i64 i64) #f i64)
     (list (ast-block 'entry
-                     (list (icmp-eq 'cond (list 0 (val-ui 0 i64))))
+                     (list (op-icmp-eq 'cond (list 0 (val-ui 0 i64))))
                      (ast-br 'cond 'then 'else))
           (ast-block 'then
                      `()
                      (ast-ret 2))
           (ast-block 'else
                      (list
-                      (sub 'subi (list 0 (val-ui 1 i64)))
+                      (op-sub 'subi (list 0 (val-ui 1 i64)))
                       (fastcc! (ast-op 'ret 'a #f (list 'subi 1 2))))
                      (ast-ret 'ret)))))
 (define wrap-f

@@ -123,7 +123,7 @@
                       (build&register-open-function
                        (list mods ...)
                        `name `(arg-ids ...) (list arg-type-names ...) ret-type
-                       (λ () (function-body^ (arg-ids : arg-type-names) ... body ...))
+                       (λ () (function-body^ [(arg-ids : arg-type-names) ...] body ...))
                        (list (cons `aks avs) ...))))]))
 
 (define-simple-macro (define-sham-efunction header ... body)

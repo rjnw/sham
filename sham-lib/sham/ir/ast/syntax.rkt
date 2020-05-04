@@ -24,13 +24,13 @@
 (define (stmt-block stmts)
   (s-block
    (flatten
-    (map
-     (λ (v) (cond [(sham:ast:expr? v) (s-expr v)]
-                  [(sham:ast:stmt:block? stmts) stmts]
-                  [(sham:ast:stmt? v) v]
-                  [(list? v) v]
-                  [else (error "block expects a stmt/expr given: " v)]))
-     stmts))))
+    (for/list ([s stmts])
+      (cond [(sham:ast:expr? s) (s-expr s)]
+            [(sham:ast:stmt:block? s) (sham:ast:stmt:block-stmts s)]
+            [(sham:ast:stmt? s) s]
+            [(list? s) s]
+            [(llvm:ast:instruction? s) s]
+            [else (error "block expects a stmt/expr given: " s)])))))
 
 (define (block^ . stmts)
   (if (eq? (length stmts) 1)
@@ -49,13 +49,15 @@
                 e))]))
 
 (define-simple-macro (slet^ args ...)
-  (s-expr (let^ args ...)))
+  (s-expr (let^ args ... (e-void))))
 
 (define-simple-macro (switch^ v:expr [check:expr body:expr ...] ... default)
   (s-switch v (list check ...) (list (block^ body ...) ...) default))
 
 (define-simple-macro (label^ name:id stmt ...)
-  (s-label (quasiquote name) (block^ stmt ...)))
+  (s-label `name (block^ stmt ...)))
+(define-simple-macro (label-jump^ name:id)
+  (llvm-ast-bru `name))
 
 ;; expr
 (define ref^ e-ref)
@@ -70,11 +72,10 @@
 (define (app^ rator #:flags (flags #f) . rands) (e-app rator flags rands))
 
 ;; defs
-(define-simple-macro (function-body^ (args : arg-types) ... body ...)
+(define-simple-macro (function-body^ [(args (~datum :) arg-types) ...] body ...)
   #:with (arg-nums ...) (build-list (length (syntax->list #`(args ...))) (λ (i) #`#,i))
   (slet^ ([args (llvm-val-param arg-nums) : arg-types] ...)
-         body ...
-         (e-void)))
+         body ...))
 
 (define-syntax (function^ stx)
   (syntax-parse stx
@@ -86,7 +87,7 @@
      #`(let ([arg-type-names arg-types] ...)
          (d-function (~? md (empty-function-md))
                      (quasiquote name) (t-function (list arg-type-names ...) ret-type)
-                     (function-body^ (args : arg-type-names) ... body ...)))]))
+                     (function-body^ [(args : arg-type-names) ...] body ...)))]))
 
 (define-simple-macro (efunction^ header ... body)
   (function^ header ... (return^ body)))

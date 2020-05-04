@@ -4,20 +4,23 @@
 
 (require sham/llvm/ir
          sham/llvm/ir/simple
+         sham/llvm/ir/specific
+         (prefix-in op- sham/llvm/ir/op)
          sham/llvm/ir/env
          sham/ir/ast/core
          sham/ir/env
+         sham/ir/dump
          sham/parameters
          sham/rkt/ffi
          sham/rkt/conv)
 
 (require sham/private/box)
 
-(provide diagnose-sham-builder
+(provide debug-sham-builder
          build-sham-env
          build-sham-module)
 
-(define diagnose-sham-builder (make-parameter #f))
+(define debug-sham-builder (make-parameter #f))
 
 (define (build-sham-env module-ast
                         [sham-context (sham-global-context)]
@@ -25,6 +28,7 @@
                         [llvm-data-layout #f])
   (define s-mod (build-sham-module module-ast sham-context llvm-target-triple llvm-data-layout))
   (match-define (sham-module ast l-ast extrs) s-mod)
+  (when (debug-sham-builder) (sham-dump-llvm s-mod))
   (sham-env s-mod (build-llvm-env l-ast) (make-hash)))
 
 (define (build-sham-module module-ast
@@ -59,11 +63,15 @@
     (define (add-instruction! block-name instr)
       (unless (llvm:ast:instruction:op? instr)
         (error 'sham:ir:builder "expected op llvm instruction for adding to a block ~a/~a" block-name instr))
-      (hash-set! incomplete-blocks block-name (cons instr (hash-ref incomplete-blocks block-name '()))))
+      (unless (block? block-name)
+        (error 'sham:ir:builder "trying to add instruction to terminated block ~a" instr))
+      (hash-set! incomplete-blocks block-name (cons instr (hash-ref incomplete-blocks block-name '())))
+      block-name)
     (define (terminate-block! block-name terminator)
       (unless (llvm:ast:instruction:terminator? terminator)
         (error 'sham:ir:builder "expected llvm terminator instruction for terminating block ~a/~a"
                block-name terminator))
+      (unless (block? block-name) (error 'sham:ir:builder "trying to terminate already terminated block ~a" terminator))
       (define block-instrs (hash-ref incomplete-blocks block-name '()))
       (hash-remove! incomplete-blocks block-name)
       (collect-block! (ast-block block-name (reverse block-instrs) terminator))
@@ -76,7 +84,7 @@
     (define (add-allocas! names types)
       (for ([n names]
             [t types])
-        (add-alloca! (alloca n (translate-type t)))))
+        (add-alloca! (op-alloca n (translate-type t)))))
     (define entry-block 'entry-block)
     (define (alloca-block)
       (ast-block 'alloca-block (reverse (unbox allocas)) (ast-bru entry-block)))
@@ -90,7 +98,7 @@
         [(? llvm:ast:value?) (values expr current-block)]
         [(sham:ast:expr:ref _ sym)
          (define expr-value (gensym 'ref))
-         (add-instruction! current-block (load expr-value sym))
+         (add-instruction! current-block (op-load expr-value sym))
          (values expr-value current-block)]
         [(sham:ast:expr:op _ rator flags args)
          (define expr-value (gensym 'op))
@@ -105,7 +113,7 @@
              [(? (or/c symbol? string?)) rator]
              [(sham:ast:expr:ref _ sym)
               (define rator-value (gensym 'var-rator))
-              (add-instruction! current-block (load rator-value sym))
+              (add-instruction! current-block (op-load rator-value sym))
               rator-value]
              [(sham:ast:rator:reference _ s) s]
              [(sham:ast:rator:llvm _ s) s]
@@ -135,8 +143,8 @@
          (define field-ptr (gensym 'struct-field-ptr))
          (define-values (val val*) (build-expr! value current-block continue-block break-block))
          (errored-terminate val* "expr" "struct access")
-         (add-instruction! val* (gep field-ptr value (val-ui 0 i32) (val-ui field-index i32)))
-         (add-instruction! val* (load expr-value field-ptr))
+         (add-instruction! val* (op-gep field-ptr value (val-ui 0 i32) (val-ui field-index i32)))
+         (add-instruction! val* (op-load expr-value field-ptr))
          (values expr-value val*)]
         [(sham:ast:expr:void _) (values #f current-block)]
         [(sham:ast:expr:etype _ t) (values (translate-type t) current-block)]
@@ -155,7 +163,7 @@
                       [i id-names]
                       #:when v)
              (define-values (v-val v*) (build-expr! v block* continue-block break-block))
-             (add-instruction! v* (store! #f v-val i))
+             (add-instruction! v* (op-store! #f v-val i))
              v*))
          (errored-terminate block* "one of the binding" "let")
          (define stmt* (build-stmt! stmt-body block* continue-block break-block))
@@ -166,17 +174,21 @@
         (unless (block? block-name)
           (error 'sham:ir:builder "~a value for ~a terminated block while building stmt ~a" value type curr-stmt)))
       (define-simple-macro (warn str args ...)
-        (when (diagnose-sham-builder)
+        (when (debug-sham-builder)
           (eprintf "sham:warning: ~a" (format str args ...))))
       (define (if-block block-name next-block)
         (if (block? block-name) next-block #f))
       (match curr-stmt
+        [(? llvm:ast:instruction:terminator?)
+         (terminate-block! current-block curr-stmt)]
+        [(? llvm:ast:instruction?)
+         (add-instruction! current-block curr-stmt)]
         [(sham:ast:stmt:set! _ lhs val)
          (match lhs
            [(sham:ast:expr:ref _ sym)
             (define-values (val-val val*) (build-expr! val current-block continue-block break-block))
             (errored-terminate val* "lhs" "set!")
-            (add-instruction! val* (store! #f val-val sym))
+            (add-instruction! val* (op-store! #f val-val sym))
             val*])]
         [(sham:ast:stmt:if _ tst thn els)
          (let* ([entry-block (gensym 'if-entry)]
@@ -244,10 +256,9 @@
         [(sham:ast:stmt:block _ stmts)
          (for/fold ([block current-block])
                    ([s stmts])
-           (errored-terminate block "stmt" "sham:ast:block")
            (build-stmt! s block continue-block break-block))]
         [(sham:ast:stmt:label _ label-block body)
-         (terminate-block! current-block (ast-bru label-block))
+         (check-terminate! current-block (ast-bru label-block))
          (build-stmt! body label-block continue-block break-block)]
         [(sham:ast:stmt:return _ val)
          (define-values (val-val block*) (build-expr! val current-block continue-block break-block))

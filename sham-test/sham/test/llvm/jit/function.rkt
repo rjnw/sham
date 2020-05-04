@@ -13,12 +13,12 @@
     'new-array (type-function (list i32 i32*) #f size-array-ref)
     (list (ast-block 'entry
                      (list
-                      (alloca 'ret-ptr (list size-array-ref))
-                      (gep 'ret-size (list 'ret-ptr (val-ui 0 i32) (val-ui 0 i32)))
-                      (store! #f (list '0 'ret-size))
-                      (gep 'ret-arr (list 'ret-ptr (val-ui 0 i32) (val-ui 1 i32)))
-                      (store! #f (list '1 'ret-arr))
-                      (load 'ret (list 'ret-ptr)))
+                      (op-alloca 'ret-ptr (list size-array-ref))
+                      (op-gep 'ret-size (list 'ret-ptr (val-ui 0 i32) (val-ui 0 i32)))
+                      (op-store! #f (list '0 'ret-size))
+                      (op-gep 'ret-arr (list 'ret-ptr (val-ui 0 i32) (val-ui 1 i32)))
+                      (op-store! #f (list '1 'ret-arr))
+                      (op-load 'ret (list 'ret-ptr)))
                      (ast-ret 'ret)))))
 
 (module+ test

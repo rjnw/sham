@@ -3,7 +3,8 @@
 (require sham/ir/ast/core
          sham/ir/ast/simple
          sham/llvm/ir/ast
-         (prefix-in llvm- sham/llvm/ir/simple))
+         (prefix-in llvm- sham/llvm/ir/simple)
+         (prefix-in llvm- sham/llvm/ir/specific))
 
 (require syntax/parse/define
          (for-syntax racket/syntax))

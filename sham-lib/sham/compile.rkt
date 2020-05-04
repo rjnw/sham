@@ -26,7 +26,6 @@
   jit-env)
 
 (define (sham-compile! env/mod ka compile-options)
-  (printf "compile! ~a ~a\n" ka compile-options)
   (define (compile-module mod)
     (define (has-compile-options? os)
       (ormap (λ (o) (member o compile-options)) os))
@@ -45,17 +44,18 @@
                body ...))]))
 
     (when-option dump-sham (sham-dump-ir mod))
-    (define e (build-sham-env mod))
-    (when-option dump-llvm (sham-dump-llvm e))
+    (define s-env
+      (parameterize ([debug-sham-builder (has-compile-options? '(dump-llvm))])
+        (build-sham-env mod)))
     (when-option (dump-llvm-ir dump-llvm-ir-before-opt)
-                 (sham-dump-llvm-ir e))
+                 (sham-dump-llvm-ir s-env))
     (when-option verify-llvm-with-error
-                 (sham-verify-llvm-ir-error e))
+                 (sham-verify-llvm-ir-error s-env))
     (when-option opt-level
-                 (sham-env-optimize-llvm! e #:opt-level opt-level))
+                 (sham-env-optimize-llvm! s-env #:opt-level opt-level))
     (when-option (dump-llvm-ir dump-llvm-ir-after-opt)
-                 (sham-dump-llvm-ir e))
-    e)
+                 (sham-dump-llvm-ir s-env))
+    s-env)
   (match env/mod
     [(? sham-env?) env/mod]
     [(? sham-module?) (compile-module env/mod)]

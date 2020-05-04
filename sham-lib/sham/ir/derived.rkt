@@ -1,6 +1,8 @@
 #lang racket
 
-(require sham/ir/ast/simple
+(require sham/ir/ast/core
+         sham/llvm/ir/ast
+         sham/ir/ast/simple
          sham/ir/ast/syntax
          sham/ir/ast/op)
 
@@ -8,10 +10,22 @@
 
 (provide (all-defined-out))
 
+(define (broken? s)
+  (or (sham:ast:stmt:break? s)
+      (sham:ast:stmt:continue? s)
+      (match s
+        [(sham:ast:stmt:block _ (list _ ... end)) (broken? end)]
+        [(sham:ast:stmt:label _ _ ss) (broken? ss)]
+        [(? llvm:ast:instruction:terminator?) #t]
+        [(? sham:ast:stmt?) #f]
+        [else (error 'sham:ir:derived "unknown statement ~a" s)])))
+
+(define (break-if-needed b) (if (broken? b) b (block^ b (s-break))))
+
 (define (multi-switch test checkss bodys default)
   (define check-bodys
     (map (λ (cs b) (append (cdr (map (const (s-void)) cs))
-                           (list (block^ b (s-break)))))
+                           (list (break-if-needed b))))
          checkss bodys))
   (s-switch test (flatten checkss) (flatten check-bodys) default))
 (define m-switch multi-switch)
