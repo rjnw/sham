@@ -95,9 +95,11 @@
            [r end])]
     [end ()])
 
-  (parameterize ([sham-compile-options `(dump-sham dump-llvm dump-llvm-ir verify-with-error)])
+  (parameterize ([sham-compile-options `(;; dump-sham
+                                         ;; dump-llvm
+                                         dump-llvm-ir-after-opt
+                                         verify-with-error)])
     (sham-jit-compile! fsa-module #:opt-level 3))
-  (printf "finished compiling sham-automata\n")
   (values (benchmark (format "sham-fsa-simple:~a" input-length)
                      (M-simple input 0 input-length))
           (benchmark (format "sham-fsa-cadr:~a" input-length)
@@ -109,7 +111,7 @@
            ffi/unsafe
            racket/random)
 
-  (define (run-test! (repeat-count 1) (input-length 1000000))
+  (define (run-test! (repeat-count 1) (input-length 100000))
     (define input (build-vector input-length (λ (i)
                                                (cond [(zero? i) 'c]
                                                      [(equal? i (sub1 input-length)) 'r]
@@ -120,8 +122,8 @@
       (define info (format ":test ~a" i))
       (define-values (r-simple r-cadr) (racket-automata input input-length))
       (define-values (s-simple s-cadr) (sham-automata sham-input input-length))
-      ;; (test-equal? (format "automata~a:~a simple" info input-length) r-simple s-simple)
-      ;; (test-equal? (format "automata~a:~a cadr" info input-length) r-cadr s-cadr)
+      (test-equal? (format "automata~a:~a simple" info input-length) r-simple s-simple)
+      (test-equal? (format "automata~a:~a cadr" info input-length) r-cadr s-cadr)
       (list (cons r-simple r-cadr))))
 
   (run-test! 4)

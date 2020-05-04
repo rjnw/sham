@@ -19,19 +19,22 @@
          ffi/unsafe
          syntax/parse/define)
 
-(define type-sym (sham-metadata! i64 (set-type-md-special-rkt! (empty-type-md)
-                                                               (make-ctype _uint64 rkt-raw-uintptr rkt-unraw-uintptr))))
+(define type-i64 (sham-metadata! (t-ref 'i64)
+                                 (set-type-md-special-rkt! (empty-type-md)
+                                                           (make-ctype _uint64 rkt-raw-uintptr rkt-unraw-uintptr))))
+
+(define type-sym type-i64)
 (define-syntax (sym stx)
   (syntax-parse stx
     [(_ v) #`(ui64 (rkt-raw-uintptr `v))]
     [(~literal sym) #`type-sym]))
 (define sym* (t-pointer type-sym))
 
-(define bool i64)
+(define bool type-i64)
 (define true (ui64 (rkt-raw-uintptr rkt:true)))
 (define false (ui64 (rkt-raw-uintptr rkt:false)))
 
-(define type-ri64 i64)
+(define type-ri64 type-i64)
 
 (define-syntax (ri64 stx)
   (syntax-parse stx
