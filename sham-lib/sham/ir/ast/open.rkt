@@ -5,7 +5,8 @@
          sham/ir/ast/core
          sham/ir/ast/simple
          sham/ir/ast/syntax
-         sham/ir/builder)
+         sham/ir/builder
+         sham/llvm/ir/callconv)
 
 (require sham/private/md
          sham/private/box
@@ -62,8 +63,18 @@
 (define-general-keyword-procedure
   (open-sham-function-app ka of . rest-args)
   (match-define (open-sham-function name args type bodyf attrs inms compiled-app closed) of)
+  (define (combine-with-def-attrs flgs attrs)
+    (define flags (from-maybe flgs empty-instruction-md))
+    (cond
+      [(lookup-keyword attrs #:calling-convention #:convention #:call-conv (const #f))
+       => (curry callconv! flags)]
+      [(lookup-keyword attrs #:md #:metatdata (const #f))
+       => (λ (md)
+            (when-function-md-llvm-calling-convention
+             md conv (callconv! flags conv)))])
+    flags)
   (if (andmap expr? rest-args)
-      (e-app name (lookup-keyword ka #:flags #f) rest-args)
+      (e-app name (combine-with-def-attrs (lookup-keyword ka #:flags #f) attrs) rest-args)
       (apply compiled-app rest-args)))
 
 (struct open-sham-function [id arg-syms type body-lambda attributes in-modules (compiled-app #:mutable) (closed #:mutable)]
@@ -74,7 +85,7 @@
   (define (close)
     (define md
       (cond
-        [(lookup-keyword attrs #:metadata #:md #f)
+        [(lookup-keyword attrs #:metadata #:md (const #f))
          => (λ (mds) (sham-function-metadata mds))]
         [(sham-function-metadata)]))
     (define f (d-function md name type (bodyf)))

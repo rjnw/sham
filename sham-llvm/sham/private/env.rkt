@@ -9,7 +9,10 @@
     [(? false?) s]
     [else (error 'sham "invalid name for sham values ~a" s)]))
 
-(define normalize-id to-string)
+(define (normalize-id s)
+  (string-downcase
+   (string-replace (string-replace (to-string s) "_" "")
+                   "-" "")))
 
 (define (assoc-env? v)
   (and (list? v)

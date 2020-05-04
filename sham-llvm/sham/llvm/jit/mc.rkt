@@ -34,7 +34,7 @@
 
 (define (mcjit-function-address env fname)
   (match-define (llvm-mcjit-env lenv jit-ref) env)
-  (LLVMGetFunctionAddress jit-ref (normalize-id fname)))
+  (LLVMGetFunctionAddress jit-ref (to-string fname)))
 (define (mcjit-global-value-address env vname)
   (match-define (llvm-mcjit-env lenv jit-ref) env)
-  (LLVMGetGlobalValueAddress jit-ref (normalize-id vname)))
+  (LLVMGetGlobalValueAddress jit-ref (to-string vname)))

@@ -1,13 +1,18 @@
 #lang racket
 
-(require sham/ir
-         sham/ir/env
-         sham/parameters
-         sham/jit
+(require sham/ir/env
          sham/ir/dump
-         sham/ir/verify)
+         sham/ir/verify
+         sham/ir/builder
+         sham/ir/optimize
+         sham/ir/ast/core
+         sham/ir/ast/simple
+         sham/ir/ast/open
+         sham/parameters
+         sham/jit)
 
-(require sham/private/keyword)
+(require sham/private/keyword
+         sham/private/env)
 (require (for-syntax syntax/parse))
 
 (provide (all-defined-out))
@@ -15,42 +20,46 @@
 (define-general-keyword-procedure
   (sham-jit-compile! ka env/mod . rest-args)
 
-  (define cm-env (sham-compile! env/mod (append (sham-compile-options) (lookup-keyword ka #:compile-options #:options '()))))
+  (define cm-env (sham-compile! env/mod ka (sham-compile-options)))
   (define jit-env (initialize-jit cm-env (lookup-keyword ka #:jit-type #:jit 'mc)))
   (env-try-set-callbacks! env/mod jit-env)
   jit-env)
 
-(define (sham-compile! env/mod compile-options)
+(define (sham-compile! env/mod ka compile-options)
+  (printf "compile! ~a ~a\n" ka compile-options)
   (define (compile-module mod)
-    (define (has-options? os)
+    (define (has-compile-options? os)
       (ormap (λ (o) (member o compile-options)) os))
+    (define (has-keyword-option? k)
+      (assoc-default ka (string->keyword (to-string k)) #f))
     (define-syntax (when-option stx)
       (syntax-parse stx
         [(_ option:id body ...)
-         #`(let ([option (has-options? `(option))])
+         #`(let ([option (or (has-compile-options? `(option))
+                             (has-keyword-option? `option))])
              (when option
                body ...))]
-        [(_ ((~literal or) options:id ...) body ...)
-         #`(let ([option (has-options? `(options ...))])
+        [(_ (options:id ...) body ...)
+         #`(let ([option (has-compile-options? `(options ...))])
              (when option
                body ...))]))
 
     (when-option dump-sham (sham-dump-ir mod))
     (define e (build-sham-env mod))
     (when-option dump-llvm (sham-dump-llvm e))
-    (when-option (or dump-llvm-ir dump-llvm-ir-before-opt)
+    (when-option (dump-llvm-ir dump-llvm-ir-before-opt)
                  (sham-dump-llvm-ir e))
     (when-option verify-llvm-with-error
                  (sham-verify-llvm-ir-error e))
     (when-option opt-level
                  (sham-env-optimize-llvm! e #:opt-level opt-level))
-    (when-option (or dump-llvm-ir dump-llvm-ir-after-opt)
+    (when-option (dump-llvm-ir dump-llvm-ir-after-opt)
                  (sham-dump-llvm-ir e))
     e)
   (match env/mod
     [(? sham-env?) env/mod]
     [(? sham-module?) (compile-module env/mod)]
-    [(? sham:def:module?) (sham-compile! (build-sham-module env/mod))]
+    [(? sham:def:module?) (sham-compile! (build-sham-module env/mod) ka compile-options)]
     [(? open-sham-env?) (compile-module (close-open-sham-env! env/mod))]))
 
 (define (env-try-set-callbacks! env jit-env)

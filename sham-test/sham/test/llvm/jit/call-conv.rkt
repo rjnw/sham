@@ -4,7 +4,7 @@
          sham/llvm/ir
          sham/llvm/ir/simple
          sham/llvm/jit/mc
-         sham/llvm/ir/callconv/fastcc)
+         sham/llvm/ir/callconv)
 
 (define a-f
   (def-function (fastcc! (empty-function-md))
