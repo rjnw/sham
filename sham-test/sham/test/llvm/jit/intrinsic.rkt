@@ -24,7 +24,7 @@
   (define l-env (build-llvm-env t-module))
   (dump-llvm-ir l-env)
   (verify-llvm-module l-env)
-  (define tc-env (llvm-initialize-mcjit l-env))
+  (define tc-env (initialize-mcjit l-env))
   (define pow-uintptr (mcjit-function-address tc-env 'pow-f))
   (define pow-func (cast pow-uintptr _uintptr (_fun _double _double -> _double)))
   (test-= "llvm-function:pow" (pow-func 2.0 10.0) 1024.0 0.001))

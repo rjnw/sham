@@ -40,9 +40,17 @@
 (define-alias (r- sham:ast:rator:)
   [reference llvm intrinsic external])
 
-;; metadata
-(define metadata sham:ast-metadata)
-(define metadata! set-sham:ast-metadata!)
+(define (e-app rator flags rands)
+  (match rator
+    [(? sham:ast:rator?) (e-op rator flags rands)]
+    [(sham:ast:expr:ref md v) (e-op (r-reference v) flags rands)]
+    [(? symbol?) (e-op (r-reference rator) flags rands)]
+    [(? string?)
+     (if (type? (car rands))
+         (e-op (r-intrinsic rator (car rands)) flags (cdr rands))
+         (error 'sham:ir "expected type for intrinsic as first argument, ~a/~a" rator (car rands)))]
+    [(? procedure?) (apply rator rands)]
+    [else (error 'sham:ir "expected rator for app^ given: ~a" rator)]))
 
 ;; checks
 (define (type? v)

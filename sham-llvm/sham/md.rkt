@@ -11,14 +11,13 @@
          md-set!)
 
 (define-md module
-  [llvm-external-mappings
-   llvm-after-passes
+  [llvm-after-passes
    llvm-before-passes
    jit-external-mappings])
 
 (define-md function
-  [llvm-general-attribute
-   llvm-return-attribute
+  [llvm-general-attributes
+   llvm-return-attributes
    llvm-argument-attributes
    llvm-optimization-pass
    llvm-calling-convention

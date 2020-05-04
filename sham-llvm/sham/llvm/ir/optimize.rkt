@@ -79,8 +79,8 @@
     (match-define (cons argument-id attributes) a-md)
     (add-attributes attributes argument-id))
   (when fmd
-    (when-function-md-llvm-general-attribute fmd gas (add-attributes gas general-attribute-index))
-    (when-function-md-llvm-return-attribute fmd ras (add-attributes ras 0))
+    (when-function-md-llvm-general-attributes fmd gas (add-attributes gas general-attribute-index))
+    (when-function-md-llvm-return-attributes fmd ras (add-attributes ras 0))
     (when-function-md-llvm-argument-attributes fmd aas (map add-argument-attribute aas))
     (when-function-md-llvm-optimization-pass fmd ps (run-function-passes! fvalue mod-env ps))))
 

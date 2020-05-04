@@ -53,7 +53,7 @@
   (dump-llvm-ir l-env)
   (test-true "verify-call-conv" (verify-llvm-module l-env))
 
-  (define mc-env (llvm-initialize-mcjit l-env))
+  (define mc-env (initialize-mcjit l-env))
   (define wrap-uintptr (mcjit-function-address mc-env 'wrap))
   (define wrap-func (cast wrap-uintptr _uintptr (_fun _uint64 -> _uint64)))
   (test-eq? "call-conv-wrap" (wrap-func 100000) 5000000001))

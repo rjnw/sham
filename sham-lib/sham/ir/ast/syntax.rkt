@@ -66,33 +66,29 @@
 (define evoid^ e-void)
 (define etype e-etype)
 
-(define (app^ rator #:flags (flags #f) . rands)
-  (match rator
-    [(? sham:ast:rator?) (e-op rator flags rands)]
-    [(sham:ast:expr:ref md v) (e-op (r-reference v) flags rands)]
-    [(? symbol?) (e-op (r-reference rator) flags rands)]
-    [(? string?)
-     (if (type? (car rands))
-         (e-op (r-intrinsic rator (car rands)) flags (cdr rands))
-         (error 'sham:ir "expected type for intrinsic as first argument, ~a/~a" rator (car rands)))]
-    [(? procedure?) (apply rator rands)]
-    [else (error 'sham:ir "expected rator for app^ given: ~a" rator)]))
+(define (app^ rator #:flags (flags #f) . rands) (e-app rator flags rands))
 
 ;; defs
+(define-simple-macro (function-body^ (args : arg-types) ... body ...)
+  #:with (arg-nums ...) (build-list (length (syntax->list #`(args ...))) (λ (i) #`#,i))
+  (slet^ ([args (llvm-val-param arg-nums) : arg-types] ...)
+         body ...
+         (e-void)))
+
 (define-syntax (function^ stx)
   (syntax-parse stx
-    [(_ (~optional (~seq #:md md))
+    [(_ (~optional (~seq (~or (~datum #:md)
+                              (~datum #:metadata)) md))
         (name:expr (args:id (~datum :) arg-types:expr) ... (~datum :) ret-type:expr)
         body:expr ...)
-     #:with (arg-nums ...) (build-list (length (syntax->list #`(args ...)))
-                                 (λ (i) #`#,i))
      #:with (arg-type-names ...) (generate-temporaries #`(args ...))
      #`(let ([arg-type-names arg-types] ...)
          (d-function (~? md (empty-function-md))
                      (quasiquote name) (t-function (list arg-type-names ...) ret-type)
-                     (slet^ ([args (llvm-val-param arg-nums) : arg-type-names] ...)
-                            body ...
-                            (e-void))))]))
+                     (function-body^ (args : arg-type-names) ... body ...)))]))
+
+(define-simple-macro (efunction^ header ... body)
+  (function^ header ... (return^ body)))
 
 (define-syntax (struct^ stx)
   (syntax-parse stx

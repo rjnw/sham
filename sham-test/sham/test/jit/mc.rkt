@@ -1,9 +1,10 @@
 #lang racket
 
-(require sham/ir/ast
+(require sham/md
+         sham/ir/ast
          sham/ir/builder
          sham/llvm/ir/md
-         sham/jit/mc)
+         sham/jit)
 (require (prefix-in raw- sham/test/ir/raw)
          (prefix-in syn- sham/test/ir/syntax))
 
@@ -14,7 +15,7 @@
            sham/ir/optimize)
   (define (test-pow-identity info-str pow-f identity-f #:opt-level (opt-level #f))
     (define t-module
-      (d-module (empty-module-info)
+      (d-module (empty-module-md)
                 (format "sham-jit-mc-test-module:~a" info-str)
                 (list identity-f pow-f)))
     (define s-env (build-sham-env t-module))
@@ -24,9 +25,9 @@
       (test-true (format "sham-mcjit:verify:~a" info-str) (sham-verify-llvm-ir s-env))
       (printf "optmized with level-~a:\n" opt-level)
       (sham-dump-llvm-ir s-env))
-    (define mc-env (sham-initialize-mcjit s-env))
-    (define pow-func (sham-mcjit-lookup-function mc-env 'pow))
-    (define identity-func (sham-mcjit-lookup-function mc-env 'identity))
+    (define mc-env (initialize-jit s-env))
+    (define pow-func (jit-lookup-function mc-env 'pow))
+    (define identity-func (jit-lookup-function mc-env 'identity))
     (test-eq? (format "sham-mcjit:pow:~a" info-str) (pow-func 2 10) 1024)
     (test-eq? (format "sham-mcjit:identity:~a" info-str) (identity-func 42) 42))
   (for ([opt-level (list #f 1 2 3)])

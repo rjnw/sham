@@ -1,6 +1,7 @@
 #lang racket
 
 (require ffi/unsafe
+         sham/private/env
          sham/llvm/ffi
          sham/llvm/ir/env)
 

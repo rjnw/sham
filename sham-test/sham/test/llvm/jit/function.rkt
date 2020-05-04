@@ -31,7 +31,7 @@
   (dump-llvm-ir t-env)
   ;; (write-llvm-ir t-env "/tmp/function-test.ll")
   (verify-llvm-module t-env)
-  (define tc-env (llvm-initialize-mcjit t-env))
+  (define tc-env (initialize-mcjit t-env))
 
   (define pow-uintptr (mcjit-function-address tc-env 'pow))
   (define pow-func (cast pow-uintptr _uintptr (_fun _uint64 _uint64 -> _uint64)))

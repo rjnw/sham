@@ -9,7 +9,7 @@
 
 (provide (all-defined-out))
 
-(define (llvm-initialize-mcjit env #:opt-level [opt-level 1])
+(define (initialize-mcjit env #:opt-level [opt-level 1])
   (checked-initialize-llvm)
   (unless (llvm-env? env)
     (error 'sham:jit:mc "not a valid llvm-env ~a" env))
@@ -34,7 +34,7 @@
 
 (define (mcjit-function-address env fname)
   (match-define (llvm-mcjit-env lenv jit-ref) env)
-  (LLVMGetFunctionAddress jit-ref (to-string fname)))
+  (LLVMGetFunctionAddress jit-ref (normalize-id fname)))
 (define (mcjit-global-value-address env vname)
   (match-define (llvm-mcjit-env lenv jit-ref) env)
-  (LLVMGetGlobalValueAddress jit-ref (to-string vname)))
+  (LLVMGetGlobalValueAddress jit-ref (normalize-id vname)))

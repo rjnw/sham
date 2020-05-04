@@ -30,7 +30,7 @@
   (define t-env (build-llvm-env t-module))
   (dump-llvm-ir t-env)
   (test-true "verify-external" (verify-llvm-module t-env))
-  (define tc-env (llvm-initialize-mcjit t-env))
+  (define tc-env (initialize-mcjit t-env))
 
   (define call-uintptr (mcjit-function-address tc-env 'call-ex))
   (define call-func (cast call-uintptr _uintptr (_fun _uint64 -> _uint64)))

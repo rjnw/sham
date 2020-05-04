@@ -11,17 +11,16 @@
          sham/rkt/ffi
          sham/rkt/conv)
 
+(require sham/private/box)
+
 (provide diagnose-sham-builder
          build-sham-env
          build-sham-module)
 
 (define diagnose-sham-builder (make-parameter #f))
 
-(define ((add-to-list-box! b) v)
-  (set-box! b (cons v (unbox b))))
-
 (define (build-sham-env module-ast
-                        [sham-context (global-sham-context)]
+                        [sham-context (sham-global-context)]
                         [llvm-target-triple #f]
                         [llvm-data-layout #f])
   (define s-mod (build-sham-module module-ast sham-context llvm-target-triple llvm-data-layout))
@@ -29,7 +28,7 @@
   (sham-env s-mod (build-llvm-env l-ast) (make-hash)))
 
 (define (build-sham-module module-ast
-                           [sham-context (global-sham-context)]
+                           [sham-context (sham-global-context)]
                            [llvm-target-triple #f]
                            [llvm-data-layout #f])
   (match-define (sham:def:module module-md module-name module-defs) module-ast)

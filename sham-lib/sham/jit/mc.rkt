@@ -1,23 +1,15 @@
 #lang racket
 
-(require sham/llvm/jit/mc
+(require (prefix-in llvm- sham/llvm/jit/mc)
          sham/ir/env
-         sham/jit/env
-         sham/rkt/types)
-
-(require ffi/unsafe)
+         sham/jit/env)
 
 (provide (all-defined-out))
 
-(define (sham-initialize-mcjit s-env)
+(define (initialize-mcjit s-env)
   (match-define (sham-env s-mod ll-env info) s-env)
   (sham-mcjit-env s-env (llvm-initialize-mcjit ll-env) (make-hash)))
 
-(define (sham-mcjit-lookup-function mc-env fname)
+(define (mcjit-function-address mc-env fname)
   (match-define (sham-mcjit-env s-env ll-jit-env value-refs) mc-env)
-  (match-define (sham-jit-value _ rkt-value)
-    (hash-ref! value-refs fname
-               (thunk
-                (define fptr (mcjit-function-address ll-jit-env fname))
-                (sham-jit-value fptr (rkt-jit-cast s-env fname fptr)))))
-  rkt-value)
+  (llvm-mcjit-function-address ll-jit-env fname))

@@ -1,14 +1,15 @@
 #lang racket
 
-(require sham/llvm/ir/md
+(require sham/md
          sham/llvm/ir/context
          sham/ir/context)
+
 (provide (all-defined-out))
 
-(define global-sham-context (make-parameter (sham-context (global-llvm-context))))
+(define sham-global-context (make-parameter (sham-context (global-llvm-context))))
 
-(define current-sham-module (make-parameter #f))
-(define current-function-info (make-parameter (empty-function-info)))
+(define sham-current-env (make-parameter #f))
+(define sham-current-function-md (make-parameter (empty-function-md)))
 
 (define sham-compile-options (make-parameter '()))
 (define sham-build-options (make-parameter '()))
