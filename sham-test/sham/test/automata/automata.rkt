@@ -75,7 +75,7 @@
                      (M-cadr input 0 input-length)))
 
 (define (sham-automata input input-length ir)
-  (define-current-sham-env default-module #:late-pass `[always-inliner])
+  (define-current-sham-env default-module #:early-pass `[always-inliner])
   (define fmd (sham-function-metadata #:attributes `[always-inline]))
 
   (define-syntax (define-fsa stx)

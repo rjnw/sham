@@ -40,6 +40,9 @@
 (define-alias (r- sham:ast:rator:)
   [reference llvm intrinsic external])
 
+(define-alias (v- llvm-val-)
+  [param ref fl si ui string llvm basic-struct named-struct array vector])
+
 (define (e-app rator flags rands)
   (match rator
     [(? sham:ast:rator?) (e-op rator flags rands)]

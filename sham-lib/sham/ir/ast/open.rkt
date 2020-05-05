@@ -36,10 +36,10 @@
         v))
   (define (close)
     (define md
-      (cond
-        [(lookup-keyword attrs #:metadata #:md (const #f))
-         => (λ (mds) (apply sham-module-metadata mds))]
-        [(sham-module-metadata)]))
+      (keyword-apply sham-module-metadata
+                     (map car attrs)
+                     (map cdr attrs)
+                     (flatten (lookup-keyword attrs #:metadata #:md '()))))
     (define mast (d-module md name (map close-value (list-unbox vals))))
     (set-open-sham-env-closed! om mast)
     mast)
@@ -84,10 +84,10 @@
   (match-define (open-sham-function name args type bodyf attrs inms compiled-app closed) of)
   (define (close)
     (define md
-      (cond
-        [(lookup-keyword attrs #:metadata #:md (const #f))
-         => (λ (mds) (sham-function-metadata mds))]
-        [(sham-function-metadata)]))
+      (keyword-apply sham-function-metadata
+                     (map car attrs)
+                     (map cdr attrs)
+                     (flatten (lookup-keyword attrs #:metadata #:md '()))))
     (define f (d-function md name type (bodyf)))
     (set-open-sham-function-closed! of f)
     f)

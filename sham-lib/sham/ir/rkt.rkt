@@ -1,8 +1,8 @@
 #lang racket
 
-(provide type-sym sym sym-case e-sym-case sym*
+(provide raw-type raw-val
+         sym-type sym* sym-val sym sym-case e-sym-case
          bool true false
-         type-ri64
          vector list
          to-rkt-type)
 
@@ -20,27 +20,26 @@
          ffi/unsafe
          syntax/parse/define)
 
-(define type-i64 (sham-metadata! (t-ref 'i64)
-                                 (set-type-md-special-rkt! (empty-type-md)
-                                                           (make-ctype _uint64 rkt-raw-uintptr rkt-unraw-uintptr))))
+(define raw-type
+  (sham-metadata! (t-ref 'i64)
+                  (set-type-md-special-rkt! (empty-type-md)
+                                            (make-ctype _uint64 rkt-raw-uintptr rkt-unraw-uintptr))))
+(define (raw-val v)
+  (v-ui (rkt-raw-uintptr v) raw-type))
 
-(define type-sym type-i64)
+(define sym-type raw-type)
+(define sym-val raw-val)
+
 (define-syntax (sym stx)
   (syntax-parse stx
-    [(_ v) #`(ui64 (rkt-raw-uintptr `v))]
-    [(~literal sym) #`type-sym]))
-(define sym* (t-pointer type-sym))
+    [(_ v:id) #`(sym-val `v)]
+    [(_ v) #`(sym-val v)]
+    [(~literal sym) #`sym-type]))
+(define sym* (t-pointer sym-type))
 
-(define bool type-i64)
-(define true (ui64 (rkt-raw-uintptr rkt:true)))
-(define false (ui64 (rkt-raw-uintptr rkt:false)))
-
-(define type-ri64 type-i64)
-
-(define-syntax (ri64 stx)
-  (syntax-parse stx
-    [(_ v) #`(ui64 (untag-int v))]
-    [(~literal ri64) #`type-ri64]))
+(define bool raw-type)
+(define true (raw-val rkt:true))
+(define false (raw-val rkt:false))
 
 (define-simple-macro (sym-case test [(~or single-datum:id (datum:id ...)) body ...] ... [(~datum else) default])
   (m-switch^ test [(~? ((sym single-datum)) ((sym datum) ...)) (block^ body ...)] ... default))
