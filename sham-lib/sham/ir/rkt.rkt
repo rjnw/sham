@@ -3,7 +3,7 @@
 (provide raw-type raw-val
          sym-type sym* sym-val sym sym-case e-sym-case
          bool true false
-         vector list
+         array-from-vector array-from-list
          to-rkt-type)
 
 (require sham/ir/ast/specific
@@ -37,9 +37,15 @@
     [(~literal sym) #`sym-type]))
 (define sym* (t-pointer sym-type))
 
-(define bool raw-type)
-(define true (raw-val rkt:true))
-(define false (raw-val rkt:false))
+(define bool-type raw-type)
+(define bool-val raw-val)
+
+(define-syntax (bool stx)
+  (syntax-parse stx
+    [(_ v:id) #`(bool-val v)]
+    [(~literal bool) #`bool-type]))
+(define true (bool-val rkt:true))
+(define false (bool-val rkt:false))
 
 (define-simple-macro (sym-case test [(~or single-datum:id (datum:id ...)) body ...] ... [(~datum else) default])
   (m-switch^ test [(~? ((sym single-datum)) ((sym datum) ...)) (block^ body ...)] ... default))
@@ -88,13 +94,13 @@
           [else #f])))
   (rec t-ast))
 
-(define (vector type rkt-vector)
+(define (array-from-vector type rkt-vector)
   (define rkt-type (to-rkt-type type))
   (unless (ctype? rkt-type)
     (error 'sham:ir:rkt "rkt-vector, couldn't convert sham type to rkt type ~a" type))
   (vector->cblock rkt-vector rkt-type))
 
-(define (list type rkt-list)
+(define (array-from-list type rkt-list)
   (define rkt-type (to-rkt-type type))
   (unless (ctype? rkt-type)
     (error 'sham:ir:rkt "rkt-list, couldn't convert sham type to rkt type ~a" type))

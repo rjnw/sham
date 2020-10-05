@@ -17,14 +17,14 @@
                  (return^ rkt-false)))
     (label^ more
             (if^ (icmp-ult^ pos len)
-                 (rkt-sym-case (array-ref^ inp pos)
-                               [(a) (set!^ pos (add^ pos (ui64 1)))
-                                    (label-jump^ more)]
-                               [(d) (set!^ pos (add^ pos (ui64 1)))
-                                    (label-jump^ more)]
-                               [(r) (set!^ pos (add^ pos (ui64 1)))
-                                    (label-jump^ end)]
-                               [else (return^ rkt-false)])
+                 (switch^ (array-ref^ inp pos)
+                          [(rkt-sym a) (set!^ pos (add^ pos (ui64 1)))
+                               (label-jump^ more)]
+                          [(rkt-sym d) (set!^ pos (add^ pos (ui64 1)))
+                               (label-jump^ more)]
+                          [(rkt-sym r) (set!^ pos (add^ pos (ui64 1)))
+                               (label-jump^ end)]
+                          [else (return^ rkt-false)])
                  (return^ rkt-false)))
     (label^ end
             (if^ (icmp-ult^ pos len)

@@ -164,6 +164,7 @@
   (benchmark ir (format "fastcc-fsa-cadr:~a" input-length)
                      (M-cadr input 0 input-length)))
 
+
 (define (basic-block-automata input input-length ir)
   (define-current-sham-env basic-block-module)
 
@@ -177,10 +178,10 @@
            (name (inp : rkt-sym*) (pos : i64) (len : i64) : rkt-bool)
            (label^ state
                    (if^ (icmp-ult^ pos len)
-                        (rkt-sym-case (array-ref^ inp pos)
-                                      [(input) (set!^ pos (add^ pos (ui64 1)))
-                                               (label-jump^ next-state)] ...
-                                      [else (return^ rkt-false)])
+                        (switch^ (array-ref^ inp pos)
+                                 [(rkt-sym input) (set!^ pos (add^ pos (ui64 1)))
+                                          (label-jump^ next-state)] ...
+                                 (return^ rkt-false))
                         (return^ res))) ...)]))
 
   #;(define-fsa M-simple
@@ -214,13 +215,13 @@
            ffi/unsafe
            racket/random)
 
-  (define (run-test! (repeat-count 1) (internal-repeat 10000) (input-length 100000))
+  (define (run-test! (repeat-count 1) (internal-repeat 1) (input-length 100000))
     (define input (build-vector input-length (λ (i)
                                                (cond [(zero? i) 'c]
                                                      [(equal? i (sub1 input-length)) 'r]
                                                      [else (random-ref `(a d))]))))
     (define sham-input (benchmark 1 (format "sham-rkt-vector-cast:~a" input-length)
-                                  (rkt-vector rkt-sym input)))
+                                  (rkt-array-from-vector rkt-sym input)))
     (printf "done-making-input\n")
     (for ([i repeat-count])
       (define info (format ":test ~a" i))
