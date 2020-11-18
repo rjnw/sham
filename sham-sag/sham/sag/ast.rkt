@@ -298,21 +298,3 @@
          (require racket/generic)
          (define cid #,(spec->storage #'cid ast-spec))
          #,@struct-defs)]))
-
-;; (module+ test
-;;   (define-ast LC
-;;     #:prefix ||
-;;     #:top-seperator ||
-;;     #:seperator -
-;;     (expr
-;;      [lambda ((n:terminal.sym) body:expr)]
-;;      [letrec (((ids:terminal.sym vals:expr) ...) e:expr)]
-;;      [app (rator:expr rand:expr)]
-;;      [sym s:terminal.sym])
-;;     (terminal #:terminals
-;;               [n number?]
-;;               [sym symbol?]))
-;;   ;; (define lr (LC:expr:letrec '(a b c) '(1 2 3) 'd))
-;;   ;; (printf "LC:")
-;;   ;; (pretty-print LC)
-;;   )
