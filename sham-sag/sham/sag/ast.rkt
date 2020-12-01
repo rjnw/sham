@@ -29,7 +29,7 @@
 
     (define formatter
       (cond [(info-value info `#:formatter) => (λ (f) ((syntax-local-value f) ast-id ast-spec))]
-            [else (rkt-struct-formatter ast-id ast-spec #`- #`-)]))
+            [else (rkt-struct-formatter ast-id ast-spec #`: #`:)]))
 
     (define gens (map (λ (g) ((syntax-local-value g) ast-id ast-spec))
                       (info-value info `#:with)))
@@ -46,11 +46,11 @@
       (define group-methods (map-gen (curryr build-group-methods group-spec)))
       (define group-generics (map-gen (curryr build-group-generics group-spec)))
       (define (node-def node-spec)
-        (define node-id (format-node-id formatter node-spec))
-        (define node-args (format-node-args formatter node-spec))
+        (define node-id (format-node-id formatter group-spec node-spec))
+        (define node-args (format-node-args formatter group-spec node-spec))
         (define node-methods (map-gen (curryr build-node-methods group-spec node-spec)))
         #`(struct #,node-id #,group-id #,node-args #,@node-methods))
-      (define node-defs (append-map node-def (ast:group-nodes group-spec)))
+      (define node-defs (map node-def (ast:group-nodes group-spec)))
       (append
        (list*
         #`(struct #,group-id #,@(if group-parent (list group-parent) (list))
@@ -68,8 +68,8 @@
      (define struct-defs (build-defs #'cid ast-spec))
      ;; (pretty-display ast-spec)
      ;; (printf "struct-defs:\n")
-     ;; (parameterize ([pretty-print-columns 80])
-     ;;   (pretty-print (map syntax->datum struct-defs)))
+     (parameterize ([pretty-print-columns 80])
+       (pretty-print (map syntax->datum struct-defs)))
      #`(begin
          (require racket/generic)
          ;; (define cid #,(spec->storage #'cid ast-spec))

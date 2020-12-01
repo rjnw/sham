@@ -43,5 +43,5 @@
 (define (node-args node-spec)
   (match node-spec
     [(ast:node:pat id pat info)
-     (map-pat pat identity (const '()) append identity)]
+     (flatten (map-pat pat identity (const '()) append identity))]
     [(ast:node:term id proc) #f]))

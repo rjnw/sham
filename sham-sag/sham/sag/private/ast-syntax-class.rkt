@@ -1,7 +1,9 @@
 #lang racket
 
 (require syntax/parse racket/syntax)
-(provide ast-spec language-spec info-values info-value)
+(provide ast-spec language-spec
+         info-values info-value
+         keyword-info)
 
 (require "ast-syntax-structs.rkt")
 

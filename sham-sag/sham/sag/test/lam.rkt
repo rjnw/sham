@@ -29,6 +29,7 @@
     #:with map-generic sexp-printer)
 
   (define lr (LC:expr:letrec '(a b c) '(1 2 3) 'd))
-  (define parsed-letrec ($LC:expr (letrec ((a 1) (b 2) (c 3)) (+ a b c))))
-  (printf "LC:")
-  (pretty-print LC))
+  ;; (define parsed-letrec ($LC:expr (letrec ((a 1) (b 2) (c 3)) (+ a b c))))
+  ;; (printf "LC:")
+  ;; (pretty-print LC)
+  )

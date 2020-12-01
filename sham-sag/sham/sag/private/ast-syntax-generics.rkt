@@ -36,16 +36,17 @@
        (define (format-arg c)
          (syntax-parse c
            [i:identifier #`i]
-           ;; [(i:id ki:keyword-info)
-           ;;  (define if-default (info-value (attribute ki.spec) `#:default))
-           ;;  (define if-mutable (info-value (attribute ki.spec) `#:mutable))
-           ;;  #`(i #,@(if if-default (list #`#:auto) `())
-           ;;       #,@(if if-mutable (list #`#:mutable) `()))]
-           ))
+           [(i:identifier ki:keyword-info)
+            (define if-default (info-value (attribute ki.spec) `#:default))
+            (define if-mutable (info-value (attribute ki.spec) `#:mutable))
+            #`(i #,@(if if-default (list #`#:auto) `())
+                 #,@(if if-mutable (list #`#:mutable) `()))]))
        (map format-arg (info-values ginfo `#:common)))
      (define (format-node-id af gs ns)
-       (ast:node-id ns))
+       (match-define (rkt-struct-formatter id spec gsep nsep) af)
+       (format-id (ast:node-id ns) "~a~a~a" (format-group-id af gs) nsep (ast:node-id ns)))
      (define (format-node-args af gs ns)
+       (printf "format-node-args: ~a\n" (node-args ns))
        (node-args ns))])
 
 (define-generics ast-builder
