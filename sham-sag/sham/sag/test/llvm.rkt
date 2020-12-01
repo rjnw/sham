@@ -15,10 +15,9 @@
     [global-string (str)]
     [external (type)]
     [intrinsic (str type)]
-    #:common-mutable metadata
-    #:common id)
+    #:common (metadata #:mutable) id)
   (ast [block [name instructions:instruction ... term:terminator]]
-       #:common-auto-mutable metadata)
+       #:common (metadata #:default #f #:mutable))
   (type ast
         [ref      (to)]
         [struct   (fields:type ...)]
