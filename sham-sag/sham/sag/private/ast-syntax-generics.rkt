@@ -50,10 +50,10 @@
        (node-args ns))])
 
 (define-generics ast-builder
-  (build-group-methods ast-builder group-spec)
-  (build-group-generics ast-builder group-spec)
-  (build-node-methods ast-builder group-spec node-spec)
+  (build-group-methods ast-builder formatter group-spec)
+  (build-group-generics ast-builder formatter group-spec)
+  (build-node-methods ast-builder formatter group-spec node-spec)
   #:defaults ([any/c
-               (define (build-group-methods b gs) #f)
-               (define (build-group-generics b gs) #f)
-               (define (build-node-methods b gs ns) #f)]))
+               (define (build-group-methods b fmt gs) #f)
+               (define (build-group-generics b fmt gs) #f)
+               (define (build-node-methods b fmt gs ns) #f)]))
