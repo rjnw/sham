@@ -4,7 +4,8 @@
          racket/syntax
          syntax/parse)
 (require "ast-syntax-structs.rkt"
-         "ast-syntax-class.rkt")
+         "ast-syntax-class.rkt"
+         "ast-syntax-utils.rkt")
 (provide (all-defined-out))
 
 (define-generics ast-formatter

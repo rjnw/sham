@@ -2,7 +2,6 @@
 
 (require syntax/parse racket/syntax)
 (provide ast-spec language-spec
-         info-values info-value
          keyword-info)
 
 (require "ast-syntax-structs.rkt")
@@ -56,25 +55,3 @@
 (define-syntax-class language-spec
   #:description "language specification"
   (pattern (lang:id (name:id var:id ...) ...)))
-
-(define (info-values infos key)
-  (map syntax->list
-       (map cdr
-            (filter (λ (kvp) (equal? (syntax->datum (car kvp)) key))
-                    infos))))
-(define (info-value infos key)
-  (define vs (info-values infos key))
-  (cond
-    [(cons? vs) (car vs)]
-    [(empty? vs) #f]))
-
-(module+ test
-  (require syntax/keyword)
-  (define-values (opts rst)
-    (syntax-parse #'(#:prefix '- #:custom-write #t)
-      [(i:keyword-info)
-       (parse-keyword-options #`i
-                              `((#:prefix ,check-expression)
-                                (#:custom-write ,check-expression)))]))
-  (printf "opts: ~a, rst: ~a\n" opts rst)
-  (printf "prefix: ~a\n" (options-select opts '#:prefix)))
