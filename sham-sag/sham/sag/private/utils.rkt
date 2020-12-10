@@ -1,9 +1,8 @@
 #lang racket
 
 (require syntax/parse)
-(require
- "ast-syntax-structs.rkt"
- "ast-syntax-class.rkt")
+(require "spec.rkt"
+         "syntax-class.rkt")
 
 (provide (all-defined-out))
 
@@ -55,10 +54,7 @@
 
 ;; -> (maybe/c (list/c syntax))
 (define (node-args node-spec)
-  (match node-spec
-    [(ast:node:pat id pat info)
-     (flatten (map-pat pat identity (const '()) append identity))]
-    [(ast:node:term id proc) #f]))
+  (flatten (map-pat (ast:node-pattern node-spec) identity (const '()) append identity)))
 
 (define (spec->storage top-id ast-spec)
   (define (ki i)
@@ -74,10 +70,8 @@
               #,(ki info))]
       [(ast:group id parent nodes info)
        #`(ast:group #'#,id #,(if parent #'#,parent #`#f) (list #,@(map storage nodes)) #,(ki info))]
-      [(ast:node:pat id pat info)
-       #`(ast:node:pat #'#,id #,(storage pat) #,(ki info))]
-      [(ast:node:term id proc)
-       #`(ast:node:term #'#,id #,proc)]
+      [(ast:node id pat info)
+       #`(ast:node #'#,id #,(storage pat) #,(ki info))]
       [(ast:pat:single type id)
        #`(ast:pat:single #'#,type #'#,id)]
       [(ast:pat:datum syn)

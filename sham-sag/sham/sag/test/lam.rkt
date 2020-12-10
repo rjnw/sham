@@ -1,35 +1,48 @@
 #lang racket
 
 (require sham/sag/ast
-         sham/sag/custom)
+         sham/sag/custom
+         sham/sag/runtime)
+
+(define-ast LC
+  (expr
+   [lambda ('lambda (n) body)
+     #:type ([body : expr])
+     ;; #:identifier (n)
+     ;; #:bind [n #:in-scope body]
+     ]
+   [letrec ('letrec ((ids vals) ...) e)
+     #:type
+     ([vals : expr]
+      [e : expr])
+     ;; #:identifier (ids)
+     ]
+   [app (rator rand ...)
+        #:type
+        ([rator : expr]
+         [rand : expr])]
+   [sym !identifier]
+   [num !integer])
+  ;; #:prefix ||
+  ;; #:top-seperator ||
+  ;; #:seperator -
+  #:with map-generic sexp-printer)
 
 (module+ test
-  (define-ast LC
-    (expr
-     [lambda ('lambda (n) body)
-       [body : expr]
-       ;; #:identifier (n)
-       ;; #:bind [n #:in-scope body]
-       ]
-     [letrec ('letrec ((ids vals) ...) e)
-       [vals : expr]
-       [e : expr]
-       ;; #:identifier (ids)
-       ]
-     [app (rator rand)
-          [rator : expr]
-          [rand : expr]]
-     [sym s
-          [s : $identifier]])
-    (terminal #:terminals
-              [n number?])
-    ;; #:prefix ||
-    ;; #:top-seperator ||
-    ;; #:seperator -
-    #:with map-generic sexp-printer)
-
   (define lr (LC:expr:letrec '(a b c) '(1 2 3) 'd))
-  ;; (define parsed-letrec ($LC:expr (letrec ((a 1) (b 2) (c 3)) (+ a b c))))
+  ;; (define parsed-letrec ($LC:expr (letrec ((a 1) (b 2) (c 3)) (app (sym +) a b c))))
+  ;; (define parsed-expr ($LC:expr (letrec ((a 1) (b 2) (c 3)) (app (sym +) 1 2 3))))
   ;; (printf "LC:")
-  ;; (pretty-print LC)
+  ;; (pretty-print parsed-letrec)
+
+  (define-transformation
+    constant-fold (LC:expr -> LC:expr)
+    [(app (sym +) (num a) (num a))
+     (num (+ a b))])
+
+  (define-query
+    total-letrec (LC:expr -> !number)
+    0 +
+    [(letrec _ e)
+     (+ 1 (total-letrec e))])
   )

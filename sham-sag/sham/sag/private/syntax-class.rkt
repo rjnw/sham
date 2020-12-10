@@ -4,7 +4,7 @@
 (provide ast-spec language-spec
          keyword-info)
 
-(require "ast-syntax-structs.rkt")
+(require "spec.rkt")
 
 (define-splicing-syntax-class keyword-value
   (pattern (~seq k:keyword v:expr ...)
@@ -12,14 +12,6 @@
 (define-splicing-syntax-class keyword-info
   (pattern (~seq ki:keyword-value ...)
            #:attr spec (attribute ki.spec)))
-
-(define-syntax-class contract
-  (pattern name:id #:attr spec this-syntax)
-  (pattern (names:id ...) #:attr spec (syntax->list this-syntax)))
-(define-syntax-class node-contract
-  (pattern (name:id (~datum :) c:contract) #:attr spec (ast:node-contract (attribute c.spec))))
-(define-splicing-syntax-class node-contracts
-  (pattern (~seq nc:node-contract ...) #:attr spec (attribute nc.spec)))
 
 (define-syntax-class node-pattern
   (pattern name:id
@@ -37,11 +29,9 @@
            #:attr spec (attribute ms.spec)))
 
 (define-syntax-class ast-node
-  #:description "single production"
-  (pattern (var:id def:node-pattern defc:node-contracts info:keyword-info)
-           #:attr spec (ast:node:pat #`var (attribute def.spec) (attribute info.spec)))
-  (pattern (var:id (~datum #:terminal) proc:id)
-           #:attr spec (ast:node:term #`var #`proc)))
+  #:description "node production production"
+  (pattern (var:id def:node-pattern info:keyword-info)
+           #:attr spec (ast:node #`var (attribute def.spec) (attribute info.spec))))
 
 (define-syntax-class ast-group
   #:description "ast group specification"
@@ -50,7 +40,7 @@
 
 (define-splicing-syntax-class ast-spec
   (pattern (~seq groups:ast-group ... info:keyword-info)
-           #:attr spec (ast (attribute groups.spec) (attribute info.spec))))
+           #:attr spec (ast #f #f (attribute groups.spec) (attribute info.spec))))
 
 (define-syntax-class language-spec
   #:description "language specification"
