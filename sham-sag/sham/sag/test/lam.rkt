@@ -29,6 +29,9 @@
   #:with map-generic sexp-printer)
 
 (module+ test
+  (begin-for-syntax
+    (require racket/pretty)
+    (pretty-print (syntax-local-value #`LC)))
   (define lr (LC:expr:letrec '(a b c) '(1 2 3) 'd))
   ;; (define parsed-letrec ($LC:expr (letrec ((a 1) (b 2) (c 3)) (app (sym +) a b c))))
   ;; (define parsed-expr ($LC:expr (letrec ((a 1) (b 2) (c 3)) (app (sym +) 1 2 3))))
@@ -40,9 +43,9 @@
     [(app (sym +) (num a) (num a))
      (num (+ a b))])
 
-  (define-query
-    total-letrec (LC:expr -> !number)
-    0 +
-    [(letrec _ e)
-     (+ 1 (total-letrec e))])
+  #;(define-reduction
+      total-letrec LC:expr
+      0 +
+      [(letrec _ e)
+       (+ 1 (total-letrec e))])
   )

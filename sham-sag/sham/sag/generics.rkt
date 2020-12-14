@@ -1,6 +1,6 @@
 #lang racket
 
-(require racket/generics)
+(require racket/generic)
 
 (provide (all-defined-out))
 
@@ -15,5 +15,5 @@
     (define (build-group-struct ab syn gs) syn)
     (define (build-group-extra ab gs) #f)
     (define (build-node-struct ab syn gs ns) syn)
-    (define (build-node-extra ab syn gs ns) syn)
+    (define (build-node-extra ab gs ns) #f)
     (define (build-syntax b fmt) #f)]))

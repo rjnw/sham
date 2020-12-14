@@ -40,7 +40,7 @@
 
 (define-splicing-syntax-class ast-spec
   (pattern (~seq groups:ast-group ... info:keyword-info)
-           #:attr spec (ast #f #f (attribute groups.spec) (attribute info.spec))))
+           #:attr spec (ast (attribute groups.spec) (attribute info.spec))))
 
 (define-syntax-class language-spec
   #:description "language specification"
