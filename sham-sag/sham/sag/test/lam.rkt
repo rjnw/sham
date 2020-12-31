@@ -2,7 +2,8 @@
 
 (require sham/sag/ast
          sham/sag/custom
-         sham/sag/runtime)
+         sham/sag/runtime
+         (for-syntax sham/sag/spec))
 
 (define-ast LC
   (expr
@@ -31,17 +32,21 @@
 (module+ test
   (begin-for-syntax
     (require racket/pretty)
-    (pretty-print (syntax-local-value #`LC)))
-  (define lr (LC:expr:letrec '(a b c) '(1 2 3) 'd))
+    (require racket)
+    (printf "syntax-value:LC\n")
+    (define-values (lcv _) (syntax-local-value/immediate #`LC))
+    (pretty-print (list (ast-id lcv) (ast-sid lcv) (ast-groups lcv) (ast-info lcv))))
+
+  ;; (define lr (LC:expr:letrec '(a b c) '(1 2 3) 'd))
   ;; (define parsed-letrec ($LC:expr (letrec ((a 1) (b 2) (c 3)) (app (sym +) a b c))))
   ;; (define parsed-expr ($LC:expr (letrec ((a 1) (b 2) (c 3)) (app (sym +) 1 2 3))))
   ;; (printf "LC:")
   ;; (pretty-print parsed-letrec)
 
-  (define-transformation
-    constant-fold (LC:expr -> LC:expr)
-    [(app (sym +) (num a) (num a))
-     (num (+ a b))])
+  ;; (define-transformation
+  ;;   constant-fold (LC:expr -> LC:expr)
+  ;;   [(app (sym +) (num a) (num a))
+  ;;    (num (+ a b))])
 
   #;(define-reduction
       total-letrec LC:expr

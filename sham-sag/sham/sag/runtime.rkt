@@ -5,7 +5,14 @@
 
 (provide (all-defined-out))
 
+(begin-for-syntax
+  (struct sab-ast [orig-id temp-id spec]
+    #:property prop:rename-transformer 1))
+
 (struct ast-metadata [loc])
+
+(struct ast [md])
+
 (define-generics term
   ;; gmap-t : (-> a (-> b ... c)) (-> x b) a)
   ;; ((ff term) ((f <term-internal-args>) ...))

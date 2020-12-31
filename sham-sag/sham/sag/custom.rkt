@@ -10,25 +10,26 @@
 
 (provide (all-defined-out))
 
+
 (begin-for-syntax
 
   #;(struct ast-generic-map-builder [aid as]
-     #:methods gen:ast-builder
-     [(define (build-group-methods ab fmt gs)
-        #f)
-      (define (build-group-generics ab fmt gs) #f)
-      (define (build-node-methods ab fmt gs ns)
-        (let* ([ast-spec (ast-generic-map-builder-as ab)]
-               [nid ]
-               [pargs (group-args ast-spec gs)]
-               [nargs (node-args ns)]
-               [full-args (append (map car pargs) nargs)])
-          (list
-           #`#:methods #`gen:term
-           (with-syntax ([(args ...) full-args])
-             #`((define (gmap-t ff f v)
-                  (match v [(#,nid args ...)
-                            ((ff v) (f args) ...)])))))))])
+      #:methods gen:ast-builder
+      [(define (build-group-methods ab fmt gs)
+         #f)
+       (define (build-group-generics ab fmt gs) #f)
+       (define (build-node-methods ab fmt gs ns)
+         (let* ([ast-spec (ast-generic-map-builder-as ab)]
+                [nid ]
+                [pargs (group-args ast-spec gs)]
+                [nargs (node-args ns)]
+                [full-args (append (map car pargs) nargs)])
+           (list
+            #`#:methods #`gen:term
+            (with-syntax ([(args ...) full-args])
+              #`((define (gmap-t ff f v)
+                   (match v [(#,nid args ...)
+                             ((ff v) (f args) ...)])))))))])
 
   #;(struct ast-map-builder [ast-id ast-spec]
       #:methods gen:ast-builder

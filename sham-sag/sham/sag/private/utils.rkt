@@ -2,15 +2,23 @@
 
 (require syntax/parse)
 (require "spec.rkt"
-         "syntax-class.rkt")
+         "syntax-class.rkt"
+         (for-template racket))
 
 (provide (all-defined-out))
 
+(define (info->hash i)
+  (define (combine ls)              ;; ((1 . a) (1 . b)) => (1 a b)
+    (cons (caar ls)
+          (map cdr ls)))
+  (make-hash (map combine (group-by car i))))
+
 (define (info-values infos key)
-  (map syntax->list
-       (map cdr
-            (filter (λ (kvp) (equal? (syntax->datum (car kvp)) key))
-                    infos))))
+  (cond [(list? infos) (map cdr
+                            (filter (λ (kvp) (equal? (car kvp) key))
+                                    infos))]
+        [(hash? infos) (hash-ref infos key '())]))
+
 (define (info-value infos key)
   (define vs (info-values infos key))
   (cond
@@ -20,7 +28,7 @@
 (define (map-pat pat f-single f-datum f-multiple f-repeat)
     (define (rec pat)
       (match pat
-        [(ast:pat:single type s) (f-single s)]
+        [(ast:pat:single t s) (f-single s)]
         [(ast:pat:datum d) (f-datum d)]
         [(ast:pat:checker c s) (f-single s)]
         [(ast:pat:multiple s) (f-multiple (map rec s))]
@@ -55,31 +63,3 @@
 ;; -> (maybe/c (list/c syntax))
 (define (node-args node-spec)
   (flatten (map-pat (ast:node-pattern node-spec) identity (const '()) append identity)))
-
-(define (spec->storage top-id ast-spec)
-  (define (ki i)
-    #`(list #,@(map (λ (kv) #`(cons `#,(car kv) (list #,@(map (lambda (v) #`#'#,v) (syntax->list (cdr kv)))))) i)))
-  (define (storage spec)
-    (match spec
-      [(ast groups info)
-       #`(ast #,(if (hash? groups)
-                    #`(make-hash (list
-                                  #,@(for/list ([(gn gs) groups])
-                                       #`(cons #'#,gn #,(storage gs)))))
-                    #`(list #,@(map storage groups)))
-              #,(ki info))]
-      [(ast:group id parent nodes info)
-       #`(ast:group #'#,id #,(if parent #'#,parent #`#f) (list #,@(map storage nodes)) #,(ki info))]
-      [(ast:node id pat info)
-       #`(ast:node #'#,id #,(storage pat) #,(ki info))]
-      [(ast:pat:single type id)
-       #`(ast:pat:single #'#,type #'#,id)]
-      [(ast:pat:datum syn)
-       #`(ast:pat:datum `#,syn)]
-      [(ast:pat:multiple specs)
-       #`(ast:pat:multiple (list #,@(map storage specs)))]
-      [(ast:pat:repeat spec)
-       #`(ast:pat:repeat #,(storage spec))]
-      [(ast:pat:checker check id)
-       #`(ast:pat:checker #'#,check #'#,id)]))
-  (storage ast-spec))

@@ -14,11 +14,11 @@
   (format-node-id id-formatter group-spec node-spec)
   (format-node-args id-formatter group-spec node-spec))
 
-(struct rkt-struct-formatter
+(struct basic-id-formatter
     [top-id spec group-seperator node-seperator]
     #:methods gen:id-formatter
   [(define (format-group-id af gs)
-     (match-define (rkt-struct-formatter id spec gsep nsep) af)
+     (match-define (basic-id-formatter id spec gsep nsep) af)
      (match-define (ast:group gname gparent gnodes ginfo) gs)
      (cond
        [(lookup-group-spec spec gparent)
@@ -27,7 +27,7 @@
           (format-id gname "~a~a~a" p gsep gname))]
        [else (format-id gname "~a~a~a" id gsep gname)]))
    (define (format-group-args af gs)
-     (match-define (rkt-struct-formatter id spec gsep nsep) af)
+     (match-define (basic-id-formatter id spec gsep nsep) af)
      (match-define (ast:group gname gparent gnodes ginfo) gs)
      (define (format-arg c)
        (syntax-parse c
@@ -39,7 +39,7 @@
                #,@(if if-mutable (list #`#:mutable) `()))]))
      (map format-arg (info-values ginfo `#:common)))
    (define (format-node-id af gs ns)
-     (match-define (rkt-struct-formatter id spec gsep nsep) af)
+     (match-define (basic-id-formatter id spec gsep nsep) af)
      (format-id (ast:node-id ns) "~a~a~a" (format-group-id af gs) nsep (ast:node-id ns)))
    (define (format-node-args af gs ns)
      (match (ast:node-pattern ns)

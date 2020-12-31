@@ -8,7 +8,8 @@
 
 (define-splicing-syntax-class keyword-value
   (pattern (~seq k:keyword v:expr ...)
-           #:attr spec (cons #`k #`(v ...))))
+           #:attr spec (cons (string->symbol (keyword->string (syntax->datum #`k)))
+                             (syntax->list #`(v ...)))))
 (define-splicing-syntax-class keyword-info
   (pattern (~seq ki:keyword-value ...)
            #:attr spec (attribute ki.spec)))

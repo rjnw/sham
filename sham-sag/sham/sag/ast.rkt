@@ -10,7 +10,8 @@
   "generics.rkt"
   syntax/parse
   racket/syntax
-  racket/pretty))
+  racket/pretty)
+ "runtime.rkt")
 
 (provide define-ast)
 
@@ -18,77 +19,75 @@
   (require racket)
   (require syntax/datum)
 
-  (define (spec:private->public aid pspec formatter)
-    (define (build-group-assoc spec)
-      (match spec
-        [`(,groups ...)
-         (map build-group-assoc groups)]
-        [(pub:ast:group name syn-id parent cargs nodes meta-info)
-         (cons (syntax->datum name) spec)]))
+  (define (spec:private->public aid sid pspec formatter)
 
-    (define (rec s)
+    (define (do-group s)
       (match s
-        [(ast gs inf) (pub:ast aid (make-hash (build-group-assoc (map rec gs))) inf)]
         [(ast:group id parent nodes info)
          (let* ([syn-id (format-group-id formatter s)]
                 [group-args (format-group-args formatter s)]
                 [group-args-assoc (map (λ (n) (cons n #f)) group-args)])
-           (define (rec-node ns)
+           (define (do-node ns)
              (match ns
                [(ast:node id pattern info)
                 (let* ([node-id (format-node-id formatter s ns)]
                        [node-args (format-node-args formatter s ns)]
                        [node-arg-type-assoc (map (λ (n) (cons n #f)) node-args)])
-                  (pub:ast:node id node-id node-arg-type-assoc pattern info))]))
-           (pub:ast:group id syn-id parent group-args (map rec-node nodes) info))]))
-    (rec pspec))
+                  (cons (syntax->datum id)
+                        (pub:ast:node id node-id node-arg-type-assoc pattern (info->hash info))))]))
+           (cons (syntax->datum id)
+                 (pub:ast:group id syn-id parent group-args (make-hash (map do-node nodes)) (info->hash info))))]))
+    (match pspec
+      [(ast gs inf)
+       (pub:ast aid sid (make-hash (map do-group gs)) (info->hash inf))]))
 
   (define (build-syntax ast-id raw-ast-spec)
+    (define temp-ast-id (generate-temporary ast-id))
 
     (define formatter
-      (cond [(info-value (ast-info raw-ast-spec) `#:format) => (λ (f) ((syntax-local-value f) ast-id ast-spec))]
-            [else (rkt-struct-formatter ast-id raw-ast-spec #`: #`:)]))
-    (define ast-spec (spec:private->public ast-id raw-ast-spec formatter))
+      (cond [(info-value (ast-info raw-ast-spec) `format) => (λ (f) ((syntax-local-value f) ast-id raw-ast-spec))]
+            [else (basic-id-formatter ast-id raw-ast-spec #`: #`:)]))
+    (define ast-spec (spec:private->public ast-id temp-ast-id raw-ast-spec formatter))
+    (define constructor
+      (cond [(info-value (pub:ast-info ast-spec) `constructor) => (λ (f) ((syntax-local-value f) ast-spec))]
+            [else (rkt-ast-constructor ast-spec)]))
 
     (define gens (flatten
                   (map (λ (g) ((syntax-local-value g) ast-spec))
-                       (info-value (ast-info raw-ast-spec) `#:with))))
+                       (info-value (ast-info raw-ast-spec) `with))))
     ;; list of structures producing generics/methods for groups and nodes
     (define (map-gen f) (append* (filter identity (map f gens))))
+    (define (fold-gen f base) (foldr f base gens))
 
+    (define top-struct (fold-gen (curryr build-top-struct ast-spec)
+                                 (construct-top-struct constructor ast-spec)))
     (define (group-def group-spec)
-      (match-define (pub:ast:group gid gsyn-id parent gargs-assoc nodes info) group-spec)
-
       (define (node-def node-spec)
-        (match-define (pub:ast:node nid nsyn-id nargs-assoc pat info) node-spec)
+        (cons (fold-gen (curryr build-node-struct ast-spec group-spec node-spec)
+                        (construct-node-struct constructor ast-spec group-spec node-spec))
+              (map-gen (curryr build-node-extra ast-spec group-spec node-spec))))
+      (define node-defs (append-map node-def (pub:group-nodes group-spec)))
 
-        (define struct-syntax
-          (for/fold [(syn #`(struct #,nsyn-id #,gsyn-id #,(map car nargs-assoc)))]
-                    [(g gens)]
-            (build-node-struct g syn group-spec node-spec)))
-        (define extra-syntax (map-gen (curryr build-node-extra group-spec node-spec)))
-        (cons struct-syntax extra-syntax))
-      (define node-defs (append-map node-def nodes))
-
-      (define struct-syntax
-        (for/fold [(syn #`(struct #,gsyn-id #,@(if parent (list parent) (list))
-                            #,(map car gargs-assoc)))]
-                  [(g gens)]
-          (build-group-struct g syn group-spec)))
-      (define extra-syntax (map-gen (curryr build-group-extra group-spec)))
+      (define struct-syntax (fold-gen (curryr build-group-struct ast-spec group-spec)
+                                      (construct-group-struct constructor ast-spec group-spec)))
+      (define extra-syntax (map-gen (curryr build-group-extra ast-spec group-spec)))
       (append (cons struct-syntax extra-syntax) node-defs))
-    (append-map group-def (hash-values (pub:ast-groups ast-spec)))))
+    (values
+     (map ->syntax
+          (cons top-struct
+                 (append-map group-def (hash-values (pub:ast-groups ast-spec)))))
+     ast-spec)))
 
 (define-syntax (define-ast stx)
   (syntax-parse stx
     [(_ cid:id gs:ast-spec)
-     (define ast-spec (attribute gs.spec))
-     (define struct-syntax (build-syntax #`cid ast-spec))
-     (define storage (spec->storage #`cid ast-spec))
+     (define-values (ast-syntaxes ast-spec) (build-syntax #`cid (attribute gs.spec)))
+     (pretty-display ast-spec)
+     (define spec-storage (pub:spec->storage ast-spec))
      (parameterize ([pretty-print-columns 80])
-       (pretty-display ast-spec)
-       (pretty-print (map syntax->datum struct-syntax))
-       (pretty-print (syntax->datum storage)))
+       (printf "syntax:\n")
+       (pretty-print (map syntax->datum ast-syntaxes))
+       (pretty-print (syntax->datum spec-storage)))
      #`(begin
-         (define-syntax cid #,storage)
-         #,@struct-syntax)]))
+         (define-syntax cid #,spec-storage)
+         #,@ast-syntaxes)]))
