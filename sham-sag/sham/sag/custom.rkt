@@ -1,35 +1,38 @@
 #lang racket
 
 (require
- (for-syntax
-  "generics.rkt"
-  syntax/parse
-  racket/syntax
-  racket/pretty)
+ (for-syntax "generics.rkt"
+             "spec.rkt"
+             syntax/parse
+             racket/syntax
+             racket/pretty)
  "runtime.rkt")
 
-(provide (all-defined-out))
+(provide map-generic sexp-printer)
 
 
 (begin-for-syntax
+  (define (ast-struct-rkt:add-generic-method asr gen-id gen-methods)
+    (update-ast-struct-rkt-option asr methods (λ (ms) (append ms (list gen-id gen-methods))) '()))
 
-  #;(struct ast-generic-map-builder [aid as]
-      #:methods gen:ast-builder
-      [(define (build-group-methods ab fmt gs)
-         #f)
-       (define (build-group-generics ab fmt gs) #f)
-       (define (build-node-methods ab fmt gs ns)
-         (let* ([ast-spec (ast-generic-map-builder-as ab)]
-                [nid ]
-                [pargs (group-args ast-spec gs)]
-                [nargs (node-args ns)]
-                [full-args (append (map car pargs) nargs)])
-           (list
-            #`#:methods #`gen:term
-            (with-syntax ([(args ...) full-args])
-              #`((define (gmap-t ff f v)
-                   (match v [(#,nid args ...)
-                             ((ff v) (f args) ...)])))))))])
+  (struct ast-generic-map-builder []
+    #:methods gen:ast-builder
+    [(define (build-top-struct ab tstruct as) tstruct)
+     (define (build-group-struct ab gstruct as gs) gstruct)
+     (define (build-group-extra ab gextra as gs) gextra)
+     (define (build-node-struct ab nstruct as gs ns)
+       (let* ([gen-id #`gen:term]
+              [nid (ast:node-syn-id ns)]
+              [full-args (map car (append (ast:group-args-assoc gs)
+                                          (ast:node-args-assoc ns)))]
+              [gen-syntax
+               (with-syntax ([(args ...) full-args])
+                 #`((define (gmap-t ff f v)
+                      (match v [(#,nid md args ...)
+                                ((ff v) md (f args) ...)]))))])
+         (ast-struct-rkt:add-generic-method nstruct gen-id gen-syntax)))
+     (define (build-node-extra ab nextra as gs ns) nextra)])
+  (define ast-gmap-builder (ast-generic-map-builder))
 
   #;(struct ast-map-builder [ast-id ast-spec]
       #:methods gen:ast-builder
@@ -71,7 +74,7 @@
            `(,@res ,#`#:methods ,(car g) ,(cdr g))))]))
 
 (define-syntax (map-generic ast-spec)
-  #f)
+  ast-gmap-builder)
 
 (define-syntax (sexp-printer ast-spec)
   #f)

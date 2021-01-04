@@ -54,7 +54,7 @@
 
     (define gens (flatten
                   (map (λ (g) ((syntax-local-value g) ast-spec))
-                       (info-value (ast-info raw-ast-spec) `with))))
+                       (info-value (ast-info raw-ast-spec) `with '()))))
     ;; list of structures producing generics/methods for groups and nodes
     (define (map-gen f) (append* (filter identity (map f gens))))
     (define (fold-gen f base) (foldr f base gens))
@@ -65,12 +65,14 @@
       (define (node-def node-spec)
         (cons (fold-gen (curryr build-node-struct ast-spec group-spec node-spec)
                         (construct-node-struct constructor ast-spec group-spec node-spec))
-              (map-gen (curryr build-node-extra ast-spec group-spec node-spec))))
+              (fold-gen (curryr build-node-extra ast-spec group-spec node-spec)
+                        empty)))
       (define node-defs (append-map node-def (pub:group-nodes group-spec)))
 
       (define struct-syntax (fold-gen (curryr build-group-struct ast-spec group-spec)
                                       (construct-group-struct constructor ast-spec group-spec)))
-      (define extra-syntax (map-gen (curryr build-group-extra ast-spec group-spec)))
+      (define extra-syntax (fold-gen (curryr build-group-extra ast-spec group-spec)
+                                     empty))
       (append (cons struct-syntax extra-syntax) node-defs))
     (values
      (map ->syntax
@@ -82,12 +84,10 @@
   (syntax-parse stx
     [(_ cid:id gs:ast-spec)
      (define-values (ast-syntaxes ast-spec) (build-syntax #`cid (attribute gs.spec)))
-     (pretty-display ast-spec)
      (define spec-storage (pub:spec->storage ast-spec))
-     (parameterize ([pretty-print-columns 80])
-       (printf "syntax:\n")
-       (pretty-print (map syntax->datum ast-syntaxes))
-       (pretty-print (syntax->datum spec-storage)))
-     #`(begin
-         (define-syntax cid #,spec-storage)
-         #,@ast-syntaxes)]))
+     (define stx
+       #`(begin
+           (define-syntax cid #,spec-storage)
+           #,@ast-syntaxes))
+     ;; (pretty-print (syntax->datum stx))
+     stx]))

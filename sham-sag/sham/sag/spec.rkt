@@ -7,7 +7,7 @@
 (struct ast (id sid groups info)
   #:property prop:rename-transformer 1)
 
-(struct ast:group (id syn-id parent common-args nodes info) #:prefab)
+(struct ast:group (id syn-id parent args-assoc nodes info) #:prefab)
 (struct ast:node (id syn-id args-assoc pattern info) #:prefab)
 
 (struct ast:type () #:prefab)
@@ -19,6 +19,7 @@
   (cond [(syntax? group-id) (hash-ref (ast-groups ast-spec) (syntax->datum group-id))]
         [(symbol? group-id) (hash-ref (ast-groups ast-spec) group-id)]
         [else #f]))
+
 (define (spec->storage spec)
   (define (assoc-storage a key-storage value-storage)
     #`(list #,@(for/list ([v a])

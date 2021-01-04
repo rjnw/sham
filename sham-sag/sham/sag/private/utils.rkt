@@ -19,11 +19,11 @@
                                     infos))]
         [(hash? infos) (hash-ref infos key '())]))
 
-(define (info-value infos key)
+(define (info-value infos key (dflt #f))
   (define vs (info-values infos key))
   (cond
     [(cons? vs) (car vs)]
-    [(empty? vs) #f]))
+    [(empty? vs) dflt]))
 
 (define (map-pat pat f-single f-datum f-multiple f-repeat)
     (define (rec pat)
