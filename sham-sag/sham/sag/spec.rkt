@@ -7,11 +7,18 @@
 (struct ast (id sid groups info)
   #:property prop:rename-transformer 1)
 
-(struct ast:group (id syn-id parent args-assoc nodes info) #:prefab)
-(struct ast:node (id syn-id args-assoc pattern info) #:prefab)
+(struct ast:group (id syn-id parent args nodes info) #:prefab)
+(struct ast:group:arg (id syn-id type info) #:prefab)
+(struct ast:node (id syn-id args pattern info) #:prefab)
+(struct ast:node:arg (id syn-id type info) #:prefab)
 
 (struct ast:type () #:prefab)
 (struct ast:type:metadata ast:type () #:prefab)
+(struct ast:type:internal ast:type (of depth) #:prefab)
+(struct ast:type:external ast:type (of depth) #:prefab)
+(struct ast:type:identifier ast:type () #:prefab)
+(struct ast:type:unboxed ast:type (of) #:prefab)
+
 
 (define (group-nodes gs)
   (hash-values (ast:group-nodes gs)))

@@ -19,25 +19,42 @@
   (require racket)
   (require syntax/datum)
 
-  (define (spec:private->public aid sid pspec formatter)
-
-    (define (do-group s)
-      (match s
+  (define (spec:private->public aid sid ps formatter)
+    (define (do-group gs)
+      (match gs
         [(ast:group id parent nodes info)
-         (let* ([syn-id (format-group-id formatter s)]
-                [group-args (format-group-args formatter s)]
-                [group-args-assoc (map (λ (n) (cons n #f)) group-args)])
+         (define (do-group-args args)
+           (for/list ([arg args])
+             (syntax-parse arg
+               [i:identifier
+                (pub:ast:group:arg #`i (format-group-arg #`i ps gs) (type-from-syntax #`i) '())]
+               [(i:identifier ki:keyword-info)
+                (pub:ast:group:arg #`i (format-group-arg #`i ps gs) (type-from-syntax #`i) (attribute ki.spec))
+                ;; (define if-default (info-value (attribute ki.spec) `#:default))
+                ;; (define if-mutable (info-value (attribute ki.spec) `#:mutable))
+                ;; #`(i #,@(if if-default (list #`#:auto) `())
+                ;;      #,@(if if-mutable (list #`#:mutable) `()))
+                ])))
+         (let* ([syn-id (format-group formatter id ps gs)]
+                [group-args (do-group-args (info-values info `#:common))])
            (define (do-node ns)
+             (define (do-node-args pat (depth 0))
+               (define (format-arg s) (format-node-arg formatter s ps gs ns))
+               (match pat
+                 [(ast:pat:single t s) (pub:ast:node:arg s (format-arg s) (type-from-syntax s depth) #f)]
+                 [(ast:pat:datum d) #f]
+                 [(ast:pat:checker c s) (ast:node:arg s (format-arg s) (ast:type:external c depth) #f)]
+                 [(ast:pat:multiple s) (map (curryr do-node-args depth) s)]
+                 [(ast:pat:repeat r) (do-node-args r (add1 depth))]))
              (match ns
                [(ast:node id pattern info)
-                (let* ([node-id (format-node-id formatter s ns)]
-                       [node-args (format-node-args formatter s ns)]
-                       [node-arg-type-assoc (map (λ (n) (cons n #f)) node-args)])
+                (let* ([node-id (format-node formatter id ps gs ns)]
+                       [node-args (filter (compose not false?) (do-node-args pattern))])
                   (cons (syntax->datum id)
-                        (pub:ast:node id node-id node-arg-type-assoc pattern (info->hash info))))]))
+                        (pub:ast:node id node-id node-arg pattern (info->hash info))))]))
            (cons (syntax->datum id)
                  (pub:ast:group id syn-id parent group-args (make-hash (map do-node nodes)) (info->hash info))))]))
-    (match pspec
+    (match ps
       [(ast gs inf)
        (pub:ast aid sid (make-hash (map do-group gs)) (info->hash inf))]))
 
@@ -45,8 +62,8 @@
     (define temp-ast-id (generate-temporary ast-id))
 
     (define formatter
-      (cond [(info-value (ast-info raw-ast-spec) `format) => (λ (f) ((syntax-local-value f) ast-id raw-ast-spec))]
-            [else (basic-id-formatter ast-id raw-ast-spec #`: #`:)]))
+      (cond [(info-value (ast-info raw-ast-spec) `#:format) => (λ (f) ((syntax-local-value f) ast-id))]
+            [else (basic-id-formatter ast-id #`: #`:)]))
     (define ast-spec (spec:private->public ast-id temp-ast-id raw-ast-spec formatter))
     (define constructor
       (cond [(info-value (pub:ast-info ast-spec) `constructor) => (λ (f) ((syntax-local-value f) ast-spec))]

@@ -9,16 +9,16 @@
 (provide (all-defined-out))
 
 (define-generics id-formatter
-  (format-group-id id-formatter group-spec)
-  (format-group-args id-formatter group-spec)
-  (format-node-id id-formatter group-spec node-spec)
-  (format-node-args id-formatter group-spec node-spec))
+  (format-group id-formatter id top-spec group-spec)
+  (format-group-arg id-formatter id top-spec group-spec)
+  (format-node id-formatter id top-spec group-spec node-spec)
+  (format-node-arg id-formatter id top-spec group-spec node-spec))
 
 (struct basic-id-formatter
-    [top-id spec group-seperator node-seperator]
+    [top-id group-seperator node-seperator]
     #:methods gen:id-formatter
-  [(define (format-group-id af gs)
-     (match-define (basic-id-formatter id spec gsep nsep) af)
+  [(define (format-group-id af id ps gs)
+     (match-define (basic-id-formatter id gsep nsep) af)
      (match-define (ast:group gname gparent gnodes ginfo) gs)
      (cond
        [(lookup-group-spec spec gparent)

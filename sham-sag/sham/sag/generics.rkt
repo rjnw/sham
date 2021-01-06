@@ -23,7 +23,6 @@
    [list?
     (define/generic to-syntax ->syntax)
     (define (->syntax c)
-      (printf "default:->syntax ~a\n" c)
       (map to-syntax (filter (compose not false?) c)))]))
 
 ;; extras is a list of syntax build-*-extra is called with a fold on the list
@@ -47,7 +46,6 @@
   [(define/generic to-syntax ->syntax)
    (define (->syntax asr)
      (match-define (ast:struct:rkt name maybe-parent fields options) asr)
-     (printf "->syntax ~a ~a ~a ~a\n" name maybe-parent fields options)
      #`(struct #,name #,@(if maybe-parent (list maybe-parent) (list))
          #,(for/list ([a fields])
              (match a
