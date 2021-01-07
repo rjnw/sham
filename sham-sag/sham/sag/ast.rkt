@@ -27,31 +27,35 @@
            (for/list ([arg args])
              (syntax-parse arg
                [i:identifier
-                (pub:ast:group:arg #`i (format-group-arg #`i ps gs) (type-from-syntax #`i) '())]
+                (pub:ast:group:arg #`i (format-group-arg-id #`i ps gs) (type-from-id #`i) '())]
                [(i:identifier ki:keyword-info)
-                (pub:ast:group:arg #`i (format-group-arg #`i ps gs) (type-from-syntax #`i) (attribute ki.spec))
+                (pub:ast:group:arg #`i (format-group-arg-id #`i ps gs) (type-from-id #`i) (attribute ki.spec))
                 ;; (define if-default (info-value (attribute ki.spec) `#:default))
                 ;; (define if-mutable (info-value (attribute ki.spec) `#:mutable))
                 ;; #`(i #,@(if if-default (list #`#:auto) `())
                 ;;      #,@(if if-mutable (list #`#:mutable) `()))
                 ])))
-         (let* ([syn-id (format-group formatter id ps gs)]
+         (let* ([syn-id (format-group-id formatter id ps gs)]
                 [group-args (do-group-args (info-values info `#:common))])
            (define (do-node ns)
              (define (do-node-args pat (depth 0))
-               (define (format-arg s) (format-node-arg formatter s ps gs ns))
+               (define (format-arg s) (format-node-arg-id formatter s ps gs ns))
+               (define (build-type s)
+                 (match (type-from-id s)
+                   [`("!") (pub:ast:type:external (id-without-type s) depth)]
+                   [t (pub:ast:type:internal t depth)]))
                (match pat
-                 [(ast:pat:single t s) (pub:ast:node:arg s (format-arg s) (type-from-syntax s depth) #f)]
-                 [(ast:pat:datum d) #f]
-                 [(ast:pat:checker c s) (ast:node:arg s (format-arg s) (ast:type:external c depth) #f)]
-                 [(ast:pat:multiple s) (map (curryr do-node-args depth) s)]
+                 [(ast:pat:single t s) (list (pub:ast:node:arg s (format-arg s) (build-type s) #f))]
+                 [(ast:pat:datum d) (list #f)]
+                 [(ast:pat:checker c s) (list (pub:ast:node:arg s (format-arg s) (pub:ast:type:external c depth) #f))]
+                 [(ast:pat:multiple s) (append-map (curryr do-node-args depth) s)]
                  [(ast:pat:repeat r) (do-node-args r (add1 depth))]))
              (match ns
                [(ast:node id pattern info)
-                (let* ([node-id (format-node formatter id ps gs ns)]
+                (let* ([node-id (format-node-id formatter id ps gs ns)]
                        [node-args (filter (compose not false?) (do-node-args pattern))])
                   (cons (syntax->datum id)
-                        (pub:ast:node id node-id node-arg pattern (info->hash info))))]))
+                        (pub:ast:node id node-id node-args pattern (info->hash info))))]))
            (cons (syntax->datum id)
                  (pub:ast:group id syn-id parent group-args (make-hash (map do-node nodes)) (info->hash info))))]))
     (match ps

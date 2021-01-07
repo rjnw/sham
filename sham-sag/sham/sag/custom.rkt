@@ -22,9 +22,10 @@
      (define (build-group-extra ab gextra as gs) gextra)
      (define (build-node-struct ab nstruct as gs ns)
        (let* ([gen-id #`gen:term]
-              [nid (ast:node-syn-id ns)]
-              [full-args (map car (append (ast:group-args-assoc gs)
-                                          (ast:node-args-assoc ns)))]
+              [nid (ast:basic-syn-id ns)]
+              [full-args (map ast:basic-syn-id
+                              (append (ast:group-args gs)
+                                      (ast:node-args ns)))]
               [gen-syntax
                (with-syntax ([(args ...) full-args])
                  #`((define (gmap-t ff f v)

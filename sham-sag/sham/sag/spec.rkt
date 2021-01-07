@@ -4,13 +4,14 @@
 (provide (all-defined-out)
          (all-from-out (submod "private/spec.rkt" pattern)))
 
-(struct ast (id sid groups info)
+(struct ast (id syn-id groups info)
   #:property prop:rename-transformer 1)
 
-(struct ast:group (id syn-id parent args nodes info) #:prefab)
-(struct ast:group:arg (id syn-id type info) #:prefab)
-(struct ast:node (id syn-id args pattern info) #:prefab)
-(struct ast:node:arg (id syn-id type info) #:prefab)
+(struct ast:basic (id syn-id) #:prefab)
+(struct ast:group ast:basic (parent args nodes info) #:prefab)
+(struct ast:group:arg ast:basic (type info) #:prefab)
+(struct ast:node ast:basic (args pattern info) #:prefab)
+(struct ast:node:arg ast:basic (type info) #:prefab)
 
 (struct ast:type () #:prefab)
 (struct ast:type:metadata ast:type () #:prefab)
@@ -28,6 +29,8 @@
         [else #f]))
 
 (define (spec->storage spec)
+  (define (list-storage l item-storage)
+    #`(list #,@(map item-storage l)))
   (define (assoc-storage a key-storage value-storage)
     #`(list #,@(for/list ([v a])
                  (match-define (cons key value) v)
@@ -43,8 +46,23 @@
             [(symbol? v) #`'#,v]
             [(list? v) #`(list #,@(map info-value v))]
             [(false? v) #`#f]))
-    (hash-storage info datum-storage info-value))
+    (if info
+        (hash-storage info datum-storage info-value)
+        #`#f))
   (define (type-storage type) #`#f)
+  (define (arg-storage a)
+    (match a
+      [(ast:group:arg id syn-id type info)
+       #`(ast:group:arg #,(syntax-storage id)
+                        #,(syntax-storage syn-id)
+                        #,(type-storage type)
+                        #,(info-storage info))]
+      [(ast:node:arg id syn-id type info)
+       #`(ast:node:arg #,(syntax-storage id)
+                       #,(syntax-storage syn-id)
+                       #,(type-storage type)
+                       #,(info-storage info))]))
+
   (define (group-storage group)
     (match-define (ast:group gid gsyn gparent gargs gnodes ginfo) group)
     (define (node-storage node)
@@ -62,11 +80,11 @@
            #`(ast:pat:checker #'#,check #'#,id)]))
       (match-define (ast:node nid nsyn nargs npat ninfo) node)
       #`(ast:node #'#,nid #'#,nsyn
-                  #,(assoc-storage nargs syntax-storage type-storage)
+                  #,(list-storage nargs arg-storage)
                   #,(pattern-storage npat)
                   #,(info-storage ninfo)))
     #`(ast:group #'#,gid #'#,gsyn #'#,gparent
-                 #,(assoc-storage gargs syntax-storage type-storage)
+                 #,(list-storage gargs arg-storage)
                  #,(hash-storage gnodes syntax-storage node-storage)
                  #,(info-storage ginfo)))
   (match-define (ast id sid groups info) spec)

@@ -63,3 +63,17 @@
 ;; -> (maybe/c (list/c syntax))
 (define (node-args node-spec)
   (flatten (map-pat (ast:node-pattern node-spec) identity (const '()) append identity)))
+
+(define (split-identifier syn)
+  (define back-to-syn (compose (curry datum->syntax syn) string->symbol))
+  (match (symbol->string (syntax->datum syn))
+    [(regexp #rx"^!(.*)$" (list _ checker)) (list (back-to-syn checker) '!)]
+    [s
+     (match (string-split s ":")
+       [(list id type)
+        (map back-to-syn
+             (cons id (string-split type ".")))]
+       [(list id) (list (back-to-syn id))])]))
+
+(define id-without-type (compose car split-identifier))
+(define type-from-id (compose cdr split-identifier))
