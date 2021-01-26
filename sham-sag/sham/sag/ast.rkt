@@ -45,7 +45,7 @@
                    [`("!") (pub:ast:type:external (id-without-type s) depth)]
                    [t (pub:ast:type:internal t depth)]))
                (match pat
-                 [(ast:pat:single t s) (list (pub:ast:node:arg s (format-arg s) (build-type s) #f))]
+                 [(ast:pat:single s) (list (pub:ast:node:arg s (format-arg s) (build-type s) #f))]
                  [(ast:pat:datum d) (list #f)]
                  [(ast:pat:checker c s) (list (pub:ast:node:arg s (format-arg s) (pub:ast:type:external c depth) #f))]
                  [(ast:pat:multiple s) (append-map (curryr do-node-args depth) s)]
@@ -71,7 +71,7 @@
     (define ast-spec (spec:private->public ast-id temp-ast-id raw-ast-spec formatter))
     (define constructor
       (cond [(info-value (pub:ast-info ast-spec) `constructor) => (λ (f) ((syntax-local-value f) ast-spec))]
-            [else (rkt-ast-constructor ast-spec)]))
+            [else (rkt-ast-struct-constructor ast-spec)]))
 
     (define gens (flatten
                   (map (λ (g) ((syntax-local-value g) ast-spec))
@@ -110,5 +110,5 @@
        #`(begin
            (define-syntax cid #,spec-storage)
            #,@ast-syntaxes))
-     ;; (pretty-print (syntax->datum stx))
+     (pretty-print (syntax->datum stx))
      stx]))

@@ -6,7 +6,7 @@
 
 (module pattern racket
   (provide (all-defined-out))
-  (struct ast:pat:single   (type id) #:prefab)
+  (struct ast:pat:single   (id) #:prefab)
   (struct ast:pat:datum    (syn) #:prefab)
   (struct ast:pat:multiple (specs) #:prefab)
   (struct ast:pat:repeat   (spec) #:prefab)

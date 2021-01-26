@@ -30,7 +30,8 @@
     (require racket)
     (printf "syntax-value:LC\n")
     (define-values (lcv _) (syntax-local-value/immediate #`LC))
-    (pretty-print (list (ast-id lcv) (ast-syn-id lcv) (ast-groups lcv) (ast-info lcv)))
+    (pretty-print (pretty-spec lcv))
+    ;; (pretty-print (list (ast-id lcv) (ast-syn-id lcv) (ast-groups lcv) (ast-info lcv)))
     )
 
   (define lr (LC:expr:letrec #f '(a b c) '(1 2 3) 'd))
