@@ -6,15 +6,16 @@
          (for-template racket))
 
 (require "spec.rkt"
-         (for-template (prefix-in rt: "runtime.rkt")))
+         (for-template
+          (prefix-in rt: "runtime.rkt" )
+          (prefix-in rt: "match.rkt")))
 
 (provide (all-defined-out))
 
 (define-generics ast-struct-constructor
   (construct-top-struct ast-struct-constructor ast-spec)
   (construct-group-struct ast-struct-constructor ast-spec group-spec)
-  (construct-node-struct ast-struct-constructor ast-spec group-spec node-spec)
-  (pattern-match-expander ast-struct-constructor ast-pattern))
+  (construct-node-struct ast-struct-constructor ast-spec group-spec node-spec))
 
 (define-generics ast-construct
   (->syntax ast-construct)
@@ -87,50 +88,34 @@
      (ast-struct-rkt sid #`rt:ast:term `() (reflection-name #``#,id)))
    (define (construct-group-struct arc as gs)
      (match-define (ast top-id syn-id groups top-info) as)
-     (match-define (ast:group gid gsyn-id parent gargs nodes info) gs)
-     (ast-struct-rkt gsyn-id (or parent syn-id) (map ast:basic-syn-id gargs)))
+     (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes info) gs)
+     (ast-struct-rkt gid-t (or parent syn-id) `() (reflection-name #``#,gsyn-id)))
    (define (construct-node-struct arc as gs ns)
-     (match-define (ast:group gid gsyn-id parent gargs nodes ginfo) gs)
-     (match-define (ast:node nid nsyn-id nargs pat ninfo) ns)
-     (ast-struct-rkt nsyn-id gsyn-id (map ast:basic-syn-id nargs)))
-   (define (pattern-match-expander arc pat)
+     (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes ginfo) gs)
+     (match-define (ast:node (cons nid nid-t) nsyn-id nargs pat ninfo) ns)
+     (ast-struct-rkt nid-t gid-t `() (reflection-name #``#,nsyn-id)))])
 
-     #`(lambda (stx) #'42))])
+(struct rkt-term-type-constructor [spec]
+  #:methods gen:ast-builder
+  [(define (build-top-struct ab tstruct as) tstruct)
+   (define (build-group-struct ab gstruct as gs) gstruct)
+   (define (build-group-extra ab gextra as gs) gextra)
+   (define (build-node-struct ab nstruct as gs ns) nstruct)
+   (define (build-node-extra ab nextra as gs ns) nextra)])
 
-(module+ test
-  (define (match-expander pat stx)
-    (printf "pat: ~a, stx: ~a\n" pat stx)
-    (define (ooo? p)
-      (define (sooo? s) (regexp-match #px"^(_|((__|\\.\\.)(_|\\.|[[:digit:]]+)))$" s))
-      (and (identifier? p)
-           (sooo? (symbol->string (syntax->datum p)))))
-    (define (remove-datum pt) (filter (compose not ast:pat:datum?) pt))
-    (if (ooo? pat)
-        pat
-        (match pat
-          [(ast:pat:single id)
-           (if (identifier? stx) stx (error 'stop))]
-          [(ast:pat:datum syn) '()]
-          ;; [(ast:pat:multipls specs)
-          ;;  #:when (equal? (length specs) 1)]
-          [(ast:pat:multiple pms)
-           (let ([se (syntax-e stx)]
-                 [ps (remove-datum pms)])
-             (if (equal? (length se) (length ps))
-                 (map match-expander ps se)
-                 (error "pattern for multiple syntax values don't match in length")))]
-          [(ast:pat:repeat pr)
-           (map (curry match-expander pr) (syntax-e stx))]
-          [(ast:pat:checker check id) stx])))
-  (define pt
-    (ast:pat:multiple
-     (list
-      (ast:pat:datum `letrec)
-      (ast:pat:multiple
-       (list
-        (ast:pat:repeat
-         (ast:pat:multiple
-          (list (ast:pat:single #'ids) (ast:pat:single #'vals))))))
-      (ast:pat:single #'e))))
-  (pretty-print (match-expander pt #`((([a b] (... ...))) e)))
-  )
+(define-ast-builder (rkt-term-type spec)
+  (define (build-group-extra ab gextra as gs)
+    (match-define (ast id sid groups info) as)
+    (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes info) gs)
+    (cons #`(begin-for-syntax
+              (define gsyn-id
+                (rt:term-type #,gid-t rt:group-term-match-expander group-spec-id #,sid)))
+          gextra))
+  (define (build-node-extra ab nextra as gs ns)
+    (match-define (ast id sid groups info) as)
+    (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes ginfo) gs)
+    (match-define (ast:node (cons nid nid-t) nsyn-id nargs pat ninfo) ns)
+    (cons #`(begin-for-syntax
+              (define nsyn-id
+                (rt:term-type #,nid-t rt:node-term-match-expander group-spec-id #,sid)))
+          nextra)))

@@ -27,9 +27,15 @@
            (for/list ([arg args])
              (syntax-parse arg
                [i:identifier
-                (pub:ast:group:arg #`i (format-group-arg-id #`i ps gs) (type-from-id #`i) '())]
+                (pub:ast:group:arg (cons #`i (generate-temporary #`i))
+                                   (format-group-arg-id #`i ps gs)
+                                   (type-from-id #`i)
+                                   '())]
                [(i:identifier ki:keyword-info)
-                (pub:ast:group:arg #`i (format-group-arg-id #`i ps gs) (type-from-id #`i) (attribute ki.spec))
+                (pub:ast:group:arg (cons #`i (generate-temporary #`i))
+                                   (format-group-arg-id #`i ps gs)
+                                   (type-from-id #`i)
+                                   (attribute ki.spec))
                 ;; (define if-default (info-value (attribute ki.spec) `#:default))
                 ;; (define if-mutable (info-value (attribute ki.spec) `#:mutable))
                 ;; #`(i #,@(if if-default (list #`#:auto) `())
@@ -55,9 +61,11 @@
                 (let* ([node-id (format-node-id formatter id ps gs ns)]
                        [node-args (filter (compose not false?) (do-node-args pattern))])
                   (cons (syntax->datum id)
-                        (pub:ast:node id node-id node-args pattern (info->hash info))))]))
+                        (pub:ast:node (cons id (generate-temporary id)) node-id
+                                      node-args pattern (info->hash info))))]))
            (cons (syntax->datum id)
-                 (pub:ast:group id syn-id parent group-args (make-hash (map do-node nodes)) (info->hash info))))]))
+                 (pub:ast:group (cons id (generate-temporary id)) syn-id
+                                parent group-args (make-hash (map do-node nodes)) (info->hash info))))]))
     (match ps
       [(ast gs inf)
        (pub:ast aid sid (make-hash (map do-group gs)) (info->hash inf))]))

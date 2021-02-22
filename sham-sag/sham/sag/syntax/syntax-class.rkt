@@ -25,7 +25,7 @@
            #:attr spec (ast:pat:multiple (attribute multiple.spec))))
 (define-splicing-syntax-class node-multiple-pattern
   (pattern (~seq repeat:node-pattern (~datum ...))
-           #:attr spec (ast:pat:repeat (attribute repeat.spec)))
+           #:attr spec (ast:pat:repeat (attribute repeat.spec) (list #f)))
   (pattern ms:node-pattern
            #:attr spec (attribute ms.spec)))
 

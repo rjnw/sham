@@ -6,11 +6,12 @@
 
 (module pattern racket
   (provide (all-defined-out))
-  (struct ast:pat:single   (id) #:prefab)
-  (struct ast:pat:datum    (syn) #:prefab)
-  (struct ast:pat:multiple (specs) #:prefab)
-  (struct ast:pat:repeat   (spec) #:prefab)
-  (struct ast:pat:checker  (check id) #:prefab))
+  (struct ast:pat () #:prefab)
+  (struct ast:pat:single ast:pat (id) #:prefab)
+  (struct ast:pat:datum ast:pat (syn) #:prefab)
+  (struct ast:pat:multiple ast:pat (specs) #:prefab)
+  (struct ast:pat:repeat ast:pat (spec k-or-more) #:prefab)
+  (struct ast:pat:checker ast:pat (check id) #:prefab))
 
 (require (submod "." pattern))
 (provide (all-defined-out)

@@ -7,7 +7,7 @@
 (struct ast (id syn-id groups info)
   #:property prop:rename-transformer 1)
 
-(struct ast:basic (id syn-id) #:prefab)
+(struct ast:basic (id-tpair formatted-id) #:prefab)
 (struct ast:group ast:basic (parent args nodes info) #:prefab)
 (struct ast:group:arg ast:basic (type info) #:prefab)
 (struct ast:node ast:basic (args pattern info) #:prefab)
@@ -74,8 +74,8 @@
            #`(ast:pat:datum `#,syn)]
           [(ast:pat:multiple specs)
            #`(ast:pat:multiple (list #,@(map pattern-storage specs)))]
-          [(ast:pat:repeat spec)
-           #`(ast:pat:repeat #,(pattern-storage spec))]
+          [(ast:pat:repeat spec n)
+           #`(ast:pat:repeat #,(pattern-storage spec) #,n)]
           [(ast:pat:checker check id)
            #`(ast:pat:checker #'#,check #'#,id)]))
       (match-define (ast:node nid nsyn nargs npat ninfo) node)
@@ -92,40 +92,42 @@
          #,(hash-storage groups syntax-storage group-storage)
          #,(info-storage info)))
 
+(define (pretty-info info)
+  (for/list ([(key val) info])
+    (cons key (map syntax->datum (flatten val)))))
+(define (pretty-arg arg)
+  (match arg
+    [(ast:basic id syn-id) `(,(syntax-e id) ,(syntax-e syn-id))]))
+(define (pretty-pattern pattern)
+  (match pattern
+    [(ast:pat:single id)
+     `(#:single ,(syntax-e id))]
+    [(ast:pat:datum syn)
+     `(#:datum ,syn)]
+    [(ast:pat:multiple specs)
+     `(#:multiple ,@(map pretty-pattern specs))]
+    [(ast:pat:repeat spec n)
+     `(#:repeat ,(pretty-pattern spec) ,n)]
+    [(ast:pat:checker check id)
+     `(#:checker ,(syntax-e check) ,(syntax-e id))]))
+(define (pretty-node node)
+  (match-define (ast:node nid nsyn nargs npat ninfo) node)
+  `(,(syntax-e nsyn)
+    ,@(map pretty-arg nargs)
+    ,(pretty-pattern npat)
+    ,(pretty-info ninfo)))
+(define (pretty-group grp)
+  (match-define (ast:group gid gsyn gparent gargs gnodes ginfo) grp)
+  `(,(syntax-e gsyn) ,(syntax-e gparent)
+                     ,@(map pretty-arg gargs)
+                     ,@(for/list ([(id val) gnodes])
+                         `((#:node id) ,(pretty-node val)))
+                     ,(pretty-info ginfo)))
+
 (define (pretty-spec spec)
   (match-define (ast id sid groups info) spec)
-  (define (do-info info)
-    (for/list ([(key val) info])
-      (cons key (map syntax->datum (flatten val)))))
-  (define (do-group grp)
-    (match-define (ast:group gid gsyn gparent gargs gnodes ginfo) grp)
-    (define (do-arg arg)
-      (match arg
-        [(ast:basic id syn-id) `(,(syntax-e id) ,(syntax-e syn-id))]))
-    (define (do-node node)
-      (define (do-pattern pattern)
-        (match pattern
-          [(ast:pat:single id)
-           `(#:single ,(syntax-e id))]
-          [(ast:pat:datum syn)
-           `(#:datum ,syn)]
-          [(ast:pat:multiple specs)
-           `(#:multiple ,@(map do-pattern specs))]
-          [(ast:pat:repeat spec)
-           `(#:repeat ,(do-pattern spec))]
-          [(ast:pat:checker check id)
-           `(#:checker ,(syntax-e check) ,(syntax-e id))]))
-      (match-define (ast:node nid nsyn nargs npat ninfo) node)
-      `(,(syntax-e nsyn)
-        ,@(map do-arg nargs)
-        ,(do-pattern npat)
-        ,(do-info ninfo)))
-    `(,(syntax-e gsyn) ,(syntax-e gparent)
-      ,@(map do-arg gargs)
-      ,@(for/list ([(id val) gnodes])
-          `((#:node id) ,(do-node val)))
-      ,(do-info ginfo)))
+
   `((#:ast ,(syntax-e id) ,(syntax-e sid))
     ,@(for/list ([(id val) groups])
-        `((#:group ,(syntax-e id)) ,(do-group val)))
-    ,(do-info info)))
+        `((#:group ,(syntax-e id)) ,(pretty-group val)))
+    ,(pretty-info info)))

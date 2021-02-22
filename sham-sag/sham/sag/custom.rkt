@@ -6,6 +6,7 @@
              syntax/parse
              racket/syntax
              racket/pretty)
+ racket/generic
  "runtime.rkt")
 
 (provide map-generic sexp-printer)
@@ -20,16 +21,17 @@
      (define (build-group-struct ab gstruct as gs) gstruct)
      (define (build-group-extra ab gextra as gs) gextra)
      (define (build-node-struct ab nstruct as gs ns)
-       (let* ([gen-id #`gen:term]
+       (let* ([gen-id #`gen:gterm]
               [nid (ast:basic-syn-id ns)]
               [full-args (map ast:basic-syn-id
                               (append (ast:group-args gs)
                                       (ast:node-args ns)))]
               [gen-syntax
-               (with-syntax ([(args ...) full-args])
-                 #`((define (gmap-t ff f v)
-                      (match v [(#,nid md args ...)
-                                ((ff v) md (f args) ...)]))))])
+               #`((define/generic super-gmap-t gmap-t)
+                  (define (gmap-t ff f v)
+                    (match-define (ast:term md args vals) v)
+                    ((ff v) md (super-gmap-t ff f args) (super-gmap-t ff f vals))
+                    #;(match v [(#,nid md args ...) ((ff v) md (f args) ...)])))])
          (ast-struct-rkt:add-generic-method nstruct gen-id gen-syntax)))
      (define (build-node-extra ab nextra as gs ns) nextra)])
   (define ast-gmap-builder (ast-generic-map-builder))

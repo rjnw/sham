@@ -22,7 +22,7 @@
          [rand : expr])]
    [sym !identifier]
    [num !integer])
-  #:with map-generic sexp-printer)
+  #:with sexp-printer)
 
 (module+ test
   (begin-for-syntax
