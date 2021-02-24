@@ -5,11 +5,6 @@
 
 (provide (all-defined-out))
 
-(begin-for-syntax
-  (struct term-type [rename-transformer match-expander self-spec top-spec]
-    #:property prop:rename-transformer (struct-field-index rename-transformer)
-    #:property prop:match-expander (struct-field-index match-expander)))
-
 (define-generics gterm
   ;; gmap-t : (-> a (-> b ... c)) (-> x b) a)
   ;; ((ff term) ((f <term-internal-args>) ...))

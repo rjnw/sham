@@ -3,8 +3,7 @@
 (require "spec.rkt"
          (prefix-in rt: "runtime.rkt"))
 
-(provide node-term-match-expander
-         group-term-match-expander)
+(provide term-match-expander)
 
 (define (ooo p)
   ;; corresponds to `ooo` in racket's match grammar
@@ -83,16 +82,16 @@
             (λ (s n) (cons s ((do-tail pat stt) prev n)))
             c)])]))
 
-(define (expander pat stx)
+(define (pattern-expander stx pat)
   ((do-head pat stx) kid `(1)))
 
-(define (node-term-match-expander stx tt)
+(define (term-match-expander stx tt)
   (match-define (rt:term-type rt mt ss ts) tt)
-  (match-define (ast:node idt fid args pat i) ss)
-  (expander pat stx))
-
-(define (group-term-match-expander stx tt)
-  (error "todo"))
+  (match ss
+    [(ast:node idt fid nargs pat ninfo)
+     (pattern-expander stx pat)]
+    [(ast:group idt fid prnt gargs nodes ginfo)
+     (error 'sham:sag "todo match expander for group types: ~a" (car idt))]))
 
 (module+ test
   (require rackunit)
@@ -107,4 +106,4 @@
           (list (ast:pat:single #'ids) (ast:pat:single #'vals)))
          (list #f))))
       (ast:pat:single #'e))))
-  (pretty-print (expander pt #`(`letrec (([a b] (... ...))) e))))
+  (pretty-print (pattern-expander #`(`letrec (([a b] (... ...))) e) pt)))

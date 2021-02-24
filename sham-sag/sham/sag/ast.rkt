@@ -2,11 +2,11 @@
 
 (require
  (for-syntax
-  "private/spec.rkt"
-  "private/syntax-class.rkt"
-  "private/generics.rkt"
-  "private/utils.rkt"
-  (prefix-in pub: "spec.rkt")
+  "syntax/private/spec.rkt"
+  "syntax/private/syntax-class.rkt"
+  "syntax/private/generics.rkt"
+  "syntax/private/utils.rkt"
+  (prefix-in pub: "syntax/spec.rkt")
   "generics.rkt"
   syntax/parse
   racket/syntax
@@ -120,3 +120,27 @@
            #,@ast-syntaxes))
      (pretty-print (syntax->datum stx))
      stx]))
+
+
+(module+ test
+  (require rackunit)
+  (define lam-stx
+    #`(define-ast LC
+        (expr
+         [lambda ('lambda (n) body)
+           #:type ([body : expr])
+           #:identifier (n)
+           #:bind [n #:in-scope body]]
+         [letrec ('letrec ((ids vals) ...) e)
+           #:type
+           ([vals : expr]
+            [e : expr])
+           #:identifier (ids)]
+         [app (rator rand ...)
+              #:type
+              ([rator : expr]
+               [rand : expr])]
+         [sym !identifier]
+         [num !integer])
+        #:with sexp-printer))
+  (pretty-print (syntax->datum (local-expand lam-stx))))

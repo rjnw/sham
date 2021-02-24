@@ -3,12 +3,15 @@
 (require racket/generic
          racket/syntax
          syntax/parse/define
-         (for-template racket))
+         (for-template racket)
+         (for-syntax racket/match
+                     racket/syntax))
 
-(require "spec.rkt"
+(require "syntax/spec.rkt"
+         (prefix-in srt: "syntax/runtime.rkt")
+         (prefix-in st: "syntax/match.rkt")
          (for-template
-          (prefix-in rt: "runtime.rkt" )
-          (prefix-in rt: "match.rkt")))
+          (prefix-in rt: "runtime.rkt")))
 
 (provide (all-defined-out))
 
@@ -42,13 +45,40 @@
     (define (build-node-struct ab nstruct as gs ns) nstruct)
     (define (build-node-extra ab nextra as gs ns) nextra)]))
 
-#;(struct sample-ast-builder []
-    #:methods gen:ast-builder
-    [(define (build-top-struct ab tstruct as) tstruct)
-     (define (build-group-struct ab gstruct as gs) gstruct)
-     (define (build-group-extra ab gextra as gs) gextra)
-     (define (build-node-struct ab nstruct as gs ns) nstruct)
-     (define (build-node-extra ab nextra as gs ns) nextra)])
+(define-syntax (define-ast-builder stx)
+  (syntax-parse stx
+    [(_ (sn-raw:id args:id ...)
+        (gf:id (gf-args:id ...)
+               gf-body:expr ...)
+        ...)
+     #:with sn (format-id #`sn-raw "~a-builder" #`sn-raw)
+     #`(struct sn [args ...]
+         #:methods gen:ast-builder
+         #,(let [(given-assoc (map cons
+                                   (syntax->list #`(gf ...))
+                                   (map list
+                                        (syntax->list #`((gf-args ...) ...))
+                                        (syntax->list #`((gf-body ...) ...)))))]
+             (for/list [(og-gen
+                         (syntax->list
+                          #`((define (build-top-struct ab tstruct as) tstruct)
+                             (define (build-group-struct ab gstruct as gs) gstruct)
+                             (define (build-group-extra ab gextra as gs) gextra)
+                             (define (build-node-struct ab nstruct as gs ns) nstruct)
+                             (define (build-node-extra ab nextra as gs ns) nextra))))]
+               (syntax-parse og-gen
+                 [(_ (og-name og-args ...) og-body ...)
+                  (let [(maybe-given (assoc #`og-name given-assoc
+                                            free-identifier=?))]
+                    (if maybe-given
+                        (match (cdr maybe-given)
+                          [(list given-args given-body)
+                           (with-syntax [((gargs ...) given-args)
+                                         ((gbody ...) given-body)]
+                             #`(define (og-name ab gargs ...)
+                                 (match-define (sn args ...) ab)
+                                 gbody ...))])
+                        og-gen))]))))]))
 
 ;; wrapper around make-struct-type arguments
 (struct ast:struct:rkt [name maybe-parent fields options]
@@ -67,19 +97,27 @@
                  (cond [(list? args) (list* oid (to-syntax args))]
                        [(syntax? args) (list oid args)]))))))])
 
-(define-simple-macro (ast-struct-rkt name (~optional maybe-parent)
-                                     fields
-                                     (~or* (option-ids:id option-vals) option-ids:id) ...)
-  (ast:struct:rkt name (~? maybe-parent) fields (make-immutable-hash (list (cons (quote option-ids) option-vals) ...))))
+(define-simple-macro
+  (ast-struct-rkt name (~optional maybe-parent)
+                  fields
+                  (~or* (option-ids:id option-vals) option-ids:id) ...)
+  (ast:struct:rkt name
+                  (~? maybe-parent)
+                  fields
+                  (make-immutable-hash
+                   (list (cons (quote option-ids) option-vals) ...))))
 
 (define (ast-struct-rkt-set-option asr option-id option-val)
   (match-define (ast:struct:rkt name maybe-parent fields options) asr)
   (ast:struct:rkt name maybe-parent fields (hash-set options option-id option-val)))
 
-(define-simple-macro (update-ast-struct-rkt-option asr^ option-id option-value-f (~optional option-value-default))
+(define-simple-macro
+  (update-ast-struct-rkt-option asr^ option-id option-value-f (~optional option-value-default))
   (let ([asr asr^]
         [oid (quote option-id)])
-    (ast-struct-rkt-set-option asr oid (option-value-f (hash-ref (ast:struct:rkt-options asr) oid (~? option-value-default))))))
+    (ast-struct-rkt-set-option
+     asr oid
+     (option-value-f (hash-ref (ast:struct:rkt-options asr) oid (~? option-value-default))))))
 
 (struct rkt-ast-struct-constructor [spec]
   #:methods gen:ast-struct-constructor
@@ -95,27 +133,17 @@
      (match-define (ast:node (cons nid nid-t) nsyn-id nargs pat ninfo) ns)
      (ast-struct-rkt nid-t gid-t `() (reflection-name #``#,nsyn-id)))])
 
-(struct rkt-term-type-constructor [spec]
-  #:methods gen:ast-builder
-  [(define (build-top-struct ab tstruct as) tstruct)
-   (define (build-group-struct ab gstruct as gs) gstruct)
-   (define (build-group-extra ab gextra as gs) gextra)
-   (define (build-node-struct ab nstruct as gs ns) nstruct)
-   (define (build-node-extra ab nextra as gs ns) nextra)])
-
 (define-ast-builder (rkt-term-type spec)
-  (define (build-group-extra ab gextra as gs)
+  (build-group-extra (gextra as gs)
     (match-define (ast id sid groups info) as)
-    (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes info) gs)
-    (cons #`(begin-for-syntax
-              (define gsyn-id
-                (rt:term-type #,gid-t rt:group-term-match-expander group-spec-id #,sid)))
+    (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes ginfo) gs)
+    (cons #`(define-syntax gsyn-id
+              (srt:term-type #,gid-t st:term-match-expander group-spec-id #,sid))
           gextra))
-  (define (build-node-extra ab nextra as gs ns)
+  (build-node-extra (nextra as gs ns)
     (match-define (ast id sid groups info) as)
     (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes ginfo) gs)
     (match-define (ast:node (cons nid nid-t) nsyn-id nargs pat ninfo) ns)
-    (cons #`(begin-for-syntax
-              (define nsyn-id
-                (rt:term-type #,nid-t rt:node-term-match-expander group-spec-id #,sid)))
+    (cons #`(define-syntax nsyn-id
+              (srt:term-type #,nid-t st:term-match-expander group-spec-id #,sid))
           nextra)))

@@ -7,7 +7,7 @@
 (struct ast (id syn-id groups info)
   #:property prop:rename-transformer 1)
 
-(struct ast:basic (id-tpair formatted-id) #:prefab)
+(struct ast:basic (id-tpair formatted-id) #:prefab) ;; id-tpair: (cons orig-id (generate-temporary orig-id))
 (struct ast:group ast:basic (parent args nodes info) #:prefab)
 (struct ast:group:arg ast:basic (type info) #:prefab)
 (struct ast:node ast:basic (args pattern info) #:prefab)
