@@ -53,22 +53,23 @@
                (match pat
                  [(ast:pat:single s) (list (pub:ast:node:arg s (format-arg s) (build-type s) #f))]
                  [(ast:pat:datum d) (list #f)]
-                 [(ast:pat:checker c s) (list (pub:ast:node:arg s (format-arg s) (pub:ast:type:external c depth) #f))]
+                 [(ast:pat:checker c s)
+                  (list (pub:ast:node:arg s (format-arg s) (pub:ast:type:external c depth) #f))]
                  [(ast:pat:multiple s) (append-map (curryr do-node-args depth) s)]
-                 [(ast:pat:repeat r) (do-node-args r (add1 depth))]))
+                 [(ast:pat:repeat r k) (do-node-args r (add1 depth))]))
              (match ns
                [(ast:node id pattern info)
                 (let* ([node-id (format-node-id formatter id ps gs ns)]
                        [node-args (filter (compose not false?) (do-node-args pattern))])
                   (cons (syntax->datum id)
                         (pub:ast:node (cons id (generate-temporary id)) node-id
-                                      node-args pattern (info->hash info))))]))
+                                      node-args pattern (info->assoc info))))]))
            (cons (syntax->datum id)
                  (pub:ast:group (cons id (generate-temporary id)) syn-id
-                                parent group-args (make-hash (map do-node nodes)) (info->hash info))))]))
+                                parent group-args (map do-node nodes) (info->assoc info))))]))
     (match ps
       [(ast gs inf)
-       (pub:ast aid sid (make-hash (map do-group gs)) (info->hash inf))]))
+       (pub:ast aid sid (map do-group gs) (info->assoc inf))]))
 
   (define (build-syntax ast-id raw-ast-spec)
     (define temp-ast-id (generate-temporary ast-id))
@@ -77,13 +78,16 @@
       (cond [(info-value (ast-info raw-ast-spec) `#:format) => (λ (f) ((syntax-local-value f) ast-id))]
             [else (basic-id-formatter ast-id #`: #`:)]))
     (define ast-spec (spec:private->public ast-id temp-ast-id raw-ast-spec formatter))
-    (define constructor
-      (cond [(info-value (pub:ast-info ast-spec) `constructor) => (λ (f) ((syntax-local-value f) ast-spec))]
-            [else (rkt-ast-struct-constructor ast-spec)]))
+    (match-define (cons constructor req-builders)
+      (cond [(info-value (pub:ast-info ast-spec) `constructor)
+             => (λ (f) ((syntax-local-value f) ast-spec))]
+            [else (default-rkt-struct-constructor ast-spec)]))
 
-    (define gens (flatten
-                  (map (λ (g) ((syntax-local-value g) ast-spec))
-                       (info-value (ast-info raw-ast-spec) `with '()))))
+    (define gens (append
+                  req-builders
+                  (flatten
+                   (map (λ (g) ((syntax-local-value g) ast-spec))
+                        (info-value (ast-info raw-ast-spec) `with '())))))
     ;; list of structures producing generics/methods for groups and nodes
     (define (map-gen f) (append* (filter identity (map f gens))))
     (define (fold-gen f base) (foldr f base gens))
@@ -106,17 +110,19 @@
     (values
      (map ->syntax
           (cons top-struct
-                 (append-map group-def (hash-values (pub:ast-groups ast-spec)))))
+                 (append-map group-def (map cdr (pub:ast-groups ast-spec)))))
      ast-spec)))
 
 (define-syntax (define-ast stx)
   (syntax-parse stx
     [(_ cid:id gs:ast-spec)
      (define-values (ast-syntaxes ast-spec) (build-syntax #`cid (attribute gs.spec)))
+     (match-define (pub:ast id sid grps inf) ast-spec)
      (define spec-storage (pub:spec->storage ast-spec))
      (define stx
        #`(begin
-           (define-syntax cid #,spec-storage)
+           (define-for-syntax #,sid #,spec-storage)
+           (define-syntax cid #,sid)
            #,@ast-syntaxes))
      (pretty-print (syntax->datum stx))
      stx]))
@@ -131,16 +137,15 @@
            #:type ([body : expr])
            #:identifier (n)
            #:bind [n #:in-scope body]]
-         [letrec ('letrec ((ids vals) ...) e)
+         [letrec ('letrec ((ids vals) (... ...)) e)
            #:type
            ([vals : expr]
             [e : expr])
            #:identifier (ids)]
-         [app (rator rand ...)
+         [app (rator rand (... ...))
               #:type
               ([rator : expr]
                [rand : expr])]
          [sym !identifier]
-         [num !integer])
-        #:with sexp-printer))
-  (pretty-print (syntax->datum (local-expand lam-stx))))
+         [num !integer])))
+  (pretty-print (syntax->datum (expand lam-stx))))

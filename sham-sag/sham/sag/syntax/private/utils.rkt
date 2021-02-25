@@ -6,11 +6,10 @@
 
 (provide (all-defined-out))
 
-(define (info->hash i)
+(define (info->assoc i)
   (define (combine ls)              ;; ((1 . a) (1 . b)) => (1 a b)
-    (cons (caar ls)
-          (map cdr ls)))
-  (make-hash (map combine (group-by car i))))
+    (cons (caar ls) (map cdr ls)))
+  (map combine (group-by car i)))
 
 (define (info-values infos key)
   (cond [(list? infos) (map cdr

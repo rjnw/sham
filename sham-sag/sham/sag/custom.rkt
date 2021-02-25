@@ -2,7 +2,7 @@
 
 (require
  (for-syntax "generics.rkt"
-             "spec.rkt"
+             "syntax/spec.rkt"
              syntax/parse
              racket/syntax
              racket/pretty)
@@ -22,10 +22,6 @@
      (define (build-group-extra ab gextra as gs) gextra)
      (define (build-node-struct ab nstruct as gs ns)
        (let* ([gen-id #`gen:gterm]
-              [nid (ast:basic-syn-id ns)]
-              [full-args (map ast:basic-syn-id
-                              (append (ast:group-args gs)
-                                      (ast:node-args ns)))]
               [gen-syntax
                #`((define/generic super-gmap-t gmap-t)
                   (define (gmap-t ff f v)

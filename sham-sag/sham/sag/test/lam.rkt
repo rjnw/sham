@@ -3,7 +3,7 @@
 (require sham/sag/ast
          sham/sag/custom
          sham/sag/runtime
-         (for-syntax sham/sag/spec))
+         (for-syntax sham/sag/syntax/spec))
 
 (define-ast LC
   (expr
@@ -34,7 +34,7 @@
     ;; (pretty-print (list (ast-id lcv) (ast-syn-id lcv) (ast-groups lcv) (ast-info lcv)))
     )
 
-  (define lr (LC:expr:letrec #f '(a b c) '(1 2 3) 'd))
+  ;; (define lr (LC:expr:letrec #f '(a b c) '(1 2 3) 'd))
   ;; (define parsed-letrec ($LC:expr (letrec ((a 1) (b 2) (c 3)) (app (sym +) a b c))))
   ;; (define parsed-expr ($LC:expr (letrec ((a 1) (b 2) (c 3)) (app (sym +) 1 2 3))))
   ;; (printf "LC:")
