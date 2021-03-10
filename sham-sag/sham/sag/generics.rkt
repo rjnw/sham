@@ -185,6 +185,22 @@
    (cons #`(define-for-syntax #,nid-t (lookup-node-spec #'#,nid #,gid-t #,sid))
          nextra)))
 
+;; defines rkt-transformer-builder
+(struct rkt-transformer [id spec]
+  #:methods gen:ast-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax rt)
+     (match-define (rkt-transformer id spec) rt)
+     #`(define (#,(to-syntax id) tt stx) (st:pattern-transformer tt stx)))])
+
+(define-ast-builder (rkt-transformer spec)
+  (build-node-extra
+   (nextra as gs ns)
+   (match-define (ast id sid groups info) as)
+   (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes ginfo) gs)
+   (match-define (ast:node (cons nid nid-t) nsyn-id nargs pat ninfo) ns)
+   (cons (rkt-transformer (generate-temporary nid) ns) nextra)))
+
 (define-ast-builder (rkt-term-type spec)
   (build-group-extra
    (gextra as gs)
@@ -215,4 +231,5 @@
 (define (default-rkt-struct-constructor spec)
   (list (rkt-ast-struct-constructor spec)
         (ast-spec-builder spec)
+        ;; (rkt-transformer-builder spec)
         (rkt-term-type-builder spec)))

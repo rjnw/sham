@@ -1,5 +1,6 @@
 #lang racket
 
+(require (for-template racket))
 (require "spec.rkt")
 (provide map-with-pattern
          rec-pattern
@@ -16,7 +17,7 @@
   (and (identifier? p)
        (sooo (symbol->string (syntax->datum p)))))
 
-(define (remove-datum pt) (filter (not/c ast:pat:datum?) pt))
+(define (remove-datum pts) (filter-not ast:pat:datum? pts))
 (define (kid s c) s)                  ;; todo check c is fully consumed
 (define (consume c (n 1))
   (printf "consuming: ~a-~a\n" c n)
@@ -32,14 +33,14 @@
 
 (define default-single-format identity)
 (define default-datum-format (const #f))
-(define (default-multiple-format ss) #`(vector . ss))
-(define (default-repeat-format ss) #`(list . ss))
+(define (default-multiple-format ss) #`(vector . #,ss))
+(define (default-repeat-format ss) #`(list . #,ss))
 
 (define (map-with-pattern pat stx
-                         #:single (for-single default-single-format)
-                         #:datum (for-datum default-datum-format)
-                         #:multiple (for-multiple default-multiple-format)
-                         #:repeat (for-repeat default-repeat-format))
+                          #:single (for-single default-single-format)
+                          #:datum (for-datum default-datum-format)
+                          #:multiple (for-multiple default-multiple-format)
+                          #:repeat (for-repeat default-repeat-format))
   ;; k : syntax? number? -> syntax?
   ;;   continuation with final match syntax and leftover repeat value
   (define ((do-head pat stx) k c)
@@ -48,9 +49,10 @@
       [(list n) (k pat (consume (list n)))]
       [#f
        (match pat
-         [(ast:pat:single c id) (k (for-single stx) (consume c))]
+         [(ast:pat:single chk id) (k (for-single stx) (consume c))]
+         [(ast:pat:datum v) (k (for-datum stx) c)]
          [(ast:pat:multiple pms)
-          (match* (pms (syntax-e stx))
+          (match* ((remove-datum pms) (syntax-e stx))
             [((cons psh pst) (cons sth stt))
              ((do-head psh sth)
               (λ (s n) (k (for-multiple (filter (not/c false?) (cons s ((do-tail pst stt) psh n))))
@@ -60,8 +62,8 @@
           (match (syntax-e stx)
             [(cons sth stt)
              (k ((do-head pr sth)
-                 (λ (s n) #`(for-repeat (cons s
-                                              #,((do-tail #f stt) pr n))))
+                 (λ (s n) (for-repeat (cons s
+                                            ((do-tail #f stt) pr n))))
                  nr)
                 (consume c))])])]))
 
