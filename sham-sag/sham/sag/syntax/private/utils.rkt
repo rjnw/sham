@@ -26,9 +26,8 @@
 (define (map-pat pat f-single f-datum f-multiple f-repeat)
     (define (rec pat)
       (match pat
-        [(ast:pat:single s) (f-single s)]
+        [(ast:pat:single c s) (f-single s)]
         [(ast:pat:datum d) (f-datum d)]
-        [(ast:pat:checker c s) (f-single s)]
         [(ast:pat:multiple s) (f-multiple (map rec s))]
         [(ast:pat:repeat r k) (f-repeat (rec r))]))
     (rec pat))

@@ -83,16 +83,14 @@
     (define (node-storage node)
       (define (pattern-storage pattern)
         (match pattern
-          [(ast:pat:single id)
-           #`(ast:pat:single #'#,id)]
+          [(ast:pat:single c id)        ;;TODO check for #f for c,id
+           #`(ast:pat:single #'#,c #'#,id)]
           [(ast:pat:datum syn)
            #`(ast:pat:datum `#,syn)]
           [(ast:pat:multiple specs)
            #`(ast:pat:multiple (list #,@(map pattern-storage specs)))]
           [(ast:pat:repeat spec k)
-           #`(ast:pat:repeat #,(pattern-storage spec) #,(list-storage k identity))]
-          [(ast:pat:checker check id)
-           #`(ast:pat:checker #'#,check #'#,id)]))
+           #`(ast:pat:repeat #,(pattern-storage spec) #,(list-storage k identity))]))
       (match-define (ast:node (cons nid nid-t) nsyn nargs npat ninfo) node)
       #`(ast:node (cons #'#,nid #'#,nid-t) #'#,nsyn
                   #,(list-storage nargs arg-storage)
@@ -115,16 +113,14 @@
     [(ast:basic id syn-id) `(,(syntax-e id) ,(syntax-e syn-id))]))
 (define (pretty-pattern pattern)
   (match pattern
-    [(ast:pat:single id)
-     `(#:single ,(syntax-e id))]
+    [(ast:pat:single c id)
+     `(#:single ,c ,(syntax-e id))]
     [(ast:pat:datum syn)
      `(#:datum ,syn)]
     [(ast:pat:multiple specs)
      `(#:multiple ,@(map pretty-pattern specs))]
     [(ast:pat:repeat spec n)
-     `(#:repeat ,(pretty-pattern spec) ,n)]
-    [(ast:pat:checker check id)
-     `(#:checker ,(syntax-e check) ,(syntax-e id))]))
+     `(#:repeat ,(pretty-pattern spec) ,n)]))
 (define (pretty-node node)
   (match-define (ast:node nid nsyn nargs npat ninfo) node)
   `(,(syntax-e nsyn)
@@ -136,7 +132,7 @@
   `(,(syntax-e gsyn) ,(syntax-e gparent)
                      ,@(map pretty-arg gargs)
                      ,@(for/list ([np gnodes])
-                         `((#:node (car np)) ,(pretty-node (cdr np))))
+                         `((#:node ,(car np)) ,(pretty-node (cdr np))))
                      ,(pretty-info ginfo)))
 
 (define (pretty-spec spec)

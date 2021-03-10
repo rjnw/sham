@@ -21,7 +21,6 @@
     [(_ args ...) (error 'sham:sag "TODO pattern constructor")]))
 
 (define (rkt-pattern-transformer tt stx)
-  (match-define (term-type t me ss ts) tt)
-  (define-values (tsv _) (syntax-local-value/immediate ts))
+  (match-define (term-type t me ss tsv) tt)
   (cond [(ast:node? ss) (node-pattern-transformer ss tsv stx)]
         [(ast:group? ss) (group-pattern-transformer ss tsv stx)]))

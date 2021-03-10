@@ -22,7 +22,7 @@
          [rand : expr])]
    [sym !identifier]
    [num !integer])
-  #:with sexp-printer)
+  #:with sexp-printer struct-helpers)
 
 (module+ test
   (begin-for-syntax

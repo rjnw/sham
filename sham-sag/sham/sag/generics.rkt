@@ -11,6 +11,7 @@
          (prefix-in srt: "syntax/runtime.rkt")
          (prefix-in st: "syntax/transformer.rkt")
          (prefix-in sm: "syntax/match.rkt")
+         (prefix-in ss: "syntax/storage.rkt")
          (for-template
           (prefix-in rt: "runtime.rkt")))
 
@@ -76,9 +77,10 @@
                           [(list given-args given-body)
                            (with-syntax [((gargs ...) given-args)
                                          ((gbody ...) given-body)]
-                             #`(define (og-name ab gargs ...)
+                             (syntax/loc (car maybe-given)
+                               (define (og-name ab gargs ...)
                                  (match-define (sn args ...) ab)
-                                 gbody ...))])
+                                 gbody ...)))])
                         og-gen))]))))]))
 
 ;; wrapper around make-struct-type arguments
@@ -134,6 +136,40 @@
      (match-define (ast:node (cons nid nid-t) nsyn-id nargs pat ninfo) ns)
      (ast-struct-rkt nid-t gid-t `() (reflection-name #``#,nsyn-id)))])
 
+(struct rkt-struct-node-functions [fids spec gspec nspec]
+  #:methods gen:ast-construct
+  ((define/generic to-syntax ->syntax)
+   (define (->syntax rsnf)
+     (match-define (rkt-struct-node-functions fids spec gspec nspec) rsnf)
+     (match-define (ast top-id syn-id groups top-info) spec)
+     (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes info) gspec)
+     (match-define (ast:node (cons nid nid-t) nsyn-id nargs pat ninfo) nspec)
+     (match-define (cons make-f arg-fs) fids)
+     (define narg-ids (map (compose car ast:basic-id-tpair) nargs))
+     (define garg-ids (map (compose car ast:basic-id-tpair) gargs))
+     (define (node-accessor arg fid)
+       #`(define (#,fid #,nid)
+           #,((ss:from-node-storage arg pat) #`(rt:ast:term-vals #,nid))))
+     #`(begin (define (#,make-f #:md (md #f) #,@garg-ids #,@narg-ids)
+                (#,nid-t md #,(ss:group-arg-storage gargs) #,(ss:node-args-storage nargs pat)))
+              #,@(map node-accessor nargs arg-fs)))))
+
+(define-ast-builder (rkt-struct-functions spec)
+  (build-node-extra
+   (nextra as gs ns)
+   (match-define (ast id sid groups info) as)
+   (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes ginfo) gs)
+   (match-define (ast:node (cons nid nid-t) nsyn-id nargs pat ninfo) ns)
+   (cons (rkt-struct-node-functions
+          (cons (format-id nid "make-~a" nid)
+                (map (lambda (arg)
+                       (let ([arg-id (car (ast:basic-id-tpair arg))])
+                         (format-id arg-id "~a-~a"
+                                    nid (car (ast:basic-id-tpair arg)))))
+                     nargs))
+          as gs ns)
+         nextra)))
+
 (define-ast-builder (ast-spec spec)
   (build-group-extra
    (gextra as gs)
@@ -149,21 +185,6 @@
    (cons #`(define-for-syntax #,nid-t (lookup-node-spec #'#,nid #,gid-t #,sid))
          nextra)))
 
-(struct rkt-transformer [id spec]
-  #:methods gen:ast-construct
-  [(define/generic to-syntax ->syntax)
-   (define (->syntax rt)
-     (match-define (rkt-transformer id spec) rt)
-     #`(define (#,(to-syntax id) tt stx) (st:pattern-transformer tt stx)))])
-
-(define-ast-builder (rkt-transformer spec)
-  (build-node-extra
-   (nextra as gs ns)
-   (match-define (ast id sid groups info) as)
-   (match-define (ast:group (cons gid gid-t) gsyn-id parent gargs nodes ginfo) gs)
-   (match-define (ast:node (cons nid nid-t) nsyn-id nargs pat ninfo) ns)
-   (cons (rkt-transformer (generate-temporary nid) ns) nextra)))
-
 (define-ast-builder (rkt-term-type spec)
   (build-group-extra
    (gextra as gs)
@@ -173,7 +194,7 @@
    (append
     (list
      #`(define-syntax #,gsyn-id
-         (srt:term-type st:rkt-pattern-transformer sm:term-match-expander #,gid-t #'#,id)))
+         (srt:term-type st:rkt-pattern-transformer sm:term-match-expander #,gid-t #,sid)))
     gextra))
   (build-node-extra
    (nextra as gs ns)
@@ -183,16 +204,15 @@
    (match (findf rkt-transformer? nextra)
      [(rkt-transformer tid ns^)
       (cons #`(define-syntax #,nsyn-id
-                (srt:term-type tid sm:term-match-expander #,nid-t #'#,id))
+                (srt:term-type tid sm:term-match-expander #,nid-t #,sid))
             nextra)]
      [else
       (cons #`(define-syntax #,nsyn-id
                 (srt:term-type st:rkt-pattern-transformer
-                               sm:term-match-expander #,nid-t #'#,id))
+                               sm:term-match-expander #,nid-t #,sid))
             nextra)])))
 
 (define (default-rkt-struct-constructor spec)
   (list (rkt-ast-struct-constructor spec)
         (ast-spec-builder spec)
-        ;; (rkt-transformer-builder spec)
         (rkt-term-type-builder spec)))

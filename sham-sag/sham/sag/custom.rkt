@@ -9,7 +9,7 @@
  racket/generic
  "runtime.rkt")
 
-(provide map-generic sexp-printer)
+(provide map-generic sexp-printer struct-helpers)
 
 (begin-for-syntax
   (define (ast-struct-rkt:add-generic-method asr gen-id gen-methods)
@@ -94,3 +94,6 @@
 
 (define-syntax (sexp-printer ast-spec)
   #f)
+
+(define-syntax (struct-helpers ast-spec)
+  (rkt-struct-functions-builder ast-spec))

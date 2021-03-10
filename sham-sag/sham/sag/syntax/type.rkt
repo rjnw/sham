@@ -23,9 +23,8 @@
   (match-define (ast:node idt fid args pat info) nspec)
   (define (rec pat depth)
     (match pat
-      [(ast:pat:single s) (ast:node:arg s (type-from-id s depth) #f)]
+      [(ast:pat:single c s) (ast:node:arg s (if c (ast:type:external c depth) (type-from-id s depth)) #f)]
       [(ast:pat:datum d) #f]
-      [(ast:pat:checker c s) (ast:node:arg s (ast:type:external c depth) #f)]
       [(ast:pat:multiple s) (map (curryr rec depth) s)]
       [(ast:pat:repeat r k) (rec r (add1 depth))]))
   (filter (compose not false?) (flatten (rec pat 0))))

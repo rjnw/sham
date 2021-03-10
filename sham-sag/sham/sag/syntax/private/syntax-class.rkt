@@ -16,11 +16,11 @@
 
 (define-syntax-class node-pattern
   (pattern name:id
-           #:attr spec (ast:pat:single #`name))
+           #:attr spec (ast:pat:single #f #`name))
   (pattern ((~datum quote) datum:id)
            #:attr spec (ast:pat:datum #`datum))
   (pattern ((~datum ?) check:id)
-           #:attr spec (ast:pat:checker #`check))
+           #:attr spec (ast:pat:single #`check #f))
   (pattern (multiple:node-multiple-pattern ...)
            #:attr spec (ast:pat:multiple (attribute multiple.spec))))
 (define-splicing-syntax-class node-multiple-pattern

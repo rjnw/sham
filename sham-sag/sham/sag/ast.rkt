@@ -46,15 +46,14 @@
            (define (do-node ns)
              (define (do-node-args pat (depth 0))
                (define (format-arg s) (format-node-arg-id formatter s ps gs ns))
-               (define (build-type s)
+               (define (build-type c s) ;; TODO checker c
                  (match (type-from-id s)
                    [`("!") (pub:ast:type:external (id-without-type s) depth)]
                    [t (pub:ast:type:internal t depth)]))
                (match pat
-                 [(ast:pat:single s) (list (pub:ast:node:arg s (format-arg s) (build-type s) #f))]
+                 [(ast:pat:single c s) (list (pub:ast:node:arg (cons s (generate-temporary s))
+                                                               (format-arg s) (build-type c s) #f))]
                  [(ast:pat:datum d) (list #f)]
-                 [(ast:pat:checker c s)
-                  (list (pub:ast:node:arg s (format-arg s) (pub:ast:type:external c depth) #f))]
                  [(ast:pat:multiple s) (append-map (curryr do-node-args depth) s)]
                  [(ast:pat:repeat r k) (do-node-args r (add1 depth))]))
              (match ns
@@ -148,4 +147,6 @@
                [rand : expr])]
          [sym !identifier]
          [num !integer])))
-  (pretty-print (syntax->datum (expand lam-stx))))
+  (syntax->datum (expand lam-stx))
+  ;; (pretty-print (syntax->datum (expand lam-stx)))
+  )
