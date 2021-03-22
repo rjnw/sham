@@ -31,6 +31,35 @@
     [0 #t]
     [else #f]))
 
+(define pattern-path/c
+  (flat-rec-contract pattern-path/c
+                     (list/c 'single any/c pattern-path/c)
+                     (list/c 'multiple natural-number/c (listof any/c) pattern-path/c)
+                     (list/c 'repeat (or/c false/c natural-number/c) pattern-path/c)
+                     (list/c)))
+
+;; path :=     ;; inside out path to the top pattern, haskell zippers
+;;   `(single ,check ,identifier ,path)
+;;   `(datum ,value ,path)
+;;   `(multiple ,index ,(list pattern) ,path)
+;;   `(repeat ,pattern ,k ,path)
+(define (fold-with-zipper fs fd fm fr val pat)
+  (define (go path val pat)
+    (match pat
+      [(ast:pat:single chk id) (fs val `(single ,chk ,id ,path))]
+      [(ast:pat:datum d) (fd val `(datum ,d ,path))]
+      [(ast:pat:multiple ps) (for/fold ([cval val])
+                                       ([p (in-vector ps)]
+                                        [i (vector-length ps)])
+                               (define npath `(multiple ,i ,ps ,path))
+                               (fm (go npath cval p) npath))]
+      [(ast:pat:repeat p n)
+       (let frec ([cval val]
+                  [nv n])
+         (define npath `(repeat ,p ,nv ,path))
+         (fr (go npath cval p) frec npath))]))
+  (go null val pat))
+
 (define default-single-format identity)
 (define default-datum-format (const #f))
 (define (default-multiple-format ss) #`(vector . #,ss))
@@ -99,10 +128,10 @@
                      for-repeat)
   (define (rec pat)
     (match pat
-      [(ast:pat:single c i) (for-single i p)]
-      [(ast:pat:datum s) (for-datum s p)]
-      [(ast:pat:multiple s) (for-multiple (map rec s) p)]
-      [(ast:pat:repeat s k) (for-repeat (rec s) p)]))
+      [(ast:pat:single c i) (for-single i pat)]
+      [(ast:pat:datum s) (for-datum s pat)]
+      [(ast:pat:multiple s) (for-multiple (vector-map rec s) pat)]
+      [(ast:pat:repeat s k) (for-repeat (rec s) pat)]))
   (rec p))
 
 ;; returns a path to a specific field in the pattern o/w #f
@@ -112,15 +141,32 @@
 ;; p@(pat:multiple ss) -> `(multiple s i p)
 ;; p@(pat:repeat s) -> `(repeat s p)
 (define (find-arg pat arg-sym (=? equal?))
-  (define (fsingle i p)
-    (if (=? i arg-sym) `(single ,i ,p) #f))
-  (define (fdatum d p) #f)
-  (define (fmultiple ss p)
-    (for/fold ([res #f])
-              ([s ss]
-               [i (range (length ss))])
-      #:final (not (false? s))
-      `(multiple ,s ,i ,p)))
-  (define (frepeat s p)
-    (if (false? s) s `(repeat ,s ,p)))
-  (rec-pattern pat fsingle fdatum fmultiple frepeat))
+  (let/cc k
+    (define (fsingle _ path)
+      (match-define `(single ,chk ,i ,p) path)
+      (if (=? i arg-sym) (k path) #f))
+    (define (fdatum d p) #f)
+    (define (fmultiple v path) #f)
+    (define (frepeat v f path) #f)
+    (fold-with-zipper fsingle fdatum fmultiple frepeat #f pat)))
+
+(module+ test
+  (require rackunit)
+  (provide (all-defined-out))
+  (match-define (list a b c d e f) (syntax->list (datum->syntax #f `(a b c d e f))))
+  (define (mlt . ps) (ast:pat:multiple (list->vector ps)))
+  (define (sng sym) (ast:pat:single #f sym))
+  (define (dat v) (ast:pat:datum v))
+  (define (rpt p (k #f)) (ast:pat:repeat p k))
+
+  (define p1 (sng a))
+  (define p2 (dat 'a))
+  (define p3 (mlt p2 p1 (sng b) (sng c)))
+  (define p4 (mlt (rpt p3) (sng a) (dat 'a)))
+  (check-match (find-arg p3 a) `(single ,_ ,_ (multiple ,_ 1 ,_ ,_)))
+  (check-false (find-arg p3 a))
+
+  (define (p-v v p) (pretty-print p) (newline) p)
+  (fold-with-zipper p-v p-v p-v
+                    (lambda (v f p) (pretty-print p) p)
+                    #f p4))

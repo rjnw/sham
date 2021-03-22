@@ -54,7 +54,7 @@
                  [(ast:pat:single c s) (list (pub:ast:node:arg (cons s (generate-temporary s))
                                                                (format-arg s) (build-type c s) #f))]
                  [(ast:pat:datum d) (list #f)]
-                 [(ast:pat:multiple s) (append-map (curryr do-node-args depth) s)]
+                 [(ast:pat:multiple s) (flatten (for/list ([p s]) (do-node-args p depth)))]
                  [(ast:pat:repeat r k) (do-node-args r (add1 depth))]))
              (match ns
                [(ast:node id pattern info)

@@ -28,7 +28,7 @@
       (match pat
         [(ast:pat:single c s) (f-single s)]
         [(ast:pat:datum d) (f-datum d)]
-        [(ast:pat:multiple s) (f-multiple (map rec s))]
+        [(ast:pat:multiple s) (f-multiple (vector->list (vector-map rec s)))]
         [(ast:pat:repeat r k) (f-repeat (rec r))]))
     (rec pat))
 

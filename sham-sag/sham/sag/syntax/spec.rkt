@@ -88,9 +88,9 @@
           [(ast:pat:datum syn)
            #`(ast:pat:datum `#,syn)]
           [(ast:pat:multiple specs)
-           #`(ast:pat:multiple (list #,@(map pattern-storage specs)))]
+           #`(ast:pat:multiple (vector-immutable #,@(for/list ([s specs]) (pattern-storage s))))]
           [(ast:pat:repeat spec k)
-           #`(ast:pat:repeat #,(pattern-storage spec) #,(list-storage k identity))]))
+           #`(ast:pat:repeat #,(pattern-storage spec) #,k)]))
       (match-define (ast:node (cons nid nid-t) nsyn nargs npat ninfo) node)
       #`(ast:node (cons #'#,nid #'#,nid-t) #'#,nsyn
                   #,(list-storage nargs arg-storage)
@@ -118,7 +118,7 @@
     [(ast:pat:datum syn)
      `(#:datum ,syn)]
     [(ast:pat:multiple specs)
-     `(#:multiple ,@(map pretty-pattern specs))]
+     `(#:multiple ,(vector-map pretty-pattern specs))]
     [(ast:pat:repeat spec n)
      `(#:repeat ,(pretty-pattern spec) ,n)]))
 (define (pretty-node node)

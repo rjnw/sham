@@ -25,6 +25,6 @@
     (match pat
       [(ast:pat:single c s) (ast:node:arg s (if c (ast:type:external c depth) (type-from-id s depth)) #f)]
       [(ast:pat:datum d) #f]
-      [(ast:pat:multiple s) (map (curryr rec depth) s)]
+      [(ast:pat:multiple s) (map (curryr rec depth) (vector->list s))]
       [(ast:pat:repeat r k) (rec r (add1 depth))]))
   (filter (compose not false?) (flatten (rec pat 0))))
