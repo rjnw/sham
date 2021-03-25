@@ -47,4 +47,7 @@
   ((from-node-storage aa p1) f)
   (define pp (mlt (dat 'lambda) (mlt (rpt (mlt (sng a) (sng b))) (sng c))))
   ((from-node-storage aa pp) f)
-  ((from-node-storage ba pp) f))
+  ((from-node-storage ba pp) f)
+  (define p2 (mlt (dat 'a) (sng a) (dat 'b) (dat 'c) (mlt (sng b) (sng c))))
+  ((from-node-storage aa p2) f)
+  ((from-node-storage ba p2) f))

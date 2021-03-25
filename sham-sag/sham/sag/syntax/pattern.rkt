@@ -22,7 +22,8 @@
 (define (consume c (n 1))
   (printf "consuming: ~a-~a\n" c n)
   (match c
-    [(cons h t) (cons (if h (- h n) h) t)]))
+    [(cons h t) (cons (if h (- h n) h) t)]
+    [null null]))
 (define (is-consumed? c)
   (match c
     [(list h t) (and (is-consumed? h) (is-consumed? t))]
@@ -33,31 +34,29 @@
 
 (define pattern-path/c
   (flat-rec-contract pattern-path/c
-                     (list/c 'single any/c pattern-path/c)
                      (list/c 'multiple natural-number/c (listof any/c) pattern-path/c)
                      (list/c 'repeat (or/c false/c natural-number/c) pattern-path/c)
                      (list/c)))
 
 ;; path :=     ;; inside out path to the top pattern, haskell zippers
-;;   `(single ,check ,identifier ,path)
-;;   `(datum ,value ,path)
 ;;   `(multiple ,index ,(list pattern) ,path)
 ;;   `(repeat ,pattern ,k ,path)
-(define (fold-with-zipper fs fd fm fr val pat)
+(define (fold-with-zipper f val pat)
   (define (go path val pat)
     (match pat
-      [(ast:pat:single chk id) (fs val `(single ,chk ,id ,path))]
-      [(ast:pat:datum d) (fd val `(datum ,d ,path))]
-      [(ast:pat:multiple ps) (for/fold ([cval val])
-                                       ([p (in-vector ps)]
-                                        [i (vector-length ps)])
-                               (define npath `(multiple ,i ,ps ,path))
-                               (fm (go npath cval p) npath))]
-      [(ast:pat:repeat p n)
-       (let frec ([cval val]
-                  [nv n])
-         (define npath `(repeat ,p ,nv ,path))
-         (fr (go npath cval p) frec npath))]))
+      [(ast:pat:single chk id) (f val pat path)]
+      [(ast:pat:datum d) (f val pat path)]
+      [(ast:pat:multiple ps) (f (for/fold ([cval (f val pat `(pre-multiple ,path))])
+                                          ([p (in-vector ps)]
+                                           [i (vector-length ps)])
+                                  (define npath `(multiple ,i ,ps ,path))
+                                  (go npath cval p))
+                                pat
+                                `(post-multiple ,path))]
+      [(ast:pat:repeat p k)
+       (define (frec cval nk)
+         (go `(repeat ,p ,nk ,path) cval p))
+       (f val pat `(at-repeat ,frec ,path))]))
   (go null val pat))
 
 (define default-single-format identity)
@@ -70,6 +69,61 @@
                           #:datum (for-datum default-datum-format)
                           #:multiple (for-multiple default-multiple-format)
                           #:repeat (for-repeat default-repeat-format))
+  (struct sctxt [istx ostx klist] #:prefab)
+  (define (f sc pat path)
+    (match-define (sctxt is os kl) sc)
+    (match pat
+      [(ast:pat:single chk id)
+       (printf "fs: ~a ~a\n" sc path)
+       (match path
+         [`(multiple ,i ,ps ,ppath)
+          (sctxt (cdr is) (os (for-single (car is))) kl)]
+         [`(repeat ,p ,nk ,ppath) (error 'sham/sam "TODO")])]
+      [(ast:pat:datum val) (sctxt is os kl)];;TODO remove if datum
+      [(ast:pat:multiple pms)
+       (printf "fm: ~a ~a\n" sc path)
+       (match path
+         [`(pre-multiple ,prev-path)
+          (define-values (cis lis)
+            (match prev-path
+              [`(multiple ,_ ,_ ,_) (values (car is) (cdr is))]
+              [`(repeat ,_ ,_ ,_) (values (car is) (cdr is))]
+              [`() (values is #f)]))
+          (printf "fm/pre-mult: ~a ~a ~a\n" cis lis prev-path)
+          (define (gen-multf ostx)
+            (lambda (stx)
+              (cond [(syntax? stx) (gen-multf (cons stx ostx))]
+                    [(false? stx) (list lis ostx os)]
+                    [else (error 'sham/sam "map-with-pattern/multf: ~a" stx)])))
+          (sctxt (syntax-e cis) (gen-multf '()) kl)]
+         [`(post-multiple ,path)
+          (unless (empty? is) (error 'sham/sam "map-with-pattern/post-multiple: cannot consume sequence ~a" is))
+          (match (os #f)
+            [(list lis ms prev) (sctxt lis (prev (for-multiple (reverse ms))) kl)])])]
+      [(ast:pat:repeat p k)
+       (printf "fr: ~a ~a\n" sc path)
+       (match-define `(at-repeat ,frec ,path^) path)
+       (define (gen-repf ostx)
+         (lambda (stx)
+           (cond [(syntax? stx) (gen-repf (cons stx ostx))]
+                 [(false? stx) (list is ostx os)])))
+       (let rec ([s (sctxt is (gen-repf '()) (cons k kl))]
+                 [nk k])
+         (define ns (frec s nk))
+         (match-define (sctxt nis nos nkl) ns)
+         (match-define (cons n kl^) nkl)
+         (cond [(or (and (false? n) (empty? nis)) (equal? n 0))
+                (match-define (list is rstxs prev-os) (nos #f))
+                (sctxt nis (prev-os (for-repeat (reverse rstxs))) kl)]
+               [else (rec ns n)]))]))
+  (sctxt-ostx (fold-with-zipper f (sctxt stx identity null) pat)))
+
+(define (map-with-pattern2 pat stx
+                          #:single (for-single default-single-format)
+                          #:datum (for-datum default-datum-format)
+                          #:multiple (for-multiple default-multiple-format)
+                          #:repeat (for-repeat default-repeat-format))
+
   ;; k : syntax? number? -> syntax?
   ;;   continuation with final match syntax and leftover repeat value
   (define ((do-head pat stx) k c)
@@ -142,13 +196,11 @@
 ;; p@(pat:repeat s) -> `(repeat s p)
 (define (find-arg pat arg-sym (=? equal?))
   (let/cc k
-    (define (fsingle _ path)
-      (match-define `(single ,chk ,i ,p) path)
-      (if (=? i arg-sym) (k path) #f))
-    (define (fdatum d p) #f)
-    (define (fmultiple v path) #f)
-    (define (frepeat v f path) #f)
-    (fold-with-zipper fsingle fdatum fmultiple frepeat #f pat)))
+    (define (f _ pat path)
+      (match pat
+        [(ast:pat:single chk i) (if (=? i arg-sym) (k (cons pat path)) #f)]
+        [else #f]))
+    (fold-with-zipper f #f pat)))
 
 (module+ test
   (require rackunit)
@@ -163,10 +215,19 @@
   (define p2 (dat 'a))
   (define p3 (mlt p2 p1 (sng b) (sng c)))
   (define p4 (mlt (rpt p3) (sng a) (dat 'a)))
-  (check-match (find-arg p3 a) `(single ,_ ,_ (multiple ,_ 1 ,_ ,_)))
-  (check-false (find-arg p3 a))
+  (check-match (find-arg p3 a) `(,_ . (multiple 1 ,_ ,_)))
+  (check-false (find-arg p3 f))
 
   (define (p-v v p) (pretty-print p) (newline) p)
-  (fold-with-zipper p-v p-v p-v
-                    (lambda (v f p) (pretty-print p) p)
-                    #f p4))
+  #;(fold-with-zipper p-v p-v p-v
+                      (lambda (v f p) (pretty-print p) p)
+                      #f p4)
+
+  (define s1 (datum->syntax #f `(1 2 3)))
+  (printf "mwp:\n")
+  (map-with-pattern (mlt (sng a) (sng b) (sng c)) s1)
+  (map-with-pattern p3 s1)
+
+  (define plam (mlt (dat 'lam) (mlt (rpt (mlt (sng a) (sng b)))) (sng c)))
+  (map-with-pattern plam (datum->syntax #f `(([a 1] [b 2] [c 3]) d)))
+  )
