@@ -20,7 +20,6 @@
 (define (remove-datum pts) (filter-not ast:pat:datum? pts))
 (define (kid s c) s)                  ;; todo check c is fully consumed
 (define (consume c (n 1))
-  (printf "consuming: ~a-~a\n" c n)
   (match c
     [(cons h t) (cons (if h (- h n) h) t)]
     [null null]))
@@ -74,14 +73,14 @@
     (match-define (sctxt is os kl) sc)
     (match pat
       [(ast:pat:single chk id)
-       (printf "fs: ~a ~a\n" sc path)
+       ;; (printf "fs: ~a ~a\n" sc path)
        (match path
          [`(multiple ,i ,ps ,ppath)
           (sctxt (cdr is) (os (for-single (car is))) kl)]
          [`(repeat ,p ,nk ,ppath) (error 'sham/sam "TODO")])]
       [(ast:pat:datum val) (sctxt is os kl)];;TODO remove if datum
       [(ast:pat:multiple pms)
-       (printf "fm: ~a ~a\n" sc path)
+       ;; (printf "fm: ~a ~a\n" sc path)
        (match path
          [`(pre-multiple ,prev-path)
           (define-values (cis lis)
@@ -89,7 +88,7 @@
               [`(multiple ,_ ,_ ,_) (values (car is) (cdr is))]
               [`(repeat ,_ ,_ ,_) (values (car is) (cdr is))]
               [`() (values is #f)]))
-          (printf "fm/pre-mult: ~a ~a ~a\n" cis lis prev-path)
+          ;; (printf "fm/pre-mult: ~a ~a ~a\n" cis lis prev-path)
           (define (gen-multf ostx)
             (lambda (stx)
               (cond [(syntax? stx) (gen-multf (cons stx ostx))]
@@ -101,7 +100,7 @@
           (match (os #f)
             [(list lis ms prev) (sctxt lis (prev (for-multiple (reverse ms))) kl)])])]
       [(ast:pat:repeat p k)
-       (printf "fr: ~a ~a\n" sc path)
+       ;; (printf "fr: ~a ~a\n" sc path)
        (match-define `(at-repeat ,frec ,path^) path)
        (define (gen-repf ostx)
          (lambda (stx)
@@ -127,7 +126,7 @@
   ;; k : syntax? number? -> syntax?
   ;;   continuation with final match syntax and leftover repeat value
   (define ((do-head pat stx) k c)
-    (printf "do-head: \n\tpat: ~a, \n\tstx: ~a, \n\tc: ~a\n" (pretty-pattern pat) (syntax->datum stx) c)
+    ;; (printf "do-head: \n\tpat: ~a, \n\tstx: ~a, \n\tc: ~a\n" (pretty-pattern pat) (syntax->datum stx) c)
     (match (ooo stx)
       [(list n) (k pat (consume (list n)))]
       [#f
@@ -191,7 +190,6 @@
 ;; returns a path to a specific field in the pattern o/w #f
 ;;   essentially a zipper which focusses on single pattern
 ;;   of the given `arg`
-;; p@(pat:single i c) -> `(single i p)
 ;; p@(pat:multiple ss) -> `(multiple s i p)
 ;; p@(pat:repeat s) -> `(repeat s p)
 (define (find-arg pat arg-sym (=? equal?))
@@ -199,6 +197,7 @@
     (define (f _ pat path)
       (match pat
         [(ast:pat:single chk i) (if (=? i arg-sym) (k (cons pat path)) #f)]
+        [(ast:pat:repeat p k) (match path [`(at-repeat ,frec ,pp) (frec #f k)])]
         [else #f]))
     (fold-with-zipper f #f pat)))
 

@@ -12,15 +12,19 @@
    [plus ('+ e ...)]
    [minus ('- e1 e2 ...)]
    [mult ('* e ...)])
-  #:with struct-helpers)
+  #:with struct-helpers
+  )
 
 (module+ test
   (begin-for-syntax
     (require racket/pretty
              racket)
     (require sham/sag/syntax/runtime)
-    (printf "syntax-value:LC\n")
     (define-values (mcv _) (syntax-local-value/immediate #`math))
-    (pretty-print mcv)
-    (pretty-print (pretty-spec mcv))
-    ))
+    ;; (pretty-print mcv)
+    ;; (pretty-print (pretty-spec mcv))
+    )
+  (require rackunit)
+  (define mdiv1 (make-div 4 2))
+  (check-equal? (div-n mdiv1) 4)
+  )
