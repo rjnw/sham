@@ -1,16 +1,15 @@
 #lang racket
 
 (require
- (for-syntax
-  "syntax/private/spec.rkt"
-  "syntax/private/syntax-class.rkt"
-  "syntax/private/generics.rkt"
-  "syntax/private/utils.rkt"
-  (prefix-in pub: "syntax/spec.rkt")
-  "generics.rkt"
-  syntax/parse
-  racket/syntax
-  racket/pretty)
+ (for-syntax "syntax/private/spec.rkt"
+             "syntax/private/syntax-class.rkt"
+             "syntax/private/generics.rkt"
+             "syntax/private/utils.rkt"
+             (prefix-in pub: "syntax/spec.rkt")
+             "generics.rkt"
+             syntax/parse
+             racket/syntax
+             racket/pretty)
  "runtime.rkt")
 
 (provide define-ast)
@@ -19,7 +18,7 @@
   (require racket)
   (require syntax/datum)
 
-  (define (spec:private->public aid sid ps formatter)
+  (define (spec:private->public aid ps formatter)
     (define (do-group gs)
       (match gs
         [(ast:group id parent nodes info)
@@ -27,13 +26,11 @@
            (for/list ([arg args])
              (syntax-parse arg
                [i:identifier
-                (pub:ast:group:arg (cons #`i (generate-temporary #`i))
-                                   (format-group-arg-id #`i ps gs)
+                (pub:ast:group:arg (pub:ast:id #`i (generate-temporary #`i) (format-group-arg-id #`i ps gs))
                                    (type-from-id #`i)
                                    '())]
                [(i:identifier ki:keyword-info)
-                (pub:ast:group:arg (cons #`i (generate-temporary #`i))
-                                   (format-group-arg-id #`i ps gs)
+                (pub:ast:group:arg (pub:ast:id #`i (generate-temporary #`i) (format-group-arg-id #`i ps gs))
                                    (type-from-id #`i)
                                    (attribute ki.spec))
                 ;; (define if-default (info-value (attribute ki.spec) `#:default))
@@ -42,7 +39,7 @@
                 ;;      #,@(if if-mutable (list #`#:mutable) `()))
                 ])))
          (let* ([syn-id (format-group-id formatter id ps gs)]
-                [group-args (do-group-args (info-values info `#:common))])
+                [group-args (do-group-args (info-values info `common))])
            (define (do-node ns)
              (define (do-node-args pat (depth 0))
                (define (format-arg s) (format-node-arg-id formatter s ps gs ns))
@@ -51,8 +48,8 @@
                    [`("!") (pub:ast:type:external (id-without-type s) depth)]
                    [t (pub:ast:type:internal t depth)]))
                (match pat
-                 [(ast:pat:single c s) (list (pub:ast:node:arg (cons s (generate-temporary s))
-                                                               (format-arg s) (build-type c s) #f))]
+                 [(ast:pat:single c s) (list (pub:ast:node:arg (pub:ast:id s (generate-temporary s) (format-arg s))
+                                                               (build-type c s) #f))]
                  [(ast:pat:datum d) (list #f)]
                  [(ast:pat:multiple s) (flatten (for/list ([p s]) (do-node-args p depth)))]
                  [(ast:pat:repeat r k) (do-node-args r (add1 depth))]))
@@ -64,19 +61,18 @@
                         (pub:ast:node (cons id (generate-temporary id)) node-id
                                       node-args pattern (info->assoc info))))]))
            (cons (syntax->datum id)
-                 (pub:ast:group (cons id (generate-temporary id)) syn-id
+                 (pub:ast:group (pub:ast:id id (generate-temporary id) syn-id)
                                 parent group-args (map do-node nodes) (info->assoc info))))]))
     (match ps
       [(ast gs inf)
-       (pub:ast aid sid (map do-group gs) (info->assoc inf))]))
+       (pub:ast aid (pub:ast:id aid (generate-temporary aid) aid) (map do-group gs) (info->assoc inf))]))
 
   (define (build-syntax ast-id raw-ast-spec)
-    (define temp-ast-id (generate-temporary ast-id))
 
     (define formatter
-      (cond [(info-value (ast-info raw-ast-spec) `#:format) => (λ (f) ((syntax-local-value f) ast-id))]
+      (cond [(info-value (ast-info raw-ast-spec) `format) => (λ (f) ((syntax-local-value f) ast-id))]
             [else (basic-id-formatter ast-id #`: #`:)]))
-    (define ast-spec (spec:private->public ast-id temp-ast-id raw-ast-spec formatter))
+    (define ast-spec (spec:private->public ast-id raw-ast-spec formatter))
     (match-define (cons constructor req-builders)
       (cond [(info-value (pub:ast-info ast-spec) `constructor)
              => (λ (f) ((syntax-local-value f) ast-spec))]
@@ -89,6 +85,7 @@
                         (info-value (ast-info raw-ast-spec) `with '())))))
     ;; list of structures producing generics/methods for groups and nodes
     (define (map-gen f) (append* (filter identity (map f gens))))
+    ;; filter-map
     (define (fold-gen f base) (foldr f base gens))
 
     (define top-struct (fold-gen (curryr build-top-struct ast-spec)

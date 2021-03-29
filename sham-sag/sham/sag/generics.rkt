@@ -8,7 +8,7 @@
                      racket/syntax))
 
 (require "syntax/spec.rkt"
-         (prefix-in srt: "syntax/runtime.rkt")
+         (prefix-in sr: "syntax/runtime.rkt")
          (prefix-in st: "syntax/transformer.rkt")
          (prefix-in sm: "syntax/match.rkt")
          (prefix-in ss: "syntax/storage.rkt")
@@ -33,6 +33,7 @@
       (map to-syntax (filter (compose not false?) c)))]))
 
 ;; extras is a list of syntax build-*-extra is called with a fold on the list
+;; TODO add types
 (define-generics ast-builder
   (build-top-struct ast-builder top-struct ast-spec)
   (build-group-struct ast-builder group-struct ast-spec group-spec)
@@ -169,7 +170,9 @@
                      nargs))
           as gs ns)
          nextra)))
-
+;; (struct (ast-spec-builder spec)
+;;   #:methods ast-builder
+;;   [(define (build-group-extra gextra as gs) ...)])
 (define-ast-builder (ast-spec spec)
   (build-group-extra
    (gextra as gs)
@@ -210,7 +213,7 @@
    (append
     (list
      #`(define-syntax #,gsyn-id
-         (srt:term-type st:rkt-pattern-transformer sm:term-match-expander #,gid-t #,sid)))
+         (sr:term-type st:rkt-pattern-transformer sm:term-match-expander #,gid-t #,sid)))
     gextra))
   (build-node-extra
    (nextra as gs ns)
@@ -220,11 +223,11 @@
    (match (findf rkt-transformer? nextra)
      [(rkt-transformer tid ns^)
       (cons #`(define-syntax #,nsyn-id
-                (srt:term-type tid sm:term-match-expander #,nid-t #,sid))
+                (sr:term-type tid sm:term-match-expander #,nid-t #,sid))
             nextra)]
      [else
       (cons #`(define-syntax #,nsyn-id
-                (srt:term-type st:rkt-pattern-transformer
+                (sr:term-type st:rkt-pattern-transformer
                                sm:term-match-expander #,nid-t #,sid))
             nextra)])))
 

@@ -63,6 +63,9 @@
 (define (default-multiple-format ss) #`(vector . #,ss))
 (define (default-repeat-format ss) #`(list . #,ss))
 
+;; TODO why this? why not generate a syntax-parse for pat, write a more conventional pattern matcher
+;;  this stx -> match pattern for list/vector ;; or anything else
+;; fold over untyped with the interpretation of syntax given by the pattern
 (define (map-with-pattern pat stx
                           #:single (for-single default-single-format)
                           #:datum (for-datum default-datum-format)
@@ -77,7 +80,7 @@
        (match path
          [`(multiple ,i ,ps ,ppath)
           (sctxt (cdr is) (os (for-single (car is))) kl)]
-         [`(repeat ,p ,nk ,ppath) (error 'sham/sam "TODO")])]
+         [`(repeat ,p ,nk ,ppath) (error 'sham/sam "map-with-pattern/repeat&single: TODO")])]
       [(ast:pat:datum val) (sctxt is os kl)];;TODO remove if datum
       [(ast:pat:multiple pms)
        ;; (printf "fm: ~a ~a\n" sc path)

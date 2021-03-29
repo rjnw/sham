@@ -2,16 +2,17 @@
 
 (require racket/splicing)
 
-(require (prefix-in prv: "private/spec.rkt")
+(require "private/utils.rkt"
          (submod "private/spec.rkt" pattern))
 
 (provide (all-defined-out)
          (all-from-out (submod "private/spec.rkt" pattern)))
 
-(struct ast (id syn-id groups info)
+(struct ast (rename-id id groups info)
   #:property prop:rename-transformer 1)
 
-(struct ast:basic (id-tpair formatted-id) #:prefab) ;; id-tpair: (cons orig-id (generate-temporary orig-id))
+(struct ast:id (orig temp form) #:prefab)
+(struct ast:basic (id) #:prefab)
 (struct ast:group ast:basic (parent args nodes info) #:prefab)
 (struct ast:group:arg ast:basic (type info) #:prefab)
 (struct ast:node ast:basic (args pattern info) #:prefab)
@@ -24,6 +25,32 @@
 (struct ast:type:identifier ast:type () #:prefab)
 (struct ast:type:unboxed ast:type (of) #:prefab)
 
+(define ast:pat/c
+  (flat-rec-contract pat/c
+                     (struct/c ast:pat:datum symbol?)
+                     (struct/c ast:pat:single (maybe/c procedure?) (maybe/c symbol?))
+                     (struct/c ast:pat:multiple (listof pat/c))
+                     (struct/c ast:pat:repeat pat/c (maybe/c natural-number/c))))
+
+(define ast:id/c (struct/c ast:id syntax? syntax? syntax?))
+(define ast:info/c (listof (cons/c symbol? (listof syntax?))))
+(define ast:type/c ast:type?)
+(define ast/c
+  (struct/c ast syntax? ast:id/c
+            (assoc/c
+             symbol?
+             (struct/c ast:group
+                       ast:id/c
+                       syntax?
+                       (listof (struct/c ast:group:arg ast:id/c ast:type/c ast:info/c))
+                       (assoc/c symbol?
+                                (struct/c ast:node
+                                          ast:id/c
+                                          (listof (struct/c ast:node:arg ast:id/c ast:type/c ast:info/c))
+                                          ast:pat/c
+                                          ast:info/c))
+                       ast:info/c))
+            ast:info/c))
 
 (define (group-nodes gs)
   (map cdr (ast:group-nodes gs)))
@@ -40,7 +67,7 @@
     (match group-spec/id
       [(? (or/c syntax? symbol?))
        (lookup-node-spec node-id (lookup-group-spec group-spec/id ast-spec) ast-spec)]
-      [(ast:group idt fid prnt args nds inf)
+      [(ast:group gid prnt args nds inf)
        (cdr (assoc (forced-datum node-id) nds))])))
 
 (define (spec->storage spec)
@@ -55,6 +82,12 @@
                             #`(cons #,(key-storage key) #,(value-storage value))))))
   (define (datum-storage v) #``#,v)
   (define (syntax-storage v) #`#'#,v)
+  (define (id-storage id)
+    (match id
+      [(ast:id orig temp form)
+       #`(ast:id #,(syntax-storage orig)
+                 #,(syntax-storage temp)
+                 #,(syntax-storage form))]))
   (define (info-storage info)
     (define (info-value v)
       (cond [(syntax? v) #`#'#,v]
@@ -67,19 +100,17 @@
   (define (type-storage type) #`#f)
   (define (arg-storage a)
     (match a
-      [(ast:group:arg id syn-id type info)
-       #`(ast:group:arg #,(syntax-storage id)
-                        #,(syntax-storage syn-id)
+      [(ast:group:arg id type info)
+       #`(ast:group:arg #,(id-storage id)
                         #,(type-storage type)
                         #,(info-storage info))]
-      [(ast:node:arg id syn-id type info)
-       #`(ast:node:arg #,(syntax-storage id)
-                       #,(syntax-storage syn-id)
+      [(ast:node:arg id type info)
+       #`(ast:node:arg #,(id-storage id)
                        #,(type-storage type)
                        #,(info-storage info))]))
 
   (define (group-storage group)
-    (match-define (ast:group (cons gid gid-t) gsyn gparent gargs gnodes ginfo) group)
+    (match-define (ast:group gid gparent gargs gnodes ginfo) group)
     (define (node-storage node)
       (define (pattern-storage pattern)
         (match pattern
@@ -91,26 +122,29 @@
            #`(ast:pat:multiple (vector-immutable #,@(for/list ([s specs]) (pattern-storage s))))]
           [(ast:pat:repeat spec k)
            #`(ast:pat:repeat #,(pattern-storage spec) #,k)]))
-      (match-define (ast:node (cons nid nid-t) nsyn nargs npat ninfo) node)
-      #`(ast:node (cons #'#,nid #'#,nid-t) #'#,nsyn
+      (match-define (ast:node nid nargs npat ninfo) node)
+      #`(ast:node #,(id-storage nid)
                   #,(list-storage nargs arg-storage)
                   #,(pattern-storage npat)
                   #,(info-storage ninfo)))
-    #`(ast:group (cons #'#,gid #'#,gid-t) #'#,gsyn #'#,gparent
+    #`(ast:group #,(id-storage gid) '#,gparent
                  #,(list-storage gargs arg-storage)
                  #,(assoc-storage gnodes datum-storage node-storage)
                  #,(info-storage ginfo)))
-  (match-define (ast id sid groups info) spec)
-  #`(ast #'#,id #'#,sid
+  (match-define (ast id tid groups info) spec)
+  #`(ast #'#,id #,(id-storage tid)
          #,(assoc-storage groups datum-storage group-storage)
          #,(info-storage info)))
 
 (define (pretty-info info)
   (for/list ([ip info])
     (cons (car ip) (map syntax->datum (flatten (cdr ip))))))
+(define (pretty-id id)
+  (match id
+    [(ast:id id tid fid) `(,(syntax-e id) ,(syntax-e fid))]))
 (define (pretty-arg arg)
   (match arg
-    [(ast:basic id syn-id) `(,(syntax-e id) ,(syntax-e syn-id))]))
+    [(ast:basic id) (pretty-id id)]))
 (define (pretty-pattern pattern)
   (match pattern
     [(ast:pat:single c id)
@@ -122,14 +156,14 @@
     [(ast:pat:repeat spec n)
      `(#:repeat ,(pretty-pattern spec) ,n)]))
 (define (pretty-node node)
-  (match-define (ast:node nid nsyn nargs npat ninfo) node)
-  `(,(syntax-e nsyn)
+  (match-define (ast:node nid nargs npat ninfo) node)
+  `(,(pretty-id nid)
     ,@(map pretty-arg nargs)
     ,(pretty-pattern npat)
     ,(pretty-info ninfo)))
 (define (pretty-group grp)
-  (match-define (ast:group gid gsyn gparent gargs gnodes ginfo) grp)
-  `(,(syntax-e gsyn) ,(syntax-e gparent)
+  (match-define (ast:group gid gparent gargs gnodes ginfo) grp)
+  `(,(pretty-id gid) ,(syntax-e gparent)
                      ,@(map pretty-arg gargs)
                      ,@(for/list ([np gnodes])
                          `((#:node ,(car np)) ,(pretty-node (cdr np))))
@@ -138,7 +172,7 @@
 (define (pretty-spec spec)
   (match-define (ast id sid groups info) spec)
 
-  `((#:ast ,(syntax-e id) ,(syntax-e sid))
+  `((#:ast ,(syntax-e id) ,(pretty-id sid))
     ,@(for/list ([gp groups])
         `((#:group  ,(car gp)) ,(pretty-group (cdr gp))))
     ,(pretty-info info)))

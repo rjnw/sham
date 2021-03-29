@@ -27,6 +27,7 @@
   (require rackunit)
   (define lr1 (make-letrec `(a b c) `(1 2 3) `d))
   (define lr2 (LC:expr:letrec (['a 1] ['b 2] ['c 3]) 'd))
+  ;; (vector (list (vector 'a 1) (vector 'b 2) ...) 'd)
   (check-equal? (letrec-ids lr2) `(a b c))
   (check-equal? (letrec-vals lr2) `(1 2 3))
   (check-equal? (letrec-e lr2) 'd)
@@ -35,7 +36,8 @@
   (define lam2 (LC:expr:lambda ('a) 'b))
   (check-equal? (lambda-n lam2) 'a)
   (check-equal? (lambda-body lam2) 'b)
-  ;; (match lr2 [(LC:expr:letrec ([i1 v1] [i2 v2] [i3 v2]) e) (list i v e)])
+   (match lr2 [(LC:expr:letrec ([i v] ...) e) (list i v e)])
+
   ;; (define-transformation
   ;;   constant-fold (LC:expr -> LC:expr)
   ;;   [(app (sym +) (num a) (num a))

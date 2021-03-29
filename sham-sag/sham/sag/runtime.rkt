@@ -18,7 +18,7 @@
 
 
 (struct ast:location:union [of])        ;; (list/c (cons/c symbol:tag srcloc?))
-(struct ast:metadata [loc])
+(struct ast:metadata [loc custom])
 
 (struct ast [md])
 (struct ast:group ast [args])
@@ -29,14 +29,3 @@
    (define (gmap-t ff f v)
      (match-define (ast:term md args vals) v)
      ((ff v) (super-gmap-t ff f args) (super-gmap-t ff f vals)))])
-
-
-;; (define-syntax (define-transformation stx)
-;;   (syntax-parse stx
-;;     [(_ tid:id astid:id (from:id (~datum ->) to:id)
-;;         ts:transform ...)
-;;      ])
-;;   )
-
-(define-syntax (define-reduction stx)
-  #`(void))

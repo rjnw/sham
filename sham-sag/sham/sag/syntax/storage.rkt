@@ -22,7 +22,6 @@
   (define (generate-access path)
     (match path
       [`() (values val 0)]
-      [`(single ,c ,i ,p) (generate-access p)]
       [`(multiple ,idx ,s ,p)
        (define (datum-until ds ci)
          (cond [(>= ci idx) ds]
