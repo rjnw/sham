@@ -32,12 +32,7 @@
                [(i:identifier ki:keyword-info)
                 (pub:ast:group:arg (pub:ast:id #`i (generate-temporary #`i) (format-group-arg-id #`i ps gs))
                                    (type-from-id #`i)
-                                   (attribute ki.spec))
-                ;; (define if-default (info-value (attribute ki.spec) `#:default))
-                ;; (define if-mutable (info-value (attribute ki.spec) `#:mutable))
-                ;; #`(i #,@(if if-default (list #`#:auto) `())
-                ;;      #,@(if if-mutable (list #`#:mutable) `()))
-                ])))
+                                   (attribute ki.spec))])))
          (let* ([syn-id (format-group-id formatter id ps gs)]
                 [group-args (do-group-args (info-values info `common))])
            (define (do-node ns)
@@ -58,7 +53,7 @@
                 (let* ([node-id (format-node-id formatter id ps gs ns)]
                        [node-args (filter (compose not false?) (do-node-args pattern))])
                   (cons (syntax->datum id)
-                        (pub:ast:node (cons id (generate-temporary id)) node-id
+                        (pub:ast:node (pub:ast:id id (generate-temporary id) node-id)
                                       node-args pattern (info->assoc info))))]))
            (cons (syntax->datum id)
                  (pub:ast:group (pub:ast:id id (generate-temporary id) syn-id)
@@ -113,12 +108,12 @@
   (syntax-parse stx
     [(_ cid:id gs:ast-spec)
      (define-values (ast-syntaxes ast-spec) (build-syntax #`cid (attribute gs.spec)))
-     (match-define (pub:ast id sid grps inf) ast-spec)
+     (match-define (pub:ast id (pub:ast:id oid gid fid) grps inf) ast-spec)
      (define spec-storage (pub:spec->storage ast-spec))
      (define stx
        #`(begin
-           (define-for-syntax #,sid #,spec-storage)
-           (define-syntax cid #,sid)
+           (define-for-syntax #,gid #,spec-storage)
+           (define-syntax cid #,gid)
            #,@ast-syntaxes))
      (pretty-print (syntax->datum stx))
      stx]))

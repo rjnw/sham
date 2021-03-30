@@ -35,15 +35,15 @@
       [`(repeat ,s ,k ,p)
        (define-values (val depth) (generate-access p))
        (values val (add1 depth))]))
-  (define pat-path (find-arg pat (car (ast:basic-id-tpair arg))))
+  (define pat-path (find-arg pat (ast:id-orig (ast:basic-id arg))))
   (define-values (stx _) (generate-access (cdr pat-path)))
   stx)
 
 (module+ test
   (require (submod "pattern.rkt" test))
   (printf "storage:\n")
-  (define aa (ast:node:arg (cons a a) a #f '()))
-  (define ba (ast:node:arg (cons b b) b #f '()))
+  (define aa (ast:node:arg (ast:id a a a) #f '()))
+  (define ba (ast:node:arg (ast:id b b b) #f '()))
   ((from-node-storage aa p1) f)
   (define pp (mlt (dat 'lambda) (mlt (rpt (mlt (sng a) (sng b))) (sng c))))
   ((from-node-storage aa pp) f)

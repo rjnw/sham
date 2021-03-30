@@ -11,7 +11,7 @@
 (struct ast (rename-id id groups info)
   #:property prop:rename-transformer 1)
 
-(struct ast:id (orig temp form) #:prefab)
+(struct ast:id (orig gen form) #:prefab)
 (struct ast:basic (id) #:prefab)
 (struct ast:group ast:basic (parent args nodes info) #:prefab)
 (struct ast:group:arg ast:basic (type info) #:prefab)
@@ -35,22 +35,18 @@
 (define ast:id/c (struct/c ast:id syntax? syntax? syntax?))
 (define ast:info/c (listof (cons/c symbol? (listof syntax?))))
 (define ast:type/c ast:type?)
-(define ast/c
-  (struct/c ast syntax? ast:id/c
-            (assoc/c
-             symbol?
-             (struct/c ast:group
-                       ast:id/c
-                       syntax?
-                       (listof (struct/c ast:group:arg ast:id/c ast:type/c ast:info/c))
-                       (assoc/c symbol?
-                                (struct/c ast:node
-                                          ast:id/c
-                                          (listof (struct/c ast:node:arg ast:id/c ast:type/c ast:info/c))
-                                          ast:pat/c
-                                          ast:info/c))
-                       ast:info/c))
-            ast:info/c))
+(define ast:node/c (struct/c ast:node
+                             ast:id/c
+                             (listof (struct/c ast:node:arg ast:id/c ast:type/c ast:info/c))
+                             ast:pat/c
+                             ast:info/c))
+(define ast:group/c (struct/c ast:group
+                              ast:id/c
+                              syntax?
+                              (listof (struct/c ast:group:arg ast:id/c ast:type/c ast:info/c))
+                              (assoc/c symbol? ast:node/c)
+                              ast:info/c))
+(define ast/c (struct/c ast syntax? ast:id/c (assoc/c symbol? ast:group/c) ast:info/c))
 
 (define (group-nodes gs)
   (map cdr (ast:group-nodes gs)))

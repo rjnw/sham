@@ -15,12 +15,12 @@
   (syntax-case stx ()
     [(_ args ...)
      (match ss
-       [(ast:node (cons id idt) fid nargs pat ninfo)
-        (define ret #`(#,idt md gargs #,(pattern-expander #`(args ...) pat)))
+       [(ast:node (ast:id nid-o nid-g nid-f) nargs pat ninfo)
+        (define ret #`(#,nid-g md gargs #,(pattern-expander #`(args ...) pat)))
         (printf "expanded-to: ~a\n" ret)
         ret]
-       [(ast:group idt fid prnt gargs nodes ginfo)
-        (error 'sham:sag "todo match expander for group types: ~a" (car idt))])]))
+       [(ast:group (ast:id gid-o gid-g gid-f) prnt gargs nodes ginfo)
+        (error 'sham:sag "todo match expander for group types: ~a" (car gid-o))])]))
 
 (module+ test
   (require rackunit))

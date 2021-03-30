@@ -25,11 +25,13 @@
     ;; (pretty-print (pretty-spec mcv))
     )
   ;; (- (- x)) -> x
-  (match (neg (neg 2))
-    [(math:expr:neg (math:expr:neg x)) x])
-  (define (fold-neg e)
-    (gmap #f (lambda (e) (match e [(math:expr:neg (math:expr:neg x)) x] [else e])) e))
+  ;; (define (fold-neg e)
+  ;;   (gmap #f (lambda (e) (match e [(math:expr:neg (math:expr:neg x)) x] [else e])) e))
   (require rackunit)
   (define mdiv1 (make-div 4 2))
   (check-equal? (div-n mdiv1) 4)
+  (check-equal?
+   (match (make-neg (make-neg 2))
+     [(math:expr:neg (math:expr:neg x)) x])
+   2)
   )
