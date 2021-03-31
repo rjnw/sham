@@ -77,7 +77,6 @@
 
 
 ;; contracts
-
 (define (maybe/c x/c)
   (or/c false/c x/c))
 (define (assoc/c key/c value/c)

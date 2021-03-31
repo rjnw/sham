@@ -143,14 +143,14 @@
     [(ast:basic id) (pretty-id id)]))
 (define (pretty-pattern pattern)
   (match pattern
-    [(ast:pat:single c id)
-     `(#:single ,c ,(syntax-e id))]
-    [(ast:pat:datum syn)
-     `(#:datum ,syn)]
+    [(ast:pat:single #f id)
+     `(~s ,(syntax-e id))]
+    [(ast:pat:datum syn) `',syn]
     [(ast:pat:multiple specs)
-     `(#:multiple ,(vector-map pretty-pattern specs))]
+     (map pretty-pattern (vector->list specs))]
     [(ast:pat:repeat spec n)
-     `(#:repeat ,(pretty-pattern spec) ,n)]))
+     `(~r ,(pretty-pattern spec)
+          ,(string->symbol (if n (format "..~a" n) "...")))]))
 (define (pretty-node node)
   (match-define (ast:node nid nargs npat ninfo) node)
   `(,(pretty-id nid)

@@ -2,7 +2,7 @@
 
 (require (for-template racket))
 (require "spec.rkt")
-(provide map-with-pattern
+(provide fold-with-pattern
          rec-pattern
          find-arg)
 
@@ -31,15 +31,29 @@
     [0 #t]
     [else #f]))
 
-(define pattern-path/c
+(define (pattern-path/c val/c)
   (flat-rec-contract pattern-path/c
-                     (list/c 'multiple natural-number/c (listof any/c) pattern-path/c)
-                     (list/c 'repeat (or/c false/c natural-number/c) pattern-path/c)
-                     (list/c)))
+                     (list/c)
+                     (list/c 'pre-multiple pattern-path/c)
+                     (list/c 'multiple natural-number/c (listof ast:pat/c) pattern-path/c)
+                     (list/c 'post-multiple pattern-path/c)
+                     (list/c 'repeat ast:pat/c (or/c false/c natural-number/c) pattern-path/c)
+                     (list/c 'at-repeat (-> val/c (or/c false/c natural-number/c) val/c))))
 
-;; path :=     ;; inside out path to the top pattern, haskell zippers
-;;   `(multiple ,index ,(list pattern) ,path)
-;;   `(repeat ,pattern ,k ,path)
+(define (pretty-path path)
+  (match path
+    [`() '()]
+    [`(multiple ,i ,pats ,ppath) `(multiple ,i ,(map pretty-pattern (vector->list pats)) ,(pretty-path ppath))]
+    [`(post-multiple ,ppath) `(>-multiple ,(pretty-path ppath))]
+    [`(pre-multiple ,ppath) `(<-multiple ,(pretty-path ppath))]
+    [`(repeat ,pat ,k ,ppath) `(repeat ,(pretty-pattern pat) ,k ,(pretty-path ppath))]
+    [`(at-repeat ,frec ,ppath) `(@-repeat ,(pretty-path ppath))]))
+
+;; f := val/c ast:pat/c pattern-path/c -> val/c
+;;  folds over pattern along with a zipper containing the position of current pattern
+;;  f is also polymorphic for pre and post multiple values
+;;    repeat pattern is done with a special path containing a recursive function to perform
+;;    the fold differently
 (define (fold-with-zipper f val pat)
   (define (go path val pat)
     (match pat
@@ -58,15 +72,15 @@
        (f val pat `(at-repeat ,frec ,path))]))
   (go null val pat))
 
-(define default-single-format identity)
-(define default-datum-format (const #f))
-(define (default-multiple-format ss) #`(vector . #,ss))
-(define (default-repeat-format ss) #`(list . #,ss))
+(define (default-single-format ss pat) ss)
+(define (default-datum-format ss pat) #f)
+(define (default-multiple-format ss pat) #`(vector . #,ss))
+(define (default-repeat-format ss pat) #`(list . #,ss))
 
 ;; TODO why this? why not generate a syntax-parse for pat, write a more conventional pattern matcher
 ;;  this stx -> match pattern for list/vector ;; or anything else
 ;; fold over untyped with the interpretation of syntax given by the pattern
-(define (map-with-pattern pat stx
+(define (fold-with-pattern pat stx
                           #:single (for-single default-single-format)
                           #:datum (for-datum default-datum-format)
                           #:multiple (for-multiple default-multiple-format)
@@ -76,48 +90,70 @@
     (match-define (sctxt is os kl) sc)
     (match pat
       [(ast:pat:single chk id)
-       ;; (printf "fs: ~a ~a\n" sc path)
+       ;; (printf "fs: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
        (match path
+         [`(multiple ,i ,ps (repeat ,p ,nk ,ppath))
+          #:when (false? is) (sctxt is os kl)]
          [`(multiple ,i ,ps ,ppath)
-          (sctxt (cdr is) (os (for-single (car is))) kl)]
-         [`(repeat ,p ,nk ,ppath) (error 'sham/sam "map-with-pattern/repeat&single: TODO")])]
-      [(ast:pat:datum val) (sctxt is os kl)];;TODO remove if datum
+          (sctxt (cdr is) (os (for-single (car is) pat)) kl)]
+         [`(repeat ,p ,nk ,ppath)
+          (match (ooo stx)
+            [#f (sctxt stx (os (for-single stx pat)) (consume kl))]
+            [(list n) (sctxt stx (os stx) (consume kl n))])])]
+      [(ast:pat:datum val) (sctxt is os kl)];;TODO remove if datum needed before providing reader
       [(ast:pat:multiple pms)
-       ;; (printf "fm: ~a ~a\n" sc path)
-       (match path
-         [`(pre-multiple ,prev-path)
+       ;; (printf "fm: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
+       (define ooo-n (cond [(syntax? is) (ooo is)]
+                           [(cons? is) (ooo (car is))]
+                           [else #f]))
+       (match* (ooo-n path)
+         [((list n) `(pre-multiple (repeat ,p ,nk ,ppath)))
+          ;; (printf "fm/... ~a\n" n)
+          (define lis (cond [(cons? is) (cdr is)]
+                            [else #f]))
+          (define (gen-multf ostx)
+            (lambda (stx)
+              (cond [(syntax? stx) (gen-multf (cons stx ostx))]
+                    [(false? stx) (list lis ostx os)]
+                    [else (error 'sham/sam "fold-with-pattern/...")])))
+          (sctxt #f (gen-multf (list (car is))) (consume kl n))]
+         [('#f `(pre-multiple ,prev-path))
           (define-values (cis lis)
             (match prev-path
               [`(multiple ,_ ,_ ,_) (values (car is) (cdr is))]
               [`(repeat ,_ ,_ ,_) (values (car is) (cdr is))]
               [`() (values is #f)]))
-          ;; (printf "fm/pre-mult: ~a ~a ~a\n" cis lis prev-path)
+          ;; (printf "fm/pre-mult: ~a ~a ~a\n" cis lis (pretty-path prev-path))
           (define (gen-multf ostx)
             (lambda (stx)
               (cond [(syntax? stx) (gen-multf (cons stx ostx))]
                     [(false? stx) (list lis ostx os)]
-                    [else (error 'sham/sam "map-with-pattern/multf: ~a" stx)])))
+                    [else (error 'sham/sam "fold-with-pattern/gen-multf: ~a" stx)])))
           (sctxt (syntax-e cis) (gen-multf '()) kl)]
-         [`(post-multiple ,path)
-          (unless (empty? is) (error 'sham/sam "map-with-pattern/post-multiple: cannot consume sequence ~a" is))
+         [(_ `(post-multiple ,ppath))
+          #:when (false? is)
+          (match-define (list lis ms prev) (os #f))
+          (sctxt lis (prev (reverse ms)) kl)]
+         [(_ `(post-multiple ,path))
+          (unless (empty? is) (error 'sham/sam "fold-with-pattern/post-multiple: cannot consume sequence ~a" is))
           (match (os #f)
-            [(list lis ms prev) (sctxt lis (prev (for-multiple (reverse ms))) kl)])])]
+            [(list lis ms prev) (sctxt lis (prev (for-multiple (reverse ms) pat)) kl)])])]
       [(ast:pat:repeat p k)
-       ;; (printf "fr: ~a ~a\n" sc path)
+       ;; (printf "fr: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
        (match-define `(at-repeat ,frec ,path^) path)
        (define (gen-repf ostx)
          (lambda (stx)
            (cond [(syntax? stx) (gen-repf (cons stx ostx))]
-                 [(false? stx) (list is ostx os)])))
-       (let rec ([s (sctxt is (gen-repf '()) (cons k kl))]
-                 [nk k])
-         (define ns (frec s nk))
-         (match-define (sctxt nis nos nkl) ns)
+                 [(list? stx) (gen-repf (append stx ostx))]
+                 [(false? stx) (list is ostx os)]
+                 [else (error 'sham/sam "fold-with-pattern/gen-repf: ~a" stx)])))
+       (let rec ([s (sctxt is (gen-repf '()) (cons k kl))] [nk k])
+         (match-define (sctxt nis nos nkl) (frec s nk))
          (match-define (cons n kl^) nkl)
          (cond [(or (and (false? n) (empty? nis)) (equal? n 0))
                 (match-define (list is rstxs prev-os) (nos #f))
-                (sctxt nis (prev-os (for-repeat (reverse rstxs))) kl)]
-               [else (rec ns n)]))]))
+                (sctxt nis (prev-os (for-repeat (reverse rstxs) pat)) kl)]
+               [else (rec (sctxt nis nos nkl) n)]))]))
   (sctxt-ostx (fold-with-zipper f (sctxt stx identity null) pat)))
 
 (define (map-with-pattern2 pat stx
@@ -227,9 +263,10 @@
 
   (define s1 (datum->syntax #f `(1 2 3)))
   (printf "mwp:\n")
-  (map-with-pattern (mlt (sng a) (sng b) (sng c)) s1)
-  (map-with-pattern p3 s1)
+  (fold-with-pattern (mlt (sng a) (sng b) (sng c)) s1)
+  (fold-with-pattern p3 s1)
 
   (define plam (mlt (dat 'lam) (mlt (rpt (mlt (sng a) (sng b)))) (sng c)))
-  (map-with-pattern plam (datum->syntax #f `(([a 1] [b 2] [c 3]) d)))
+  (fold-with-pattern plam (datum->syntax #f `(([a 1] [b 2] [c 3]) d)))
+  (fold-with-pattern plam (datum->syntax #f `(([i v] ...) d)))
   )
