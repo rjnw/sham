@@ -80,6 +80,7 @@
 ;; TODO why this? why not generate a syntax-parse for pat, write a more conventional pattern matcher
 ;;  this stx -> match pattern for list/vector ;; or anything else
 ;; fold over untyped with the interpretation of syntax given by the pattern
+;; TODO change ostx to actual stack instead of functions to enable backtracking
 (define (fold-with-pattern pat stx
                           #:single (for-single default-single-format)
                           #:datum (for-datum default-datum-format)
@@ -90,7 +91,7 @@
     (match-define (sctxt is os kl) sc)
     (match pat
       [(ast:pat:single chk id)
-       ;; (printf "fs: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
+       (printf "fs: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
        (match path
          [`(multiple ,i ,ps (repeat ,p ,nk ,ppath))
           #:when (false? is) (sctxt is os kl)]
@@ -98,17 +99,17 @@
           (sctxt (cdr is) (os (for-single (car is) pat)) kl)]
          [`(repeat ,p ,nk ,ppath)
           (match (ooo stx)
-            [#f (sctxt stx (os (for-single stx pat)) (consume kl))]
-            [(list n) (sctxt stx (os stx) (consume kl n))])])]
+            [#f (sctxt (cdr is) (os (for-single (car is) pat)) (consume kl))]
+            [(list n) (sctxt (cdr is) (os (car is)) (consume kl n))])])]
       [(ast:pat:datum val) (sctxt is os kl)];;TODO remove if datum needed before providing reader
       [(ast:pat:multiple pms)
-       ;; (printf "fm: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
+       (printf "fm: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
        (define ooo-n (cond [(syntax? is) (ooo is)]
                            [(cons? is) (ooo (car is))]
                            [else #f]))
        (match* (ooo-n path)
          [((list n) `(pre-multiple (repeat ,p ,nk ,ppath)))
-          ;; (printf "fm/... ~a\n" n)
+          (printf "fm/... ~a\n" n)
           (define lis (cond [(cons? is) (cdr is)]
                             [else #f]))
           (define (gen-multf ostx)
@@ -123,7 +124,7 @@
               [`(multiple ,_ ,_ ,_) (values (car is) (cdr is))]
               [`(repeat ,_ ,_ ,_) (values (car is) (cdr is))]
               [`() (values is #f)]))
-          ;; (printf "fm/pre-mult: ~a ~a ~a\n" cis lis (pretty-path prev-path))
+          (printf "fm/pre-mult: ~a ~a ~a\n" cis lis (pretty-path prev-path))
           (define (gen-multf ostx)
             (lambda (stx)
               (cond [(syntax? stx) (gen-multf (cons stx ostx))]
@@ -139,7 +140,7 @@
           (match (os #f)
             [(list lis ms prev) (sctxt lis (prev (for-multiple (reverse ms) pat)) kl)])])]
       [(ast:pat:repeat p k)
-       ;; (printf "fr: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
+       (printf "fr: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
        (match-define `(at-repeat ,frec ,path^) path)
        (define (gen-repf ostx)
          (lambda (stx)
@@ -269,4 +270,10 @@
   (define plam (mlt (dat 'lam) (mlt (rpt (mlt (sng a) (sng b)))) (sng c)))
   (fold-with-pattern plam (datum->syntax #f `(([a 1] [b 2] [c 3]) d)))
   (fold-with-pattern plam (datum->syntax #f `(([i v] ...) d)))
+
+  (define pneg (mlt (dat '-) (sng a) (rpt (sng b))))
+  (fold-with-pattern pneg (datum->syntax #f `(a b)))
+
+  (define pneg2 (mlt (dat '-) (sng a) (rpt (sng b)) (sng c)))
+  ;; (fold-with-pattern pneg2 (datum->syntax #f `(a b c)))
   )

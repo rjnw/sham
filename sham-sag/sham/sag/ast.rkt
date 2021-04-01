@@ -63,45 +63,36 @@
        (pub:ast aid (pub:ast:id aid (generate-temporary aid) aid) (map do-group gs) (info->assoc inf))]))
 
   (define (build-syntax ast-id raw-ast-spec)
-
     (define formatter
       (cond [(info-value (ast-info raw-ast-spec) `format) => (λ (f) ((syntax-local-value f) ast-id))]
             [else (basic-id-formatter ast-id #`: #`:)]))
-    (define ast-spec (spec:private->public ast-id raw-ast-spec formatter))
-    (match-define (cons constructor req-builders)
-      (cond [(info-value (pub:ast-info ast-spec) `constructor)
-             => (λ (f) ((syntax-local-value f) ast-spec))]
-            [else (default-rkt-struct-constructor ast-spec)]))
+    (define default-builders
+      (cond [(info-value (ast-info raw-ast-spec) `default)
+             => (λ (f) ((syntax-local-value f)))]
+            [else (default-rkt-struct-builder)]))
+    (define raw-builders
+      (append
+       (flatten
+        (map (λ (g) ((syntax-local-value g)))
+             (info-value (ast-info raw-ast-spec) `with '())))
+       default-builders))
 
-    (define gens (append
-                  req-builders
-                  (flatten
-                   (map (λ (g) ((syntax-local-value g) ast-spec))
-                        (info-value (ast-info raw-ast-spec) `with '())))))
-    ;; list of structures producing generics/methods for groups and nodes
-    (define (map-gen f) (append* (filter identity (map f gens))))
-    ;; filter-map
-    (define (fold-gen f base) (foldr f base gens))
+    (define all-builders (foldr update-others raw-builders raw-builders))
+    (define (foldr-builders f base) (foldr f base all-builders))
 
-    (define top-struct (fold-gen (curryr build-top-struct ast-spec)
-                                 (construct-top-struct constructor ast-spec)))
+    (define ast-spec (foldr-builders build-spec (spec:private->public ast-id raw-ast-spec formatter)))
+
+    (define top-struct (foldr-builders (curryr build-top ast-spec) empty))
     (define (group-def group-spec)
-      (define (node-def node-spec)
-        (cons (fold-gen (curryr build-node-struct ast-spec group-spec node-spec)
-                        (construct-node-struct constructor ast-spec group-spec node-spec))
-              (fold-gen (curryr build-node-extra ast-spec group-spec node-spec)
-                        empty)))
+      (define (node-def node-spec) (foldr-builders (curryr build-node ast-spec group-spec node-spec) empty))
       (define node-defs (append-map node-def (pub:group-nodes group-spec)))
+      (define struct-defs (foldr-builders (curryr build-group ast-spec group-spec) empty))
+      (append struct-defs node-defs))
 
-      (define struct-syntax (fold-gen (curryr build-group-struct ast-spec group-spec)
-                                      (construct-group-struct constructor ast-spec group-spec)))
-      (define extra-syntax (fold-gen (curryr build-group-extra ast-spec group-spec)
-                                     empty))
-      (append (cons struct-syntax extra-syntax) node-defs))
     (values
      (map ->syntax
-          (cons top-struct
-                 (append-map group-def (map cdr (pub:ast-groups ast-spec)))))
+          (append top-struct
+                  (append-map (compose group-def cdr) (pub:ast-groups ast-spec))))
      ast-spec)))
 
 (define-syntax (define-ast stx)

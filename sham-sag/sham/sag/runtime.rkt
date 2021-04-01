@@ -1,21 +1,11 @@
 #lang racket
 
-(require racket/generic
+(require "runtime/generics.rkt"
+         "runtime/props.rkt"
          (for-syntax syntax/parse))
 
-(provide (all-defined-out))
-
-(define-generics gterm
-  ;; gmap-t : (-> a (-> b ... c)) (-> x b) a)
-  ;; ((ff term) ((f <term-internal-args>) ...))
-  (gmap-t ff f gterm)
-  #:defaults ([list?
-               (define (gmap-t ff f term)
-                 (apply (ff term) (map f term)))]
-              [vector?
-               (define (gmap-t ff f term)
-                 (apply (ff term) (vector-map f term)))]))
-
+(provide (all-defined-out)
+         gmap gfold)
 
 (struct ast:location:union [of])        ;; (list/c (cons/c symbol:tag srcloc?))
 (struct ast:metadata [loc custom])
@@ -23,9 +13,18 @@
 (struct ast [md])
 (struct ast:group ast [args])
 
-(struct ast:term ast:group [vals]
-  #:methods gen:gterm
-  [(define/generic super-gmap-t gmap-t)
-   (define (gmap-t ff f v)
-     (match-define (ast:term md args vals) v)
-     ((ff v) (super-gmap-t ff f args) (super-gmap-t ff f vals)))])
+(struct ast:term ast:group [args]
+  #:methods gen:term:fold
+  [(define (gfold ff f v)
+     (match-define (ast:term md gas tas) v)
+     (define ngas ((gfold-rec-vl ff f) gas))
+     (define ntas ((gfold-rec-vl ff f) tas))
+     (cond [(ff v) => (lambda (ff^) (ff^ ngas ntas))]
+           [(has-ast-constructor? v) ((get-ast-constructor v) md ngas ntas)]))]
+  #:methods gen:term:map
+  [(define (gmap f v)
+     (match-define (ast:term md gas tas) v)
+     ((if (has-ast-constructor? v) ((get-ast-constructor v)) ast:term)
+      md
+      ((gmap-rec-vl f) gas)
+      ((gmap-rec-vl f) tas)))])

@@ -7,7 +7,7 @@
 (provide term-match-expander)
 
 (define (pattern-expander stx pat)
-  (map-with-pattern pat stx))
+  (fold-with-pattern pat stx))
 
 (define (term-match-expander tt stx)
   (printf "~a ~a\n" stx tt)

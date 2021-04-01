@@ -111,7 +111,9 @@
       (define (pattern-storage pattern)
         (match pattern
           [(ast:pat:single c id)        ;;TODO check for #f for c,id
-           #`(ast:pat:single #'#,c #'#,id)]
+           (define (store v)
+             (if (false? v) v #`#'#,v))
+           #`(ast:pat:single #,(store c) #,(store id))]
           [(ast:pat:datum syn)
            #`(ast:pat:datum `#,syn)]
           [(ast:pat:multiple specs)
