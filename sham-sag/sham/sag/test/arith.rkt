@@ -12,7 +12,8 @@
    [add ('+ e ...)]
    [sub ('- e1 e2 ...)]
    [mul ('* e ...)])
-  #:with struct-helpers)
+  #:with struct-helpers sexp-printer
+  #:format 'clean)
 
 (module+ test
   (begin-for-syntax
@@ -26,13 +27,18 @@
   (require sham/sag/runtime/generics)
   ;; (- (- x)) -> x
 
-  ;; (define (fold-neg e)
-  ;;   (gmap #f (lambda (e) (match e [(math:expr:neg (math:expr:neg x)) x] [else e])) e))
   (require rackunit)
   (define mdiv1 (make-div 4 2))
   (check-equal? (div-n mdiv1) 4)
   (check-equal?
    (match (make-neg (make-neg 2))
-     [(math:expr:neg (math:expr:neg x)) x])
+     [(neg (neg x)) x])
    2)
+  (define (fold-neg e)
+    ((gfold-rec (λ (v) (cond [(vector? v) vector] [(list? v) list] [else #f]))
+                (lambda (e) (print e) (match e
+                               [(neg (neg x)) x]
+                               [else e])))
+               e))
+  (define an2 (add (neg (neg 2))))
   )

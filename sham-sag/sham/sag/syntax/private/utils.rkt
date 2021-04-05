@@ -12,10 +12,7 @@
   (map combine (group-by car i)))
 
 (define (info-values infos key)
-  (cond [(list? infos) (map cdr
-                            (filter (λ (kvp) (equal? (car kvp) key))
-                                    infos))]
-        [(hash? infos) (hash-ref infos key '())]))
+  (map cdr (filter (λ (kvp) (equal? (car kvp) key)) infos)))
 
 (define (info-value infos key (dflt #f))
   (define vs (info-values infos key))

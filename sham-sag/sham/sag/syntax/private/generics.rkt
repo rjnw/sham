@@ -33,3 +33,15 @@
      (match-define (ast:group gid gparent gnodes ginfo) gs)
      (format-id id "~a~a~a" (format-group-id af gid ts gs) nsep id))
    (define (format-node-arg-id af id ts gs ns) (id-without-type id))])
+
+(struct clean-id-formatter []
+  #:methods gen:id-formatter
+  [(define (format-group-id af id ts gs) id)
+   (define (format-group-arg-id af id ts gs) (id-without-type id))
+   (define (format-node-id af id ts gs ns) id)
+   (define (format-node-arg-id af id ts gs ns) (id-without-type id))])
+
+(define (get-formatter ast-id type)
+  (match type
+    [`(quote clean) (clean-id-formatter)]
+    [else (basic-id-formatter ast-id #`: #`:)]))

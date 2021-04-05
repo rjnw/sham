@@ -143,7 +143,7 @@
      (match-define (ast top-id syn-id groups top-info) spec)
      (match-define (ast:group (ast:id gid gid-t gsyn-id) parent gargs nodes info) gspec)
      (match-define (ast:node (ast:id nid nid-t nsyn-id) nargs pat ninfo) nspec)
-     (match-define (cons make-f arg-fs) fids)
+     (match-define `(,make-f ,f? . ,arg-fs) fids)
      (define narg-ids (map (compose ast:id-form ast:basic-id) nargs))
      (define garg-ids (map (compose ast:id-form ast:basic-id) gargs))
      (define (node-accessor arg fid)
@@ -151,6 +151,7 @@
            #,((ss:from-node-storage arg pat) #`(rt:ast:term-args #,nid))))
      #`(begin (define (#,make-f #:md (md #f) #,@garg-ids #,@narg-ids)
                 (#,nid-t md #,(ss:group-arg-storage gargs) #,(ss:node-args-storage nargs pat)))
+              (define (#,f? term) (#,(format-id nid-t "~a?" nid-t) term))
               #,@(map node-accessor nargs arg-fs)))))
 
 (define-ast-builder (rkt-struct-functions)
@@ -160,12 +161,13 @@
    (match-define (ast:group (ast:id gid gid-t gsyn-id) parent gargs nodes ginfo) gs)
    (match-define (ast:node (ast:id nid nid-t nsyn-id) nargs pat ninfo) ns)
    (cons (rkt-struct-node-functions
-          (cons (format-id nid "make-~a" nid)
-                (map (lambda (arg)
-                       (let ([arg-id (ast:id-form (ast:basic-id arg))])
-                         (format-id arg-id "~a-~a"
-                                    nid (ast:id-form (ast:basic-id arg)))))
-                     nargs))
+          (list* (format-id nid "make-~a" nid)
+                 (format-id nid "~a?" nid)
+                 (map (lambda (arg)
+                        (let ([arg-id (ast:id-form (ast:basic-id arg))])
+                          (format-id arg-id "~a-~a"
+                                     nid (ast:id-form (ast:basic-id arg)))))
+                      nargs))
           as gs ns)
          ncs)))
 

@@ -4,6 +4,7 @@
  (for-syntax "generics.rkt"
              "syntax/spec.rkt"
              syntax/parse
+             racket/match
              racket/syntax
              racket/pretty)
  racket/generic
@@ -87,13 +88,51 @@
   ;;      (for/fold ([res `()])
   ;;                ([g gens])
   ;;        `(,@res ,#`#:methods ,(car g) ,(cdr g))))])
-  )
+  ;; (letrec ([ids vals] ...) body) -> (vector (list (vector id val)) body) -> `(letrec (vector-ref args 0) ,@(map (lambda (v) (list (vector-ref v 0) (vector-ref v 1))) (vector-ref args 1)))
+  (define (build-printer fp pat args)
+    (let rec ([p pat]
+              [from args])
+      (printf "rec: ~a ~a\n" p from)
+      (match p
+        [(ast:pat:single chk i) #`(#,fp #,from)]
+        [(ast:pat:datum d) #`'#,d]
+        [(ast:pat:multiple ps)
+         (define (datums-until to (ds 0) (ci 0))
+           (cond [(>= ci to) ds]
+                 [(ast:pat:datum? (vector-ref ps ci)) (datums-until to (add1 ds) (add1 ci))]
+                 [else (datums-until to ds (add1 ci))]))
+         (define (fm pp i)
+           (cond
+             [(ast:pat:datum? pp) (rec pp #f)]
+             [else (rec pp #`(vector-ref #,from #,(- i (datums-until i))))]))
+         #`(list #,@(for/list ([p (in-vector ps)] [i (vector-length ps)]) (fm p i)))]
+        [(ast:pat:repeat pp k)
+         (define v (generate-temporary 'v))
+         #`(map (lambda (#,v) #,(rec pp v)) #,from)])))
+
+  (define-ast-builder (sexp-printer)
+    (build-group
+     (gcs as gs)
+     (match-define (ast tid (ast:id tid-o tid-g tid-f) groups info) as)
+     (match-define (ast:group (ast:id gid-o gid-t gsyn-id) parent gargs nodes ginfo) gs)
+     (with-syntax ([pprint-id (format-id gid-o "pprint-~a" gid-o)])
+       (cons #`(define (pprint-id term) #`(ast:group-args term)) gcs)))
+    (build-node
+     (ncs as gs ns)
+     (match-define (ast tid (ast:id tid-o tid-g tid-f) groups info) as)
+     (match-define (ast:group (ast:id gid-o gid-t gsyn-id) parent gargs nodes ginfo) gs)
+     (match-define (ast:node (ast:id nid-o nid-t nsyn-id) nargs pat ninfo) ns)
+     (printf "building-node: ~a\n" ns)
+     (with-syntax ([pprint-id (format-id nid-o "pprint-~a" nid-o)]
+                   [pprec (generate-temporary #'pp)])
+       (cons #`(define (pprint-id term pprec) #,(build-printer #`pprec pat #`(ast:term-args term)))
+             ncs)))))
 
 ;; (define-syntax (map-generic ast-spec)
 ;;   ast-gmap-builder)
 
-(define-syntax (sexp-printer ast-spec)
-  #f)
+(define-syntax (sexp-printer)
+  (sexp-printer-builder))
 
 (define-syntax (struct-helpers)
   (rkt-struct-functions-builder))

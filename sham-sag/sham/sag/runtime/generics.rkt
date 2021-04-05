@@ -22,5 +22,5 @@
 (define ((gmap-rec-bf f) v) (if (term:map? v) (gmap (gmap-rec-bf f) (f v)) (f v)))
 (define ((gmap-rec-df f) v) (if (term:map? v) (f (gmap (gmap-rec-df f) v)) (f v)))
 
-(define ((gfold-rec-vl ff f) v) (if (or (vector? v) (list? v)) (gfold ff (gmap-rec-vl ff f) v) (f v)))
+(define ((gfold-rec-vl ff f) v) (if (or (vector? v) (list? v)) (gfold ff (gfold-rec-vl ff f) v) (f v)))
 (define ((gmap-rec-vl f) v) (if (or (vector? v) (list? v)) (gmap (gmap-rec-vl f) v) (f v)))

@@ -20,11 +20,11 @@
      (define ngas ((gfold-rec-vl ff f) gas))
      (define ntas ((gfold-rec-vl ff f) tas))
      (cond [(ff v) => (lambda (ff^) (ff^ ngas ntas))]
-           [(has-ast-constructor? v) ((get-ast-constructor v) md ngas ntas)]))]
+           [(has-ast-constructor? v) (((get-ast-constructor v)) md ngas ntas)]))]
   #:methods gen:term:map
   [(define (gmap f v)
      (match-define (ast:term md gas tas) v)
-     ((if (has-ast-constructor? v) ((get-ast-constructor v)) ast:term)
+     ((if (has-ast-constructor? v) (((get-ast-constructor v))) ast:term)
       md
       ((gmap-rec-vl f) gas)
       ((gmap-rec-vl f) tas)))])
