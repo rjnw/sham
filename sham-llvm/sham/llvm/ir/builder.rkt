@@ -33,75 +33,75 @@
   ;; llvm:def LLVMModuleRef env -> env
   (define (register-define def internal-env decl-env)
     (match def
-      [(llvm:def:type md name t)
-       (if (llvm:ast:type:struct? t)
+      [(llvm:def:type name t)
+       (if (llvm:type:struct? t)
            (assoc-env-extend decl-env name (LLVMStructCreateNamed llvm-context (to-string name)))
            decl-env)]
-      [(llvm:def:function md name type body)
+      [(llvm:def:function name type body)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddFunction llvm-module (to-string name) type-ref))
        (assoc-env-extend decl-env name (llvm-function value-ref type-ref))]
-      [(llvm:def:global md name type value)
+      [(llvm:def:global name type value)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddGlobal llvm-module type-ref (to-string name)))
        (LLVMSetInitializer value-ref
                            (if value (compile-constant value internal-env decl-env) (LLVMConstNull type-ref)))
        (assoc-env-extend decl-env name (llvm-value value-ref type-ref))]
-      [(llvm:def:external md name type)
+      [(llvm:def:external name type)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddGlobal llvm-module
                                         type-ref
                                         (to-string name)))
        (assoc-env-extend decl-env name (llvm-external value-ref type-ref))]
-      [(llvm:def:intrinsic md id name type)
+      [(llvm:def:intrinsic id name type)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddFunction llvm-module
                                           (to-string name)
                                           type-ref))
        (assoc-env-extend decl-env id (llvm-intrinsic value-ref type-ref))]))
 
-  ;; llvm:ast:type env -> LLVMTypeRef
+  ;; llvm:type env -> LLVMTypeRef
   (define (compile-type type internal-env decl-env)
     (match type
-      [(llvm:ast:type:ref _ t)
+      [(llvm:type:ref t)
        (if (assoc-env-contains? decl-env t)
            (assoc-env-lookup decl-env t)
            (assoc-env-lookup internal-env t))]
-      [(llvm:ast:type:struct _ fields)
+      [(llvm:type:struct fields)
        (LLVMStructType (map (curryr compile-type internal-env decl-env) fields) #f)]
-      [(llvm:ast:type:function _ args var-arg? ret)
+      [(llvm:type:function args var-arg? ret)
        (LLVMFunctionType (compile-type ret internal-env decl-env)
                          (map (curryr compile-type internal-env decl-env) args)
                          var-arg?)]
-      [(llvm:ast:type:pointer _ to)
+      [(llvm:type:pointer to)
        (LLVMPointerType (compile-type to internal-env decl-env) 0)]
-      [(llvm:ast:type:array _ of size)
+      [(llvm:type:array of size)
        (LLVMArrayType (compile-type of internal-env decl-env) size)]
-      [(llvm:ast:type:vector _ of size)
+      [(llvm:type:vector of size)
        (LLVMVectorType (compile-type of internal-env decl-env) size)]))
 
   (define (compile-constant v internal-env decl-env (value-compiler compile-constant))
     (match v
-      [(llvm:ast:value:fl md value t)
+      [(llvm:value:fl value t)
        (LLVMConstReal (compile-type t internal-env decl-env) value)]
-      [(llvm:ast:value:si md value t)
+      [(llvm:value:si value t)
        (LLVMConstInt (compile-type t internal-env decl-env) (cast value _sint64 _uint64) #f)]
-      [(llvm:ast:value:ui md value t)
+      [(llvm:value:ui value t)
        (LLVMConstInt (compile-type t internal-env decl-env) value #f)]
-      [(llvm:ast:value:llvm md v) v]
-      [(llvm:ast:value:basic-struct md fields)
+      [(llvm:value:llvm v) v]
+      [(llvm:value:basic-struct md fields)
        (LLVMConstStruct (map (curryr value-compiler internal-env decl-env) fields) #f)]
-      [(llvm:ast:value:named-struct md fields type)
+      [(llvm:value:named-struct md fields type)
        (LLVMConstNamedStruct (compile-type type internal-env decl-env)
                              (map (curryr value-compiler internal-env decl-env) fields))]
-      [(llvm:ast:value:array md vals t)
+      [(llvm:value:array vals t)
        (LLVMConstArray (compile-type t internal-env decl-env)
                        (map (curryr value-compiler internal-env decl-env) vals))]
-      [(llvm:ast:value:string md str)
+      [(llvm:value:string str)
        (LLVMBuildGlobalStringPtr llvm-builder str (to-string (gensym 'str)))]
-      [(llvm:ast:value:vector md vals)
+      [(llvm:value:vector vals)
        (LLVMConstVector (map (curryr value-compiler internal-env decl-env) vals))]
-      [(llvm:ast:value:sizeof md type)
+      [(llvm:value:sizeof type)
        (LLVMSizeOf (compile-type type internal-env decl-env))]))
 
   (define (compile-define def internal-env decl-env)
@@ -122,7 +122,7 @@
                                        function-ref (to-string n)))
       (for ([b blocks])
         (match b
-          [(llvm:ast:block md name instructions terminator)
+          [(llvm:block name instructions terminator)
            (hash-set! block-map name (append-block! name))]
           [else (error 'sham:llvm "invalid block in function definitions ~a" b)]))
       (define (build-block! b)
@@ -131,23 +131,23 @@
             [(? (curry assoc-env-contains? decl-env)) (assoc-env-lookup decl-env v)]
             [(? symbol?) (local-var-ref v)]
             [(? exact-nonnegative-integer?) (LLVMGetParam function-ref v)]
-            [(llvm:ast:value:ref md sym)
+            [(llvm:value:ref sym)
              (if (assoc-env-contains? decl-env sym) (assoc-env-lookup decl-env sym) (local-var-ref sym))]
-            [(llvm:ast:value:param md i) (LLVMGetParam function-ref i)]
-            [(? llvm:ast:value?) (compile-constant v internal-env decl-env
+            [(llvm:value:param i) (LLVMGetParam function-ref i)]
+            [(? llvm:value?) (compile-constant v internal-env decl-env
                                                    (λ (v ie de) (compile-value v)))]
-            [(? llvm:ast:type?) (compile-type v internal-env decl-env)]
+            [(? llvm:type?) (compile-type v internal-env decl-env)]
             [else (error 'sham:llvm "unknown value ~a" v)]))
         (define (build-initial-instruction! instruction)
           (match instruction
-            [(llvm:ast:instruction:op md result 'phi flags (list type vars labels))
+            [(llvm:instruction:op md result 'phi flags (list type vars labels))
              (define value (LLVMBuildPhi llvm-builder (compile-type type internal-env decl-env) (to-string result)))
              (LLVMAddIncoming value (map compile-value vars) (map block-ref labels))
              value]
             [else (build-instruction! instruction)]))
         (define (build-instruction! instruction)
           (match instruction
-            [(llvm:ast:instruction:op md result op flags args)
+            [(llvm:instruction:op md result op flags args)
              (add-local-var!
               result
               (add-instruction-md!
@@ -173,20 +173,20 @@
                md flags))]))
         (define (build-terminator-instruction! terminator)
           (match terminator
-            [(llvm:ast:instruction:terminator:ret md value)
+            [(llvm:instruction:terminator:ret md value)
              (LLVMBuildRet llvm-builder (compile-value value))]
-            [(llvm:ast:instruction:terminator:retv md)
+            [(llvm:instruction:terminator:retv md)
              (LLVMBuildRetVoid llvm-builder)]
-            [(llvm:ast:instruction:terminator:br md condition iftrue iffalse)
+            [(llvm:instruction:terminator:br md condition iftrue iffalse)
              (LLVMBuildCondBr llvm-builder (compile-value condition) (block-ref iftrue) (block-ref iffalse))]
-            [(llvm:ast:instruction:terminator:bru md destinition)
+            [(llvm:instruction:terminator:bru md destinition)
              (LLVMBuildBr llvm-builder (block-ref destinition))]
-            [(llvm:ast:instruction:terminator:switch md value default value-s dest-s)
+            [(llvm:instruction:terminator:switch md value default value-s dest-s)
              (define switch (LLVMBuildSwitch llvm-builder (compile-value value) (block-ref default) (length value-s)))
              (map (curry LLVMAddCase switch) (map compile-value value-s) (map block-ref dest-s))]))
 
 
-        (match-define (llvm:ast:block md name instructions terminator) b)
+        (match-define (llvm:block md name instructions terminator) b)
         (define llvm-block (block-ref name))
 
         (LLVMPositionBuilderAtEnd llvm-builder llvm-block)
@@ -202,7 +202,7 @@
 
     (define (compile-type-definition! def name type)
       (match type
-        [(llvm:ast:type:struct _ fields)
+        [(llvm:type:struct _ fields)
          (define field-types (map (curryr compile-type internal-env decl-env) fields))
          (define type-ref (assoc-env-lookup decl-env name))
          (LLVMStructSetBody type-ref field-types #f)

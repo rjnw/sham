@@ -14,9 +14,9 @@
      (define (rec prev l)
        (match* (prev l)
          [(#f (cons curr next))
-          (cons #`(define #,curr (type-ref (quote #,curr))) (rec curr next))]
+          (cons #`(define #,curr (llt-ref (quote #,curr))) (rec curr next))]
          [(p (cons curr next))
-          (cons #`(define #,curr (type-pointer #,p)) (rec curr next))]
+          (cons #`(define #,curr (llt-pointer #,p)) (rec curr next))]
          [(p empty) empty]))
      #`(begin #,@(apply append (map (λ (n) (rec #f n)) name-list)))]))
 

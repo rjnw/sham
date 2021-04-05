@@ -128,7 +128,6 @@
    (gcs as gs)
    (match-define (ast top-id syn-id groups top-info) as)
    (match-define (ast:group (ast:id gid gid-t gsyn-id) gpid gargs nodes info) gs)
-   (printf "bg: ~a ~a\n" as gpid)
    (define parent (if gpid (ast:id-gen (ast:basic-id (lookup-group-spec as gpid))) (ast:id-gen syn-id)))
    (cons (ast-struct-rkt gid-t parent `() (reflection-name #``#,gsyn-id)) gcs))
   (build-node
@@ -160,15 +159,15 @@
   (build-node
    (ncs as gs ns)
    (match-define (ast id sid groups info) as)
-   (match-define (ast:group (ast:id gid gid-t gsyn-id) parent gargs nodes ginfo) gs)
-   (match-define (ast:node (ast:id nid nid-t nsyn-id) nargs pat ninfo) ns)
+   (match-define (ast:group (ast:id gid gid-t gid-f) parent gargs nodes ginfo) gs)
+   (match-define (ast:node (ast:id nid nid-t nid-f) nargs pat ninfo) ns)
    (cons (rkt-struct-node-functions
-          (list* (format-id nid "make-~a" nid)
-                 (format-id nid "~a?" nid)
+          (list* (format-id nid "make-~a" nid-f)
+                 (format-id nid "~a?" nid-f)
                  (map (lambda (arg)
                         (let ([arg-id (ast:id-form (ast:basic-id arg))])
                           (format-id arg-id "~a-~a"
-                                     nid (ast:id-form (ast:basic-id arg)))))
+                                     nid-f (ast:id-form (ast:basic-id arg)))))
                       nargs))
           as gs ns)
          ncs)))

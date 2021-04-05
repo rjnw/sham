@@ -19,8 +19,8 @@
            #:attr spec (ast:pat:single #f #`name))
   (pattern ((~datum quote) datum:id)
            #:attr spec (ast:pat:datum #`datum))
-  (pattern ((~datum ?) check:id)
-           #:attr spec (ast:pat:single #`check #f))
+  (pattern ((~datum ?) name:id check:id)
+           #:attr spec (ast:pat:single #`check #`name))
   (pattern (multiple:node-multiple-pattern ...)
            #:attr spec (ast:pat:multiple (apply vector-immutable (attribute multiple.spec)))))
 (define-splicing-syntax-class node-multiple-pattern

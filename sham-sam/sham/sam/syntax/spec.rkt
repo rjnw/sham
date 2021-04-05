@@ -50,6 +50,11 @@
 
 (define (group-nodes gs)
   (map cdr (ast:group-nodes gs)))
+(define (full-group-args as gs)
+  (match gs
+    [#f '()]
+    [(cons _ (ast:group gid #f gargs gnodes ginfo)) gargs]
+    [(cons _ (ast:group gid gparent gargs gnodes ginfo)) (append (full-group-args as (lookup-group-spec as gparent)) gargs)]))
 
 (splicing-let ([forced-datum
                 (λ (s)
@@ -64,7 +69,14 @@
       [(? (or/c syntax? symbol?))
        (lookup-node-spec node-id (lookup-group-spec group-spec/id ast-spec) ast-spec)]
       [(ast:group gid prnt args nds inf)
-       (cdr (assoc (forced-datum node-id) nds))])))
+       (cdr (assoc (forced-datum node-id) nds))]))
+  (define (lookup-node-group ast-spec node-spec/id)
+    (define (contains-node? ga)
+      (match-define (cons gid gs) ga)
+      (findf (λ (n) (cond [(ast:node? node-spec/id) (equal? node-spec/id (cdr n))]
+                          [else (equal? (forced-datum node-spec/id) (car n))]))
+             (ast:group-nodes gs)))
+    (findf contains-node? (ast-groups ast-spec))))
 
 (define (spec->storage spec)
   (define (list-storage l item-storage)
@@ -145,8 +157,8 @@
     [(ast:basic id) (pretty-id id)]))
 (define (pretty-pattern pattern)
   (match pattern
-    [(ast:pat:single #f id)
-     `(~s ,(syntax-e id))]
+    [(ast:pat:single #f id) `(~s ,(syntax-e id))]
+    [(ast:pat:single check id) `(~s? ,(syntax-e check) ,id)]
     [(ast:pat:datum syn) `',syn]
     [(ast:pat:multiple specs)
      (map pretty-pattern (vector->list specs))]
@@ -161,7 +173,9 @@
     ,(pretty-info ninfo)))
 (define (pretty-group grp)
   (match-define (ast:group gid gparent gargs gnodes ginfo) grp)
-  `(,(pretty-id gid) ,(if gparent (syntax-e gparent) #'-)
+  `(,(pretty-id gid) ,(cond [(syntax? gparent) (syntax-e gparent)]
+                            [(symbol? gparent) gparent]
+                            [else '||])
                      ,@(map pretty-arg gargs)
                      ,@(for/list ([np gnodes])
                          `((#:node ,(car np)) ,(pretty-node (cdr np))))

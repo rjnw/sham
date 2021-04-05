@@ -8,7 +8,7 @@
          gmap gfold)
 
 (struct ast:location:union [of])        ;; (list/c (cons/c symbol:tag srcloc?))
-(struct ast:metadata [loc custom])
+(struct ast:metadata [loc (custom #:mutable)])
 
 (struct ast [md])
 (struct ast:group ast [args])

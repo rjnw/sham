@@ -16,7 +16,7 @@
 (define-syntax (define-ops stx)
   (syntax-parse stx
     [(_ op-name:id ...)
-     #`(begin (define (op-name #:flags (flags #f) result . args) (ast-op result (quote op-name) flags (flatten args))) ...)]))
+     #`(begin (define (op-name #:flags (flags #f) result . args) (lli-op result (quote op-name) flags (flatten args))) ...)]))
 
 (define-syntax basic-ops
   `(

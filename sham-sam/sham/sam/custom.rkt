@@ -121,7 +121,6 @@
      (match-define (ast tid (ast:id tid-o tid-g tid-f) groups info) as)
      (match-define (ast:group (ast:id gid-o gid-t gsyn-id) parent gargs nodes ginfo) gs)
      (match-define (ast:node (ast:id nid-o nid-t nsyn-id) nargs pat ninfo) ns)
-     (printf "building-node: ~a\n" ns)
      (with-syntax ([pprint-id (format-id nid-o "pprint-~a" nid-o)]
                    [pprec (generate-temporary #'pp)])
        (cons #`(define (pprint-id term pprec) #,(build-printer #`pprec pat #`(ast:term-args term)))
