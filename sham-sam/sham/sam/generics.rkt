@@ -127,8 +127,10 @@
   (build-group
    (gcs as gs)
    (match-define (ast top-id syn-id groups top-info) as)
-   (match-define (ast:group (ast:id gid gid-t gsyn-id) parent gargs nodes info) gs)
-   (cons (ast-struct-rkt gid-t (or parent (ast:id-gen syn-id)) `() (reflection-name #``#,gsyn-id)) gcs))
+   (match-define (ast:group (ast:id gid gid-t gsyn-id) gpid gargs nodes info) gs)
+   (printf "bg: ~a ~a\n" as gpid)
+   (define parent (if gpid (ast:id-gen (ast:basic-id (lookup-group-spec as gpid))) (ast:id-gen syn-id)))
+   (cons (ast-struct-rkt gid-t parent `() (reflection-name #``#,gsyn-id)) gcs))
   (build-node
    (ncs as gs ns)
    (match-define (ast:group (ast:id gid gid-t gsyn-id) parent gargs nodes ginfo) gs)
@@ -185,14 +187,14 @@
    (gcs as gs)
    (match-define (ast tid (ast:id tid-o tid-g tid-f) groups info) as)
    (match-define (ast:group (ast:id gid gid-t gsyn-id) parent gargs nodes ginfo) gs)
-   (cons #`(define-for-syntax #,gid-t (lookup-group-spec #'#,gid #,tid-g))
+   (cons #`(define-for-syntax #,gid-t (lookup-group-spec #,tid-g #'#,gid))
          gcs))
   (build-node
    (ncs as gs ns)
    (match-define (ast tid (ast:id tid-o tid-g tid-f) groups info) as)
    (match-define (ast:group (ast:id gid gid-t gsyn-id) parent gargs nodes ginfo) gs)
    (match-define (ast:node (ast:id nid nid-t nsyn-id) nargs pat ninfo) ns)
-   (cons #`(define-for-syntax #,nid-t (lookup-node-spec #'#,nid #,gid-t #,tid-g))
+   (cons #`(define-for-syntax #,nid-t (lookup-node-spec #,tid-g #,gid-t #'#,nid))
          ncs)))
 
 (define-ast-builder (rkt-term-type)

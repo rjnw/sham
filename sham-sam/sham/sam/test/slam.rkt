@@ -1,9 +1,9 @@
 #lang racket
 
-(require sham/sag/ast
-         sham/sag/custom
-         sham/sag/runtime
-         (for-syntax sham/sag/syntax/spec))
+(require sham/sam/ast
+         sham/sam/custom
+         sham/sam/runtime
+         (for-syntax sham/sam/syntax/spec))
 
 (define-ast LC
   (expr

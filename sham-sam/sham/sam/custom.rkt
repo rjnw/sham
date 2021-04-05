@@ -92,7 +92,6 @@
   (define (build-printer fp pat args)
     (let rec ([p pat]
               [from args])
-      (printf "rec: ~a ~a\n" p from)
       (match p
         [(ast:pat:single chk i) #`(#,fp #,from)]
         [(ast:pat:datum d) #`'#,d]

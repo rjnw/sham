@@ -1,23 +1,20 @@
 #lang racket
 
-(require sham/astg/ast)
+(require sham/sam/ast)
 
 (define-ast llvm
-  #:custom-write #t
+  ;; #:custom-write #t
   (def
-    [module ('define-llvm-module name defs ...)
-        [defs : def]
+    [module ('define-llvm-module name defs:def ...)
         #:define name]
-    [function ('define-llvm-function name type blocks ...)
-              [blocks : (ast block)]]
+    [function ('define-llvm-function name type blocks:ast.block ...)]
     [type (ast)]
     [global (type value)]
     [global-string (str)]
     [external (type)]
     [intrinsic (str type)]
-    #:common (metadata #:mutable) id)
-  (ast [block [name instructions:instruction ... term:terminator]]
-       #:common (metadata #:default #f #:mutable))
+    #:common id)
+  (ast [block [name instructions:instruction ... term:terminator]])
   (type ast
         [ref      (to)]
         [struct   (fields:type ...)]
@@ -46,13 +43,3 @@
          [array  (value type:type)]
          [vector (value ...)]
          [sizeof (type)]))
-
-(define (llvm-metadata v)
-  (cond [(llvm:def? v) (llvm:def-metadata v)]
-        [(llvm:ast? v) (llvm:ast-metadata v)]))
-(define llvm-md llvm-metadata)
-(define (llvm-metadata! v md)
-  (cond [(llvm:def? v) (set-llvm:def-metadata! v md)]
-        [(llvm:ast? v) (set-llvm:ast-metadata! v md)])
-  v)
-(define llvm-md! llvm-metadata!)

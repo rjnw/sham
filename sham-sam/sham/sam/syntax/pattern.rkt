@@ -91,7 +91,7 @@
     (match-define (sctxt is os kl) sc)
     (match pat
       [(ast:pat:single chk id)
-       (printf "fs: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
+       ;; (printf "fs: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
        (match path
          [`(multiple ,i ,ps (repeat ,p ,nk ,ppath))
           #:when (false? is) (sctxt is os kl)]
@@ -103,13 +103,13 @@
             [(list n) (sctxt (cdr is) (os (car is)) (consume kl n))])])]
       [(ast:pat:datum val) (sctxt is os kl)];;TODO remove if datum needed before providing reader
       [(ast:pat:multiple pms)
-       (printf "fm: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
+       ;; (printf "fm: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
        (define ooo-n (cond [(syntax? is) (ooo is)]
                            [(cons? is) (ooo (car is))]
                            [else #f]))
        (match* (ooo-n path)
          [((list n) `(pre-multiple (repeat ,p ,nk ,ppath)))
-          (printf "fm/... ~a\n" n)
+          ;; (printf "fm/... ~a\n" n)
           (define lis (cond [(cons? is) (cdr is)]
                             [else #f]))
           (define (gen-multf ostx)
@@ -124,7 +124,7 @@
               [`(multiple ,_ ,_ ,_) (values (car is) (cdr is))]
               [`(repeat ,_ ,_ ,_) (values (car is) (cdr is))]
               [`() (values is #f)]))
-          (printf "fm/pre-mult: ~a ~a ~a\n" cis lis (pretty-path prev-path))
+          ;; (printf "fm/pre-mult: ~a ~a ~a\n" cis lis (pretty-path prev-path))
           (define (gen-multf ostx)
             (lambda (stx)
               (cond [(syntax? stx) (gen-multf (cons stx ostx))]
@@ -140,7 +140,7 @@
           (match (os #f)
             [(list lis ms prev) (sctxt lis (prev (for-multiple (reverse ms) pat)) kl)])])]
       [(ast:pat:repeat p k)
-       (printf "fr: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
+       ;; (printf "fr: ~a\n" (sctxt-istx sc)) (pretty-print (pretty-path path))
        (match-define `(at-repeat ,frec ,path^) path)
        (define (gen-repf ostx)
          (lambda (stx)
@@ -192,19 +192,19 @@
   ;; pat : (or/c false? ast:pat?)
   ;;;  #f for pat signifies tail for a repeat pattern and to match against prev instead
   (define ((do-tail pat stx) prev c)
-    (printf "do-tail: \n\tpat: ~a, \n\tstx: ~a, \n\tc: ~a\n"
-            (if pat (map pretty-pattern pat) pat)
-            (map syntax->datum stx) c)
+    ;; (printf "do-tail: \n\tpat: ~a, \n\tstx: ~a, \n\tc: ~a\n"
+    ;;         (if pat (map pretty-pattern pat) pat)
+    ;;         (map syntax->datum stx) c)
     (match* (pat stx)
       [(null null) null]
       [((cons psh pst) (cons sth stt))
        (match (ooo sth)
-         [(list n) (error "sham-sag: repeating match pattern for a non-repeating ast pattern")]
+         [(list n) (error 'sham/sam "repeating match pattern for a non-repeating ast pattern")]
          [#f ((do-head psh sth)
               (λ (s n) (cons s ((do-tail pst stt) psh n)))
               c)])]
       [(#f null)
-       (unless (is-consumed? c) (error "sham-sag: repeating pattern did not consume required number of terms"))
+       (unless (is-consumed? c) (error 'sham/sam "repeating pattern did not consume required number of terms"))
        null]
       [(#f (cons sth stt))
        (match (ooo sth)

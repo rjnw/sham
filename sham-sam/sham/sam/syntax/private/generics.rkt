@@ -6,7 +6,12 @@
 (require "spec.rkt"
          "syntax-class.rkt"
          "utils.rkt")
-(provide (all-defined-out))
+
+(provide (contract-out (format-group-id (-> id-formatter? identifier? ast? ast:group? identifier?))
+                       (format-group-arg-id (-> id-formatter? identifier? ast? ast:group? identifier?))
+                       (format-node-id (-> id-formatter? identifier? ast? ast:group? ast:node? identifier?))
+                       (format-node-arg-id (-> id-formatter? identifier? ast? ast:group? ast:node? identifier?)))
+         get-formatter)
 
 (define-generics id-formatter
   (format-group-id id-formatter id top-spec group-spec)
@@ -20,12 +25,13 @@
   [(define (format-group-id af id ts gs)
      (match-define (basic-id-formatter tid gsep nsep) af)
      (match-define (ast:group gid gparent gnodes ginfo) gs)
-     (cond
-       [(lookup-group-spec ts gparent)
-        =>
-        (λ (p)
-          (format-id id "~a~a~a" p gsep id))]
-       [else (format-id id "~a~a~a" tid gsep id)]))
+     (let recf ([p gparent]
+                [c id])
+       (format-id c "~a~a~a"
+                  (match (lookup-group-spec ts p)
+                    [#f tid]
+                    [(ast:group pgid pgparent _ _) (recf pgparent pgid)])
+                  gsep c)))
    (define (format-group-arg-id af id ts gs)
      (id-without-type id))
    (define (format-node-id af id ts gs ns)

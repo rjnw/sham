@@ -26,24 +26,26 @@
            (for/list ([arg args])
              (syntax-parse arg
                [i:identifier
-                (pub:ast:group:arg (pub:ast:id #`i (generate-temporary #`i) (format-group-arg-id #`i ps gs))
+                (pub:ast:group:arg (pub:ast:id #`i (generate-temporary #`i) (format-group-arg-id formatter #`i ps gs))
                                    (type-from-id #`i)
                                    '())]
                [(i:identifier ki:keyword-info)
-                (pub:ast:group:arg (pub:ast:id #`i (generate-temporary #`i) (format-group-arg-id #`i ps gs))
+                (pub:ast:group:arg (pub:ast:id #`i (generate-temporary #`i) (format-group-arg-id formatter #`i ps gs))
                                    (type-from-id #`i)
                                    (attribute ki.spec))])))
          (let* ([syn-id (format-group-id formatter id ps gs)]
                 [group-args (do-group-args (info-values info `common))])
            (define (do-node ns)
              (define (do-node-args pat (depth 0))
-               (define (format-arg s) (format-node-arg-id formatter s ps gs ns))
+               (define (format-arg s) (if s (format-node-arg-id formatter s ps gs ns) s))
                (define (build-type c s) ;; TODO checker c
-                 (match (type-from-id s)
-                   [`("!") (pub:ast:type:external (id-without-type s) depth)]
-                   [t (pub:ast:type:internal t depth)]))
+                 (if c
+                     (pub:ast:type:external c depth)
+                     (match (type-from-id s)
+                       [`("!") (pub:ast:type:external (id-without-type s) depth)]
+                       [t (pub:ast:type:internal t depth)])))
                (match pat
-                 [(ast:pat:single c s) (list (pub:ast:node:arg (pub:ast:id s (generate-temporary s) (format-arg s))
+                 [(ast:pat:single c s) (list (pub:ast:node:arg (pub:ast:id s (generate-temporary (if s s #'v)) (format-arg s))
                                                                (build-type c s) #f))]
                  [(ast:pat:datum d) (list #f)]
                  [(ast:pat:multiple s) (flatten (for/list ([p s]) (do-node-args p depth)))]
@@ -64,9 +66,9 @@
 
   (define (build-syntax ast-id raw-ast-spec)
     (define formatter
-      (let ([fv (car (info-value (ast-info raw-ast-spec) `format))])
-        (cond [(and (identifier? fv) (syntax-local-value fv #f)) => (λ (f) (f))]
-              [else (get-formatter ast-id (syntax->datum fv))])))
+      (let ([fv (info-value (ast-info raw-ast-spec) `format)])
+        (cond [(and (cons? fv) (identifier? (car fv)) (syntax-local-value (car fv) #f)) => (λ (f) (f))]
+              [else (get-formatter ast-id (if fv (syntax->datum (car fv)) fv))])))
     (define default-builders
       (cond [(info-value (ast-info raw-ast-spec) `default)
              => (λ (f) ((syntax-local-value f)))]
@@ -107,7 +109,7 @@
            (define-for-syntax #,gid #,spec-storage)
            (define-syntax cid #,gid)
            #,@ast-syntaxes))
-     (pretty-print (syntax->datum stx))
+     ;; (pretty-print (syntax->datum stx))
      stx]))
 
 
@@ -131,6 +133,6 @@
                [rand : expr])]
          [sym !identifier]
          [num !integer])))
-  (syntax->datum (expand lam-stx))
+  ;; (syntax->datum (expand lam-stx))
   ;; (pretty-print (syntax->datum (expand lam-stx)))
   )

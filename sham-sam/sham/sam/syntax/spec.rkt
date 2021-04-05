@@ -56,10 +56,10 @@
                   (cond [(syntax? s) (syntax->datum s)]
                         [(string? s) (string->symbol s)]
                         [(symbol? s) s]
-                        [else (error 'sham:sag:syntax-runtime "couldn't force to datum ~a" s)]))])
-  (define (lookup-group-spec group-id ast-spec)
+                        [else (error 'sham/sam:syntax-runtime "couldn't force to datum ~a" s)]))])
+  (define (lookup-group-spec ast-spec group-id)
     (cdr (assoc (forced-datum group-id) (ast-groups ast-spec))))
-  (define (lookup-node-spec node-id group-spec/id ast-spec)
+  (define (lookup-node-spec ast-spec group-spec/id node-id)
     (match group-spec/id
       [(? (or/c syntax? symbol?))
        (lookup-node-spec node-id (lookup-group-spec group-spec/id ast-spec) ast-spec)]
@@ -161,7 +161,7 @@
     ,(pretty-info ninfo)))
 (define (pretty-group grp)
   (match-define (ast:group gid gparent gargs gnodes ginfo) grp)
-  `(,(pretty-id gid) ,(syntax-e gparent)
+  `(,(pretty-id gid) ,(if gparent (syntax-e gparent) #'-)
                      ,@(map pretty-arg gargs)
                      ,@(for/list ([np gnodes])
                          `((#:node ,(car np)) ,(pretty-node (cdr np))))

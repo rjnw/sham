@@ -17,7 +17,7 @@
   (define (for-id id)
     any/c)
   (match ss
-    [(ast:node idt fid nargs pat ninfo)
+    [(ast:node id nargs pat ninfo)
      ((do-pat for-id) pat)]
-    [(ast:group idt fid prnt gargs nodes ginfo)
-     (error 'sham:sag "todo contract for group types: ~a" (car idt))]))
+    [(ast:group id prnt gargs nodes ginfo)
+     (error 'sham/sam "todo contract for group types: ~a" id)]))

@@ -1,9 +1,9 @@
 #lang racket
 
-(require sham/sag/ast
-         sham/sag/custom
-         sham/sag/runtime
-         (for-syntax sham/sag/syntax/spec))
+(require sham/sam/ast
+         sham/sam/custom
+         sham/sam/runtime
+         (for-syntax sham/sam/syntax/spec))
 
 (define-ast math
   (expr
@@ -19,12 +19,12 @@
   (begin-for-syntax
     (require racket/pretty
              racket)
-    (require sham/sag/syntax/runtime)
+    (require sham/sam/syntax/runtime)
     (define-values (mcv _) (syntax-local-value/immediate #`math))
     ;; (pretty-print mcv)
     ;; (pretty-print (pretty-spec mcv))
     )
-  (require sham/sag/runtime/generics)
+  (require sham/sam/runtime/generics)
   ;; (- (- x)) -> x
 
   (require rackunit)

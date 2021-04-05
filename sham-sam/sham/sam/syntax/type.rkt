@@ -7,7 +7,7 @@
 (provide (all-defined-out))
 
 (define (group-arg-type-assoc gargs spec)
-  (match-define (ast:group idt-pair fid parent args nodes ginfo) spec)
+  (match-define (ast:group id parent args nodes ginfo) spec)
   (for/list ([orig (info-value ginfo `#:common)]
              [fmted gargs])
     (cons orig
@@ -20,7 +20,7 @@
                    (string-split type ".")) 0)]))))
 
 (define (node-arg-type nspec)
-  (match-define (ast:node idt fid args pat info) nspec)
+  (match-define (ast:node id args pat info) nspec)
   (define (rec pat depth)
     (match pat
       [(ast:pat:single c s) (ast:node:arg s (if c (ast:type:external c depth) (type-from-id s depth)) #f)]

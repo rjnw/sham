@@ -11,7 +11,9 @@
   #`(vector #,@gargs))
 
 (define (node-args-storage nargs pat)
-  (define (fsingle i p) i)
+  (define (fsingle i p)
+    (ast:id-form (ast:basic-id (findf (λ (a) (equal? i (ast:id-orig (ast:basic-id a))))
+                                      nargs))))
   (define (fdatum d p) #f)
   (define (fmultiple ss p)
     #`(vector #,@(for/list ([s ss] #:when s) s)))
