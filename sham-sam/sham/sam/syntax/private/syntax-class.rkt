@@ -4,7 +4,8 @@
 (provide ast-spec language-spec
          keyword-info)
 
-(require "spec.rkt")
+(require "spec.rkt"
+         "utils.rkt")
 
 (define-splicing-syntax-class keyword-value
   (pattern (~seq k:keyword v:expr ...)
@@ -20,12 +21,19 @@
   (pattern ((~datum quote) datum:id)
            #:attr spec (ast:pat:datum #`datum))
   (pattern ((~datum ?) name:id check:id)
-           #:attr spec (ast:pat:single #`check #`name))
+           #:attr spec (ast:pat:single (cons '? #`check) #`name))
+  (pattern ((~datum ~) type:expr name:id)
+           #:attr spec (ast:pat:single (cons '~ #`type) #`name))
+  (pattern ((~datum !) type:expr name:id)
+           #:attr spec (ast:pat:single (cons '! #`type) #`name))
   (pattern (multiple:node-multiple-pattern ...)
            #:attr spec (ast:pat:multiple (apply vector-immutable (attribute multiple.spec)))))
 (define-splicing-syntax-class node-multiple-pattern
-  (pattern (~seq repeat:node-pattern (~datum ...))
-           #:attr spec (ast:pat:repeat (attribute repeat.spec) #f))
+  ;; (pattern (~seq repeat:node-pattern (~datum ...))
+  ;;          #:attr spec (ast:pat:repeat (attribute repeat.spec) (cons 0 #f)))
+  (pattern (~seq maybe-repeat:node-pattern maybe-ooo:id)
+           #:when (ooo? #`maybe-ooo)
+           #:attr spec (ast:pat:repeat (attribute maybe-repeat.spec) (ooo #`maybe-repeat)))
   (pattern ms:node-pattern
            #:attr spec (attribute ms.spec)))
 

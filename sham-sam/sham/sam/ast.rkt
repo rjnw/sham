@@ -6,6 +6,7 @@
              "syntax/private/generics.rkt"
              "syntax/private/utils.rkt"
              (prefix-in pub: "syntax/spec.rkt")
+             "syntax/type.rkt"
              "generics.rkt"
              syntax/parse
              racket/syntax
@@ -17,52 +18,6 @@
 (begin-for-syntax
   (require racket)
   (require syntax/datum)
-
-  (define (spec:private->public aid ps formatter)
-    (define (do-group gs)
-      (match gs
-        [(ast:group id parent nodes info)
-         (define (do-group-args args)
-           (for/list ([arg args])
-             (syntax-parse arg
-               [i:identifier
-                (pub:ast:group:arg (pub:ast:id #`i (generate-temporary #`i) (format-group-arg-id formatter #`i ps gs))
-                                   (type-from-id #`i)
-                                   '())]
-               [(i:identifier ki:keyword-info)
-                (pub:ast:group:arg (pub:ast:id #`i (generate-temporary #`i) (format-group-arg-id formatter #`i ps gs))
-                                   (type-from-id #`i)
-                                   (attribute ki.spec))])))
-         (let* ([syn-id (format-group-id formatter id ps gs)]
-                [group-args (do-group-args (info-values info `common))])
-           (define (do-node ns)
-             (define (do-node-args pat (depth 0))
-               (define (format-arg s) (if s (format-node-arg-id formatter s ps gs ns) s))
-               (define (build-type c s) ;; TODO checker c
-                 (if c
-                     (pub:ast:type:external c depth)
-                     (match (type-from-id s)
-                       [`("!") (pub:ast:type:external (id-without-type s) depth)]
-                       [t (pub:ast:type:internal t depth)])))
-               (match pat
-                 [(ast:pat:single c s) (list (pub:ast:node:arg (pub:ast:id s (generate-temporary (if s s #'v)) (format-arg s))
-                                                               (build-type c s) #f))]
-                 [(ast:pat:datum d) (list #f)]
-                 [(ast:pat:multiple s) (flatten (for/list ([p s]) (do-node-args p depth)))]
-                 [(ast:pat:repeat r k) (do-node-args r (add1 depth))]))
-             (match ns
-               [(ast:node id pattern info)
-                (let* ([node-id (format-node-id formatter id ps gs ns)]
-                       [node-args (filter (compose not false?) (do-node-args pattern))])
-                  (cons (syntax->datum id)
-                        (pub:ast:node (pub:ast:id id (generate-temporary id) node-id)
-                                      node-args pattern (info->assoc info))))]))
-           (cons (syntax->datum id)
-                 (pub:ast:group (pub:ast:id id (generate-temporary id) syn-id)
-                                parent group-args (map do-node nodes) (info->assoc info))))]))
-    (match ps
-      [(ast gs inf)
-       (pub:ast aid (pub:ast:id aid (generate-temporary aid) aid) (map do-group gs) (info->assoc inf))]))
 
   (define (build-syntax ast-id raw-ast-spec)
     (define formatter
@@ -83,7 +38,7 @@
     (define all-builders (foldr update-others raw-builders raw-builders))
     (define (foldr-builders f base) (foldr f base all-builders))
 
-    (define ast-spec (foldr-builders build-spec (spec:private->public ast-id raw-ast-spec formatter)))
+    (define ast-spec (foldr-builders build-spec (pub:from-private ast-id raw-ast-spec formatter)))
 
     (define top-struct (foldr-builders (curryr build-top ast-spec) empty))
     (define (group-def group-spec)

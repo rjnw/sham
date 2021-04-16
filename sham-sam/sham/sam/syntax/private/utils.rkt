@@ -1,80 +1,58 @@
 #lang racket
 
-(require syntax/parse)
-(require "spec.rkt"
-         "syntax-class.rkt")
-
 (provide (all-defined-out))
 
-(define (info->assoc i)
-  (define (combine ls)              ;; ((1 . a) (1 . b)) => (1 a b)
-    (cons (caar ls) (map cdr ls)))
+;;; keyword info is stored in (list (cons keyword values) ...)
+;;  combine duplicate key value pair into one pair
+;;  ... (a . v0) ... (a . v1) ... => ... (a v0 v1) ...
+(define (dedup-assoc i)
+  (define (combine ls) (cons (caar ls) (map cdr ls)))
   (map combine (group-by car i)))
 
-(define (info-values infos key)
-  (map cdr (filter (λ (kvp) (equal? (car kvp) key)) infos)))
+(define (assoc-default key lst (dflt #f) (is-equal? equal?))
+  (let ([v (assoc key lst is-equal?)])
+    (if v (cdr v) dflt)))
 
-(define (info-value infos key (dflt #f))
-  (define vs (info-values infos key))
-  (cond
-    [(cons? vs) (car vs)]
-    [(empty? vs) dflt]))
+(define info/c (listof (cons/c symbol? (listof syntax?))))
 
-(define (map-pat pat f-single f-datum f-multiple f-repeat)
-    (define (rec pat)
-      (match pat
-        [(ast:pat:single c s) (f-single s)]
-        [(ast:pat:datum d) (f-datum d)]
-        [(ast:pat:multiple s) (f-multiple (vector->list (vector-map rec s)))]
-        [(ast:pat:repeat r k) (f-repeat (rec r))]))
-    (rec pat))
+(define (info-value key lst (dflt #f))
+  (let ([vs (assoc-default key lst dflt)]) (if (cons? vs) (car vs) (or vs dflt))))
 
-(define (lookup-group-spec spec gsyn)
-  (define gdat
-    (cond
-      [(symbol? gsyn) gsyn]
-      [(syntax? gsyn) (syntax->datum gsyn)]
-      [else #f]))
-  (cond
-    [(and gdat (hash? (ast-groups spec)))
-     (hash-ref (ast-groups spec) gdat #f)]
-    [(and gdat (list? (ast-groups spec)))
-     (findf (λ (g) (equal? (syntax->datum (ast:group-id g))
-                           gdat))
-            (ast-groups spec))]
-    [else #f]))
-
-(define (group-args as gs (kw `#:common))
-  (if gs
-      (append (map (λ (s)
-                     (syntax-parse s
-                       [i:identifier (cons #`i #f)]
-                       [(i:identifier ki:keyword-info) (cons #`i (attribute ki.spec))]))
-                   (info-values (ast:group-info as) kw))
-              (group-args as (lookup-group-spec as (ast:group-parent gs)) kw))
-      `()))
-
-;; -> (maybe/c (list/c syntax))
-(define (node-args node-spec)
-  (flatten (map-pat (ast:node-pattern node-spec) identity (const '()) append identity)))
-
-(define (split-identifier syn)
-  (define back-to-syn (compose (curry datum->syntax syn) string->symbol))
-  (match (symbol->string (syntax->datum syn))
-    [(regexp #rx"^!(.*)$" (list _ checker)) (list (back-to-syn checker) '!)]
-    [s
-     (match (string-split s ":")
-       [(list id type)
-        (map back-to-syn
-             (cons id (string-split type ".")))]
-       [(list id) (list (back-to-syn id))])]))
-
-(define id-without-type (compose car split-identifier))
-(define type-from-id (compose cdr split-identifier))
-
-
+(define (find-first f lst)
+  (if (empty? lst) lst (or (f (car lst)) (find-first f (cdr lst)))))
 ;; contracts
-(define (maybe/c x/c)
-  (or/c false/c x/c))
-(define (assoc/c key/c value/c)
-  (listof (cons/c key/c value/c)))
+(define (maybe/c x/c) (or/c false/c x/c))
+(define (assoc/c key/c value/c) (listof (cons/c key/c value/c)))
+
+;; syntax utils
+(define syntax->string (compose symbol->string syntax->datum))
+(define (string->syntax str (ctxt #f)) (datum->syntax ctxt (string->symbol str)))
+
+(define (->symbol s)
+  (cond [(syntax? s) (syntax->datum s)]
+        [(string? s) (string->symbol s)]
+        [(or (integer? s) (symbol? s)) s]
+        [else (error 'sham/sam "->symbol: couldn't force ~a to symbol" s)]))
+
+(define (ooo? s)
+  (let ([se (syntax-e s)])
+    (and (symbol? se)
+         (regexp-match #px"^(([[:digit:]]*)(_|\\.)+([[:digit:]]*))$" (symbol->string se)))))
+
+;; ooo: syntax? -> (maybe/c (cons/c (maybe/c postive-number?) (maybe/c positive-number?)))
+;;  returns: (cons min max) for a range specified in given syntax
+;;  corresponds to `ooo` in racket's match grammar but with additional options
+;;  matches for k, ..., ___, ..k, __k, k.., k__, k..k, k__k
+(define (ooo p)
+  (match (ooo? p)
+    [#f #f]
+    [(list a b mn o mx) (cons (string->number mn) (string->number mx))]))
+
+(module+ test
+  (require rackunit)
+  (check-equal? (ooo #'a) #f)
+  (check-equal? (ooo #'(a b)) #f)
+  (check-equal? (ooo #'(... ...)) (cons #f #f))
+  (check-equal? (ooo #'..42) (cons #f 42))
+  (check-equal? (ooo #'42..) (cons 42 #f))
+  (check-equal? (ooo #'4..2) (cons 4 2)))
