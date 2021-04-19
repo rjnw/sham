@@ -2,7 +2,8 @@
 
 (require (for-template racket))
 (require "spec.rkt"
-         "pattern.rkt")
+         "pattern.rkt"
+         "private/utils.rkt")
 (provide group-arg-storage
          node-args-storage
          from-node-storage)
@@ -20,36 +21,54 @@
   (define (frepeat s p) s)
   (rec-pattern pat fsingle fdatum fmultiple frepeat))
 
-(define ((from-node-storage arg pat) val)
-  (define (generate-access path)
-    (match path
-      [`() (values val 0)]
-      [`(multiple ,idx ,s ,p)
-       (define (datum-until ds ci)
-         (cond [(>= ci idx) ds]
-               [(ast:pat:datum? (vector-ref s ci)) (datum-until (add1 ds) (add1 ci))]
-               [else (datum-until ds (add1 ci))]))
-       (define actual-idx (- idx (datum-until 0 0)))
-       (define-values (val depth) (generate-access p))
-       (if (> depth 0)
-           (values #`(map (curryr vector-ref #,actual-idx) #,val) (sub1 depth))
-           (values #`(vector-ref #,val #,actual-idx) depth))]
-      [`(repeat ,s ,k ,p)
-       (define-values (val depth) (generate-access p))
-       (values val (add1 depth))]))
-  (define pat-path (find-arg pat (ast:id-orig (ast:basic-id arg))))
-  (define-values (stx _) (generate-access (cdr pat-path)))
+(define ((generate-access path) val)
+  (define-values (stx _)
+    (let rec ([p path])
+      (match p
+        [`() (values val 0)]
+        [`(in-multiple ,idx ,ps ,ppath)
+         (define datum-until (count-until ps (λ (v i) (ast:pat:datum? v)) (λ (v i) (equal? i idx))))
+         (define without-datum-idx (- idx datum-until))
+         (define-values (val depth) (rec ppath))
+         (if (> depth 0)
+             (values #`(map (curryr vector-ref #,without-datum-idx) #,val) (sub1 depth))
+             (values #`(vector-ref #,val #,without-datum-idx) depth))]
+        [`(in-repeat ,p ,k ,ppath)
+         (define-values (val depth) (rec ppath))
+         (values val (add1 depth))])))
   stx)
 
+;; checks whether given identifier matches with the given single pattern
+(define (arg-pattern? id p)
+  (match p
+    [(ast:pat:single c i) (equal? i id)]
+    [else #f]))
+
+;; returns pattern path for the sub-pattern matching the given argument in full pattern
+(define (arg-path arg pat)
+  (cond
+    [(find-pattern pat (curry arg-pattern? (ast:id-orig (ast:basic-id arg)))) => cdr]
+    [else #f]))
+
+(define (from-node-storage arg pat)
+  (cond [(arg-path arg pat) => generate-access]
+        [else (error 'sham/sam/internal "could not find arg in pattern ~a ~a" arg pat)]))
+
 (module+ test
+  (require rackunit)
   (require (submod "pattern.rkt" test))
-  (printf "storage:\n")
-  (define aa (ast:node:arg (ast:id a a a) #f '()))
-  (define ba (ast:node:arg (ast:id b b b) #f '()))
-  ((from-node-storage aa p1) f)
+  (define aa (ast:node:arg (make-ast-id a a a) #f '()))
+  (define ba (ast:node:arg (make-ast-id b b b) #f '()))
+  (check-equal? (syntax->datum ((from-node-storage aa p1) f))
+                `f)
   (define pp (mlt (dat 'lambda) (mlt (rpt (mlt (sng a) (sng b))) (sng c))))
-  ((from-node-storage aa pp) f)
-  ((from-node-storage ba pp) f)
+  (check-equal? (syntax->datum ((from-node-storage aa pp) f))
+                `(map (curryr vector-ref 0) (vector-ref (vector-ref f 0) 0)))
+  (check-equal? (syntax->datum ((from-node-storage ba pp) f))
+                `(map (curryr vector-ref 1) (vector-ref (vector-ref f 0) 0)))
   (define p2 (mlt (dat 'a) (sng a) (dat 'b) (dat 'c) (mlt (sng b) (sng c))))
-  ((from-node-storage aa p2) f)
-  ((from-node-storage ba p2) f))
+  (check-equal? (syntax->datum ((from-node-storage aa p2) f))
+                `(vector-ref f 0))
+  (check-equal? (syntax->datum ((from-node-storage ba p2) f))
+                `(vector-ref (vector-ref f 1) 0))
+  )

@@ -19,18 +19,18 @@
 
 
 (define (group-pattern-transformer gs as stx)
-  (match-define (ast trid tid grps info) as)
-  (match-define (ast:group (ast:id gid-orig gid-gen gid-form) prnt args nds gi) gs)
+  (match-define (ast tid tids grps info) as)
+  (match-define (ast:group gids ginfo gparent args nds) gs)
   (syntax-parse stx
-    [gid:id gid-gen]))
+    [gid:id (get-struct-id gids)]))
 
 (define (node-pattern-transformer ns as stx)
-  (match-define (ast tid sid grps info) as)
-  (match-define (ast:node (ast:id nid-orig nid-gen nid-form) args pat ni) ns)
+  (match-define (ast tid tids grps info) as)
+  (match-define (ast:node nids ninfo args pat) ns)
   (syntax-parse stx
-    [nid:id nid-gen]
+    [nid:id (get-struct-id nids)]
     [(_ (~optional (~seq (~datum #:md) md:expr)) args ...)
-     #`(#,nid-gen (~? md #f) (vector) #,(fold-with-pattern pat #`(args ...)))]))
+     #`(#,(get-struct-id nids) (~? md #f) (vector) #,(parse-with-pattern pat #`(args ...)))]))
 
 (define (rkt-pattern-transformer tt stx)
   (match-define (term-type t me ss tsv) tt)

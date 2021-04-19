@@ -5,7 +5,7 @@
          "private/utils.rkt")
 (provide parse-with-pattern
          rec-pattern
-         find-arg)
+         find-pattern)
 
 (define (remove-datum pts) (filter-not ast:pat:datum? pts))
 (define (kid s c) s)                  ;; todo check c is fully consumed
@@ -161,16 +161,16 @@
       [(ast:pat:repeat s k) (for-repeat (rec s) pat)]))
   (rec p))
 
-;; returns a path to a specific field in the pattern o/w #f
+;; returns a path to a specific pattern o/w #f
 ;;   essentially a zipper which focusses on single pattern
 ;;   of the given `arg`
 ;; p@(pat:multiple ss) -> `(multiple s i p)
 ;; p@(pat:repeat s) -> `(repeat s p)
-(define (find-arg pat arg-sym (=? equal?))
+(define (find-pattern pat f?)
   (let/cc k
     (define (f _ pat path)
       (match pat
-        [(ast:pat:single chk i) (if (=? i arg-sym) (k (cons pat path)) #f)]
+        [p #:when (f? pat) (k (cons pat path))]
         [(ast:pat:repeat p k) (match path [`(at-repeat ,frec ,pp) (frec #f k)])]
         [(ast:pat:multiple ps) (match path [`(at-multiple ,frec ,pp) (for ([i (vector-length ps)]) (frec #f i)) #f])]
         [else #f]))
@@ -189,8 +189,8 @@
   (define p2 (dat 'a))
   (define p3 (mlt p2 p1 (sng b) (sng c)))
   (define p4 (mlt (rpt p3) (sng a) (dat 'a)))
-  (check-match (find-arg p3 a) `(,_ . (in-multiple 1 ,_ ,_)))
-  (check-false (find-arg p3 f))
+  (check-match (find-pattern p3 (curry equal? (sng a))) `(,_ . (in-multiple 1 ,_ ,_)))
+  (check-false (find-pattern p3 (const #f)))
 
   (define (p-v v p) (pretty-print p) (newline) p)
   #;(pattern-with-zipper p-v p-v p-v

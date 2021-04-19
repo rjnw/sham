@@ -20,6 +20,16 @@
 
 (define (find-first f lst)
   (if (empty? lst) lst (or (f (car lst)) (find-first f (cdr lst)))))
+
+;; counts `c?` items in a sequence until `stop?`
+;;  both c? and stop? take value and index
+(define (count-until seq c? stop?)
+  (for/fold ([c 0])
+            ([v seq]
+             [i (sequence-fold (λ (i v) (+ i 1)) 0 seq)]
+             #:break (stop? v i))
+    (+ c (if (c? v i) 1 0))))
+
 ;; contracts
 (define (maybe/c x/c) (or/c false/c x/c))
 (define (assoc/c key/c value/c) (listof (cons/c key/c value/c)))

@@ -57,37 +57,12 @@
   (syntax-parse stx
     [(_ cid:id gs:ast-spec)
      (define-values (ast-syntaxes ast-spec) (build-syntax #`cid (attribute gs.spec)))
-     (match-define (pub:ast id (pub:ast:id oid gid fid) grps inf) ast-spec)
+     (match-define (pub:ast id tids grps inf) ast-spec)
      (define spec-storage (pub:spec->storage ast-spec))
      (define stx
        #`(begin
-           (define-for-syntax #,gid #,spec-storage)
-           (define-syntax cid #,gid)
+           (define-for-syntax #,(pub:get-tid tids) #,spec-storage)
+           (define-syntax cid #,(pub:get-tid tids))
            #,@ast-syntaxes))
      ;; (pretty-print (syntax->datum stx))
      stx]))
-
-
-(module+ test
-  (require rackunit)
-  (define lam-stx
-    #`(define-ast LC
-        (expr
-         [lambda ('lambda (n) body)
-           #:type ([body : expr])
-           #:identifier (n)
-           #:bind [n #:in-scope body]]
-         [letrec ('letrec ((ids vals) (... ...)) e)
-           #:type
-           ([vals : expr]
-            [e : expr])
-           #:identifier (ids)]
-         [app (rator rand (... ...))
-              #:type
-              ([rator : expr]
-               [rand : expr])]
-         [sym !identifier]
-         [num !integer])))
-  ;; (syntax->datum (expand lam-stx))
-  ;; (pretty-print (syntax->datum (expand lam-stx)))
-  )

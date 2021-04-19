@@ -49,12 +49,18 @@
 (define ast/c (struct/c ast syntax? ast:id/c (assoc/c symbol? ast:group/c) ast:info/c))
 
 (define (make-ast-id orig temp formatted)
-  `(('0 . ,orig) ('t0 . ,temp) ('f . ,formatted)))
+  `((0 . ,orig) (t0 . ,temp) (f . ,formatted)))
+(define (get-ast-id ast) (ast:basic-id ast))
 (define (add-id key val ids) (cons (cons key val) ids))
 (define (get-id key ids) (assoc-default key ids))
-(define ast:id-orig (curry get-id 'o))
+(define ast:id-orig (curry get-id '0))
 (define ast:id-form (curry get-id 'f))
 (define ast:id-gen (curry get-id 't0))
+
+(define get-oid ast:id-orig)
+(define get-fid ast:id-form)
+(define get-tid ast:id-gen)
+(define get-struct-id get-tid)
 
 (define (group-nodes gs) (map cdr (ast:group-nodes gs)))
 
