@@ -1,6 +1,7 @@
 #lang racket
 
-(require sham/sam/ast)
+(require sham/sam/ast
+         sham/sam/custom)
 
 (define-ast llvm
   (def
@@ -41,4 +42,6 @@
          [named-struct (fields type)]
          [array  (value type:type)]
          [vector (value ...)]
-         [sizeof (type)]))
+         [sizeof (type)])
+  #:with struct-helpers
+  )

@@ -161,9 +161,14 @@
    (gcs as gs)
    (match-define (ast tid tids groups tinfo) as)
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
+   (define group-arg-funcs
+     (for/list ([garg gargs]
+                [i (in-range (sequence-length gargs))])
+       #`(define (#,(format-id (get-fid gids) "~a-~a" (get-fid gids) (get-fid (get-ast-id garg))) term)
+           (vector-ref (rt:ast:group-args term) #,i))))
    (cons #`(define (#,(format-id (get-fid gids) "~a?" (get-fid gids)) term)
              (#,(format-id (get-struct-id gids) "~a?" (get-struct-id gids)) term))
-         gcs))
+         (append group-arg-funcs gcs)))
   (build-node
    (ncs as gs ns)
    (match-define (ast tid tids groups tinfo) as)
