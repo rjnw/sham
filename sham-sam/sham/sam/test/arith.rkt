@@ -34,11 +34,13 @@
    (match (make-neg (make-neg 2))
      [(neg (neg x)) x])
    2)
-  (define (fold-neg e)
-    ((gfold-rec (λ (v) (cond [(vector? v) vector] [(list? v) list] [else #f]))
-                (lambda (e) (print e) (match e
-                               [(neg (neg x)) x]
-                               [else e])))
-               e))
-  (define an2 (add (neg (neg 2))))
+  (define an2 (add (neg (neg 42))))
+  (check-equal? (neg-e (neg-e (car (add-e an2)))) 42)
+
+  ;; (define (fold-neg e)
+  ;;   ((gfold-rec (λ (v) (cond [(vector? v) vector] [(list? v) list] [else #f]))
+  ;;               (lambda (e) (print e) (match e
+  ;;                              [(neg (neg x)) x]
+  ;;                              [else e])))
+  ;;              e))
   )

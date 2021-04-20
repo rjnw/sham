@@ -4,6 +4,7 @@
 (require "spec.rkt"
          "private/utils.rkt")
 (provide parse-with-pattern
+         expand-with-pattern
          rec-pattern
          find-pattern)
 
@@ -147,6 +148,16 @@
                 (stack nis (cons `(repeat ,(cons top rst) ,pat) os))
                 (rec (stack nis nos) nk))]))]))
   (car (stack-output (pattern-with-zipper f (stack (list stx) '()) pat))))
+
+(define (expand-with-pattern pat stx)
+  (define parsed (parse-with-pattern pat stx))
+  (let rec ([ps parsed])
+    (match ps
+      [`(multiple (,args ...) ,pat) #`(vector #,@(map rec (reverse args)))]
+      [`(repeat (,args ...) ,pat) #`(list #,@(map rec (reverse args)))]
+      [`(single ,arg ,pat) #`#,arg]
+      [`(ooo ,is ,k ,p) #`#,is]
+      [else (error 'sham/sam/internal "could not match parsed syntax ~a in pattern ~a\n" ps pat)])))
 
 (define (rec-pattern p
                      for-single

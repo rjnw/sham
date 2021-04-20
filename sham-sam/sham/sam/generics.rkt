@@ -10,7 +10,6 @@
 (require "syntax/spec.rkt"
          (prefix-in sr: "syntax/runtime.rkt")
          (prefix-in st: "syntax/transformer.rkt")
-         (prefix-in sm: "syntax/match.rkt")
          (prefix-in ss: "syntax/storage.rkt")
          (for-template
           (prefix-in rt: "runtime.rkt")
@@ -214,7 +213,7 @@
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
    (cons
     #`(define-syntax #,(get-fid gids)
-        (sr:term-type st:rkt-pattern-transformer sm:term-match-expander #,(get-tid gids) #,(get-tid tids)))
+        (sr:term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-tid gids) #,(get-tid tids)))
     gcs))
   (build-node
    (ncs as gs ns)
@@ -222,7 +221,7 @@
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
    (match-define (ast:node nids ninfo nargs pat) ns)
    (cons #`(define-syntax #,(get-fid nids)
-             (sr:term-type st:rkt-pattern-transformer sm:term-match-expander #,(get-tid nids) #,(get-tid tids)))
+             (sr:term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-tid nids) #,(get-tid tids)))
          ncs)))
 
 (define (default-rkt-struct-builder)

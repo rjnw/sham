@@ -22,8 +22,8 @@
   (define (build-syntax ast-id raw-ast-spec)
     (define formatter
       (let ([fv (info-value `format (ast-info raw-ast-spec))])
-        (cond [(and (cons? fv) (identifier? (car fv)) (syntax-local-value (car fv) #f)) => (λ (f) (f))]
-              [else (get-formatter ast-id (if fv (syntax->datum (car fv)) fv))])))
+        (cond [(and fv (identifier? fv) (syntax-local-value fv #f)) => (λ (f) (f))]
+              [else (get-formatter ast-id (if fv (syntax->datum fv) fv))])))
     (define default-builders
       (cond [(info-value `default (ast-info raw-ast-spec))
              => (λ (f) ((syntax-local-value f)))]
@@ -64,5 +64,5 @@
            (define-for-syntax #,(pub:get-tid tids) #,spec-storage)
            (define-syntax cid #,(pub:get-tid tids))
            #,@ast-syntaxes))
-     (pretty-print (syntax->datum stx))
+     ;; (pretty-print (syntax->datum stx))
      stx]))

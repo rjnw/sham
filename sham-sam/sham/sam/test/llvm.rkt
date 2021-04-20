@@ -3,7 +3,6 @@
 (require sham/sam/ast)
 
 (define-ast llvm
-  ;; #:custom-write #t
   (def
     [module ('define-llvm-module name defs:def ...)
         #:define name]

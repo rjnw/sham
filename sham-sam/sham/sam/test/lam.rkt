@@ -26,11 +26,9 @@
 
 (module+ test
   (begin-for-syntax
-    (require racket/pretty)
-    (require racket)
-    (printf "syntax-value:LC\n")
+    (require racket racket/pretty)
     (define-values (lcv _) (syntax-local-value/immediate #`LC))
-    (pretty-print (pretty-spec lcv))
+    ;; (pretty-print (pretty-spec lcv))
     ;; (pretty-print (list (ast-id lcv) (ast-syn-id lcv) (ast-groups lcv) (ast-info lcv)))
     )
 
