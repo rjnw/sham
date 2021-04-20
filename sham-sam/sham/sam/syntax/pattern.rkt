@@ -79,7 +79,7 @@
       [(ast:pat:single chk id)
        ;; (printf "fs: ~a\n" is) (pretty-print (pretty-path path)) (printf "\tos:~a\n" os)
        (match (ooo (car is))
-         [(cons mn mx) (stack (cdr is) (cons `(ooo ,is (,mn . ,mx) ,pat) os))]
+         [(cons mn mx) (stack (cdr is) (cons `(ooo ,(car is) (,mn . ,mx) ,pat) os))]
          [else (stack (cdr is) (cons `(single ,(car is) ,pat) os))])]
       [(ast:pat:datum val)
        (cond [(and (identifier? (car is)) (equal? (syntax->datum (car is)) val))

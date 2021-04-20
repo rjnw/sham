@@ -33,7 +33,7 @@
   ;;          #:attr spec (ast:pat:repeat (attribute repeat.spec) (cons 0 #f)))
   (pattern (~seq maybe-repeat:node-pattern maybe-ooo:id)
            #:when (ooo? #`maybe-ooo)
-           #:attr spec (ast:pat:repeat (attribute maybe-repeat.spec) (ooo #`maybe-repeat)))
+           #:attr spec (ast:pat:repeat (attribute maybe-repeat.spec) (ooo #`maybe-ooo)))
   (pattern ms:node-pattern
            #:attr spec (attribute ms.spec)))
 

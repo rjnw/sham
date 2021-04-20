@@ -23,11 +23,12 @@
   [(define (format-group-id af id ts gs)
      (match-define (basic-id-formatter tid gsep nsep) af)
      (match-define (ast:group gid gparent gnodes ginfo) gs)
-     (define (lookup-group-spec ts p) (if p (assoc-default (->symbol p) (ast-groups ts)) p))
+     (define (lookup-group-spec p ts)
+       (if p (find-first (ast-groups ts) (λ (g) (equal? (->symbol p) (->symbol (ast:group-id g))))) p))
      (let recf ([p gparent]
                 [c id])
        (format-id c "~a~a~a"
-                  (match (lookup-group-spec ts p)
+                  (match (lookup-group-spec p ts)
                     [#f tid]
                     [(ast:group pgid pgparent _ _) (recf pgparent pgid)])
                   gsep c)))

@@ -18,8 +18,11 @@
 (define (info-value key lst (dflt #f))
   (let ([vs (assoc-default key lst dflt)]) (if (cons? vs) (car vs) (or vs dflt))))
 
-(define (find-first f lst)
-  (if (empty? lst) lst (or (f (car lst)) (find-first f (cdr lst)))))
+(define (find-first lst f?)
+  (if (empty? lst)
+      lst
+      (or (and (f? (car lst)) (car lst))
+          (find-first (cdr lst) f?))))
 
 ;; counts `c?` items in a sequence until `stop?`
 ;;  both c? and stop? take value and index

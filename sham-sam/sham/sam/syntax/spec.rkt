@@ -69,7 +69,9 @@
 
 (define (full-group-args gs as)
   (if gs
-      (append (full-group-args (find-group-spec (ast:group-parent gs) as) as)
+      (append (if (ast:group-parent gs)
+                  (full-group-args (find-group-spec (ast:group-parent gs) as) as)
+                  '())
               (ast:group-args gs))
       '()))
 
@@ -90,16 +92,16 @@
   (cdr (findf contains-node (ast-groups ast-spec))))
 
 (define (find-group/node-spec spec-id ast-spec)
-  (define (f ga)
+  (define (f? ga)
     (or (and (equal? (->symbol spec-id) (car ga)) (cdr ga))
         (find-node-spec spec-id (cdr ga) ast-spec)))
-  (find-first f (ast-groups ast-spec)))
+  (find-first (ast-groups ast-spec) f?))
 
 (define (from-private aid ps formatter)
   (define (do-id i f)
     (make-ast-id i (generate-temporary i) f))
   (define (do-group gs)
-    (match-define (prv:ast:group id parent nodes ginfo^) gs)
+    (match-define (prv:ast:group gid parent nodes ginfo^) gs)
     (define ginfo (dedup-assoc ginfo^))
     (define (do-group-args args)
       (for/list ([arg args])
@@ -108,8 +110,8 @@
         (syntax-parse arg
           [i:identifier (f #`i)]
           [(i:identifier ki:keyword-info) (f #`i (attribute ki.spec))])))
-    (let* ([syn-id (format-group-id formatter id ps gs)]
-           [group-args (do-group-args (assoc-default `common ginfo))])
+    (let* ([syn-id (format-group-id formatter gid ps gs)]
+           [group-args (do-group-args (assoc-default `common ginfo '()))])
       (define (do-node ns)
         (match-define (prv:ast:node nid pattern ninfo^) ns)
         (define ninfo (dedup-assoc ninfo^))
@@ -123,12 +125,12 @@
             [(ast:pat:datum d) '()]
             [(ast:pat:multiple s) (for/list ([p s]) (do-args p depth))]
             [(ast:pat:repeat r k) (do-args r (add1 depth))]))
-        (cons (->symbol id)
-              (ast:node (do-id id (format-node-id formatter id ps gs ns))
+        (cons (->symbol nid)
+              (ast:node (do-id nid (format-node-id formatter nid ps gs ns))
                         ninfo
                         (flatten (do-args pattern)) pattern)))
-      (cons (->symbol id)
-            (ast:group (do-id id syn-id) ginfo parent group-args (map do-node nodes)))))
+      (cons (->symbol gid)
+            (ast:group (do-id gid syn-id) ginfo parent group-args (map do-node nodes)))))
   (match ps
     [(prv:ast gs inf)
      (ast aid (make-ast-id aid (generate-temporary aid) aid)
@@ -147,7 +149,7 @@
   (define (datum-storage v) #``#,v)
   (define (syntax-storage v) #`#'#,v)
   (define (id-storage id)
-    (assoc-storage id datum-storage (curryr list-storage syntax-storage)))
+    (assoc-storage id datum-storage syntax-storage))
   (define (info-storage info)
     (define (info-value v)
       (cond [(syntax? v) #`#'#,v]
@@ -160,11 +162,11 @@
   (define (type-storage type) #`#f)
   (define (arg-storage a)
     (match a
-      [(ast:group:arg id type info)
+      [(ast:group:arg id info type)
        #`(ast:group:arg #,(id-storage id)
                         #,(info-storage info)
                         #,(type-storage type))]
-      [(ast:node:arg id type info)
+      [(ast:node:arg id info type)
        #`(ast:node:arg #,(id-storage id)
                        #,(info-storage info)
                        #,(type-storage type))]))
@@ -183,7 +185,7 @@
           [(ast:pat:multiple specs)
            #`(ast:pat:multiple (vector-immutable #,@(for/list ([s specs]) (pattern-storage s))))]
           [(ast:pat:repeat spec k)
-           #`(ast:pat:repeat #,(pattern-storage spec) #,k)]))
+           #`(ast:pat:repeat #,(pattern-storage spec) `#,k)]))
       (match-define (ast:node nid ninfo nargs npat) node)
       #`(ast:node #,(id-storage nid)
                   #,(info-storage ninfo)

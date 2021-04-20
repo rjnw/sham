@@ -128,7 +128,7 @@
    (gcs as gs)
    (match-define (ast tid tids groups top-info) as)
    (match-define (ast:group gids ginfo gpid gargs nodes) gs)
-   (define parent (get-struct-id (if gpid (ast:basic-id (find-group-spec as gpid)) tids)))
+   (define parent (get-struct-id (if gpid (ast:basic-id (find-group-spec gpid as)) tids)))
    (cons (ast-struct-rkt (get-struct-id gids) parent `() (reflection-name #``#,(get-fid gids))) gcs))
   (build-node
    (ncs as gs ns)
@@ -158,19 +158,26 @@
               #,@(map node-accessor nargs arg-fs)))))
 
 (define-ast-builder (rkt-struct-functions)
+  (build-group
+   (gcs as gs)
+   (match-define (ast tid tids groups tinfo) as)
+   (match-define (ast:group gids ginfo parent gargs nodes) gs)
+   (cons #`(define (#,(format-id (get-fid gids) "~a?" (get-fid gids)) term)
+             (#,(format-id (get-struct-id gids) "~a?" (get-struct-id gids)) term))
+         gcs))
   (build-node
    (ncs as gs ns)
    (match-define (ast tid tids groups tinfo) as)
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
    (match-define (ast:node nids ninfo nargs pat) ns)
    (define nid (get-struct-id nids))
-   (define nido (get-oid nids))
+   (define nido (get-fid nids))
    (cons (rkt-struct-node-functions
-          (list* (format-id nido "make-~a" nid)
-                 (format-id nido "~a?" nid)
+          (list* (format-id nido "make-~a" nido)
+                 (format-id nido "~a?" nido)
                  (map (lambda (arg)
                         (let ([arg-id (get-fid (get-ast-id arg))])
-                          (format-id arg-id "~a-~a" nid arg-id)))
+                          (format-id arg-id "~a-~a" nido arg-id)))
                       nargs))
           as gs ns)
          ncs)))
@@ -189,7 +196,7 @@
    (gcs as gs)
    (match-define (ast tid tids groups tinfo) as)
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
-   (cons #`(define-for-syntax #,(get-tid gids) (lookup-group-spec #,(get-tid tids) #'#,(get-oid gids)))
+   (cons #`(define-for-syntax #,(get-tid gids) (find-group-spec #'#,(get-oid gids) #,(get-tid tids)))
          gcs))
   (build-node
    (ncs as gs ns)
@@ -197,7 +204,7 @@
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
    (match-define (ast:node nids ninfo nargs pat) ns)
    (cons #`(define-for-syntax #,(get-tid nids)
-             (lookup-node-spec #,(get-tid tids) #,(get-tid gids) #'#,(get-oid gids)))
+             (find-node-spec #'#,(get-oid nids) #,(get-tid gids) #,(get-tid tids) ))
          ncs)))
 
 (define-ast-builder (rkt-term-type)
@@ -215,7 +222,7 @@
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
    (match-define (ast:node nids ninfo nargs pat) ns)
    (cons #`(define-syntax #,(get-fid nids)
-             (sr:term-type st:rkt-pattern-transformer sm:term-match-expander #,(get-tid nids) #,(get-tid gids)))
+             (sr:term-type st:rkt-pattern-transformer sm:term-match-expander #,(get-tid nids) #,(get-tid tids)))
          ncs)))
 
 (define (default-rkt-struct-builder)

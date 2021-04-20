@@ -112,15 +112,17 @@
   (define-ast-builder (sexp-printer)
     (build-group
      (gcs as gs)
-     (match-define (ast tid (ast:id tid-o tid-g tid-f) groups info) as)
-     (match-define (ast:group (ast:id gid-o gid-t gsyn-id) parent gargs nodes ginfo) gs)
+     (match-define (ast tid tids groups info) as)
+     (match-define (ast:group gids ginfo parent gargs nodes) gs)
+     (define gid-o (get-oid gids))
      (with-syntax ([pprint-id (format-id gid-o "pprint-~a" gid-o)])
        (cons #`(define (pprint-id term) #`(ast:group-args term)) gcs)))
     (build-node
      (ncs as gs ns)
-     (match-define (ast tid (ast:id tid-o tid-g tid-f) groups info) as)
-     (match-define (ast:group (ast:id gid-o gid-t gsyn-id) parent gargs nodes ginfo) gs)
-     (match-define (ast:node (ast:id nid-o nid-t nsyn-id) nargs pat ninfo) ns)
+     (match-define (ast tid tids groups info) as)
+     (match-define (ast:group gids ginfo parent gargs nodes) gs)
+     (match-define (ast:node nids ninfo nargs pat) ns)
+     (define nid-o (get-oid nids))
      (with-syntax ([pprint-id (format-id nid-o "pprint-~a" nid-o)]
                    [pprec (generate-temporary #'pp)])
        (cons #`(define (pprint-id term pprec) #,(build-printer #`pprec pat #`(ast:term-args term)))

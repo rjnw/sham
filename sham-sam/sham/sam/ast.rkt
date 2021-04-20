@@ -21,18 +21,18 @@
 
   (define (build-syntax ast-id raw-ast-spec)
     (define formatter
-      (let ([fv (info-value (ast-info raw-ast-spec) `format)])
+      (let ([fv (info-value `format (ast-info raw-ast-spec))])
         (cond [(and (cons? fv) (identifier? (car fv)) (syntax-local-value (car fv) #f)) => (λ (f) (f))]
               [else (get-formatter ast-id (if fv (syntax->datum (car fv)) fv))])))
     (define default-builders
-      (cond [(info-value (ast-info raw-ast-spec) `default)
+      (cond [(info-value `default (ast-info raw-ast-spec))
              => (λ (f) ((syntax-local-value f)))]
             [else (default-rkt-struct-builder)]))
     (define raw-builders
       (append
        (flatten
         (map (λ (g) ((syntax-local-value g)))
-             (info-value (ast-info raw-ast-spec) `with '())))
+             (assoc-default `with (ast-info raw-ast-spec) '())))
        default-builders))
 
     (define all-builders (foldr update-others raw-builders raw-builders))
@@ -64,5 +64,5 @@
            (define-for-syntax #,(pub:get-tid tids) #,spec-storage)
            (define-syntax cid #,(pub:get-tid tids))
            #,@ast-syntaxes))
-     ;; (pretty-print (syntax->datum stx))
+     (pretty-print (syntax->datum stx))
      stx]))

@@ -25,7 +25,8 @@
   (match (split-id-string (syntax->string syn))
     [(cons kind ls) (cons kind (map back-to-syn ls))]))
 
-(define id-without-type (compose cadr split-identifier))
+(define (id-without-type orig-id check typ)
+  (cadr (split-identifier orig-id)))
 (define type-from-id (compose cddr split-identifier))
 
 (define (build-node-arg-type c s depth info)
@@ -36,7 +37,7 @@
   ;;       [`("!") (ast:type:external (id-without-type s) depth)]
   ;;       [t (ast:type:internal t depth)]))
   )
-(define (build-group-arg-type id ginfo) (void))
+(define (build-group-arg-type id ainfo ginfo) '())
 (define (node-arg-info syn typ ninfo) '())
 ;; (define (group-arg-type-assoc gargs spec)
 ;;   (match-define (ast:group id parent args nodes ginfo) spec)

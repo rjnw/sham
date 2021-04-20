@@ -9,7 +9,7 @@
 (define-ast llvm
   (def
     [module (defs:def ...)]
-    [function      (type blocks:ast.block ...)]
+    [function      (type blocks:def.block ...)]
     [block         (instructions:instruction ... term:terminator)]
     [type          (ast:type)]
     [global        (type value)]

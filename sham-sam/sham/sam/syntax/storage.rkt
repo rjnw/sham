@@ -13,7 +13,7 @@
 
 (define (node-args-storage nargs pat)
   (define (fsingle i p)
-    (ast:id-form (ast:basic-id (findf (λ (a) (equal? i (ast:id-orig (ast:basic-id a))))
+    (ast:id-form (ast:basic-id (findf (λ (a) (equal? i (get-id 'wtype (ast:basic-id a))))
                                       nargs))))
   (define (fdatum d p) #f)
   (define (fmultiple ss p)
@@ -47,7 +47,7 @@
 ;; returns pattern path for the sub-pattern matching the given argument in full pattern
 (define (arg-path arg pat)
   (cond
-    [(find-pattern pat (curry arg-pattern? (ast:id-orig (ast:basic-id arg)))) => cdr]
+    [(find-pattern pat (curry arg-pattern? (get-id 'wtype (ast:basic-id arg)))) => cdr]
     [else #f]))
 
 (define (from-node-storage arg pat)
@@ -57,8 +57,8 @@
 (module+ test
   (require rackunit)
   (require (submod "pattern.rkt" test))
-  (define aa (ast:node:arg (make-ast-id a a a) #f '()))
-  (define ba (ast:node:arg (make-ast-id b b b) #f '()))
+  (define aa (ast:node:arg `((wtype . ,a)) #f '()))
+  (define ba (ast:node:arg `((wtype . ,b)) #f '()))
   (check-equal? (syntax->datum ((from-node-storage aa p1) f))
                 `f)
   (define pp (mlt (dat 'lambda) (mlt (rpt (mlt (sng a) (sng b))) (sng c))))

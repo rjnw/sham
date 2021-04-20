@@ -19,7 +19,7 @@
        (define (generate-node-renames ns)
          (match-define (cons _ (ast:node (ast:id nido nidt nidf) nargs npat ninfo)) ns)
          (list #`(define-syntax #,(format-id stx "~a~a~a" t #`sep nido) (make-rename-transformer #'#,nidf))))
-       (match (lookup-group-spec spec f)
+       (match (find-group-spec f spec)
          [(ast:group (ast:id gido gidt gidf) gpid gargs gnodes ginfo)
           (list* ;; #`(define-syntax #,t (make-rename-transformer #'#,gidf))
                  (map generate-node-renames gnodes))]))
