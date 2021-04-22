@@ -20,12 +20,12 @@
     [(false? md) (hash-set! (make-hash) key value)]
     [else (error 'sham:md "unknown metadata value:~a" md)]))
 
-(define (genral-lambda key)
+(define (general-lambda key)
   (case-lambda
     [(md) (general-ref-key md key)]
     [(md value) (general-set-key md key value)]))
 
-(define (md-ref md key (fail #f)) (if md (hash-ref md key fail) fail))
+(define (md-ref md key (fail #f)) (if (hash? md) (hash-ref md key fail) fail))
 (define (md-ref! md key fail) (hash-ref! md key fail) md)
 (define (md-set! md key val) (hash-set! md key val) md)
 
@@ -46,6 +46,10 @@
 (define-key metadata-kind)
 (define (metadata? v) (and (hash? v) (hash-has-key? v metadata-kind)))
 
+;; (define-md name [keys ...]) =>
+;;   (begin (define (empty-name-md alst) ...)
+;;          (define (name-md? md) ...)
+;;          (define-key ,name-md-,keys) ...)
 (define-simple-macro (define-md name [keys ...])
   #:with md-name (format-id #'name "~a-md" #'name)
   #:with md-kind-key (format-id #'name "#%md-kind:~a" #'name)
@@ -57,3 +61,5 @@
     (define (empty-name (assocs null)) (make-hash (cons (cons metadata-kind `md-kind-key) assocs)))
     (define (check-name v) (and (metadata? v) (equal? (md-ref v metadata-kind) `md-kind-key)))
     (define-key key-names) ...))
+
+(define (empty-md (md-kind #f)) (make-hash (list (cons metadata-kind md-kind))))

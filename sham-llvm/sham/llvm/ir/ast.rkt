@@ -2,30 +2,33 @@
 
 (require sham/sam/ast
          sham/sam/custom
-         sham/sam/runtime)
+         sham/sam/runtime
+         sham/md)
 
 (provide (all-defined-out))
 
 (define-ast llvm
   (def
-    [module (defs:def ...)]
-    [function      (type blocks:def.block ...)]
+    [module (defs:def ...) #:default-metadata (empty-module-md)]
+    [function      (type blocks:def.block ...) #:default-metadata (empty-function-md)]
     [block         (instructions:instruction ... term:terminator)]
     [type          (ast:type)]
     [global        (type value)]
     [global-string (str)]
     [external      (type)]
     [intrinsic     (str type)]
-    #:common id)
+    #:common id:id)
   (type
    [ref      (to)]
    [struct   (fields:type ...)]
    [function (args:type ... var-arg? ret:type)]
    [pointer  (to:type)]
    [array    (of:type size)]
-   [vector   (of:type size)])
+   [vector   (of:type size)]
+   #:default-metadata (empty-type-md))
   (instruction
-   [op (result op flags args ...)])
+   [op (result op flags args ...)]
+   #:default-metadata (empty-instruction-md))
   (terminator instruction
               [ret    (value)]
               [retv   ()]
@@ -40,16 +43,18 @@
    [ui     ((? val exact-nonnegative-integer?) type:type)]
    [string ((? val string?))]
    [llvm   (ref)]
-   [basic-struct (fields)]
-   [named-struct (fields type)]
+   [basic-struct (fields ...)]
+   [named-struct (fields ... type)]
    [array  (value type:type)]
    [vector (value ...)]
    [sizeof (type)])
-  #:with struct-helpers)
+  #:with struct-helpers
+  #:default-metadata (empty-md))
 
-(define (llvm-metadata v) (ast:metadata-custom (ast-md v)))
+(define (llvm-metadata v)
+  (match v
+    [(? ast?) (ast:metadata-custom (ast-md v))]
+    [(? ast:metadata?) (ast:metadata-custom v)]
+    [else (error 'sham/llvm "unknown value for getting metadata: ~a" v)]))
+
 (define llvm-md llvm-metadata)
-
-(define (set-llvm-metadata! v md)
-  (set-ast:metadata-custom! (ast-md v) md))
-(define set-llvm-md! set-llvm-metadata!)

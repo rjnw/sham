@@ -26,11 +26,10 @@
     [(? instruction-md?)
      (set-instruction-md-llvm-calling-convention! v conv-key)]
     [(? llvm:def:function?)
-     (llvm-metadata! (set-callconv! (from-maybe (llvm-metadata v) empty-function-md) conv-key))]
-    [(? llvm:ast:instruction:op?)
-     (llvm-metadata! v (set-callconv! (from-maybe (llvm-metadata v) empty-instruction-md) conv-key))]
-    [(? (or/c assoc-env? hash?))
-     (general-env-callconv! v conv-key)]
+     (set-callconv! (llvm-metadata v) conv-key)]
+    [(? llvm:instruction:op?)
+     (set-callconv! (llvm-metadata v) conv-key)]
+    [(? (or/c assoc-env? hash?)) (general-env-callconv! v conv-key)]
     [else (general-env-callconv! conv-key)]))
 
 (define (general-env-callconv! conv-key (env (empty-assoc-env)))

@@ -5,10 +5,10 @@
 
 (provide (all-defined-out))
 
-(define-alias #:for llvm
+(define-aliases llvm
   #:sep -
-  [def -> lld]
-  [value -> llv]
-  [type -> llt]
-  [instruction -> lli]
-  [terminator -> lli])
+  [def]
+  [value -> val]
+  [type]
+  [instruction -> inst]
+  [terminator -> inst])

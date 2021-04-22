@@ -9,6 +9,7 @@
          metadata?
          general-ref-key
          general-set-key
+         empty-md
          md-ref
          md-ref!
          md-set!)

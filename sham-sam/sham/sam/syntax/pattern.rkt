@@ -65,20 +65,22 @@
 
 ;; parses the syntax according to a given pattern and returns tagged syntax with corresponding patterns
 ;;  the sequences in result are in reverse order
-(define (parse-with-pattern pat stx)
+(define (parse-with-pattern opat stx)
   ;;; uses pattern-with-zipper function to recurse through the pattern
   ;;   our state has two parts
   ;;   input: current input list of syntax
   ;;   output tagged result containing parsed syntax
   ;;   output contains syntax in reverse order as a stack
 
-  ;; (printf "fwp: ~a" stx) (newline) (pretty-print (pretty-pattern pat)) (newline)
+  ;; (printf "fwp: ~a" stx) (newline) (pretty-print (pretty-pattern opat)) (newline)
   (struct stack [input output] #:prefab)
   (define (f sc pat path)
     (match-define (stack is os) sc)
     (match pat
       [(ast:pat:single chk id)
        ;; (printf "fs: ~a\n" is) (pretty-print (pretty-path path)) (printf "\tos:~a\n" os)
+       (when (empty? is)
+         (error 'sham/sam "couldn't parse pattern: ~a ~a\n" (pretty-pattern opat) stx))
        (match (ooo (car is))
          [(cons mn mx) (stack (cdr is) (cons `(ooo ,(car is) (,mn . ,mx) ,pat) os))]
          [else (stack (cdr is) (cons `(single ,(car is) ,pat) os))])]
@@ -139,15 +141,17 @@
          (and (consumed-min? (cons top rst) mn)
               (or (consumed-max? (cons top rst) mx)
                   (<= (length nis) min-req-after))))
-       (let rec ([s (stack is `())]
-                 [nk (cons mn mx)])
-         (match-define (stack nis nos) (frec s nk))
-         (match nos
-           [`(,top ,rst ...)
-            (if (enough? top rst nis)
-                (stack nis (cons `(repeat ,(cons top rst) ,pat) os))
-                (rec (stack nis nos) nk))]))]))
-  (car (stack-output (pattern-with-zipper f (stack (list stx) '()) pat))))
+       (if (equal? min-req-after (length is))
+           (stack is (cons `(repeat () ,pat) os))
+           (let rec ([s (stack is `())]
+                     [nk (cons mn mx)])
+             (match-define (stack nis nos) (frec s nk))
+             (match nos
+               [`(,top ,rst ...)
+                (if (enough? top rst nis)
+                    (stack nis (cons `(repeat ,(cons top rst) ,pat) os))
+                    (rec (stack nis nos) nk))])))]))
+  (car (stack-output (pattern-with-zipper f (stack (list stx) '()) opat))))
 
 (define (expand-with-pattern pat stx)
   (define parsed (parse-with-pattern pat stx))
@@ -252,7 +256,9 @@
                (and (datum=? a0 'a0) (equal? p0 (sng a))
                     (datum=? a* 'a*) (equal? a*p (sng a))
                     (datum=? sb 'b)))
-
+  (check-match (parse-with-pattern rs2 #'(b))
+               `(multiple ((single ,sb ,pb) (repeat () ,rp)) ,mp)
+               (and (datum=? sb 'b)))
   ;; (parse-with-pattern (mlt (sng a) (sng b) (sng c)) s1)
   ;; (parse-with-pattern p3 s1)
 

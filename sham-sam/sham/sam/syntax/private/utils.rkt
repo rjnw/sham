@@ -17,6 +17,10 @@
 
 (define (info-value key lst (dflt #f))
   (let ([vs (assoc-default key lst dflt)]) (if (cons? vs) (car vs) (or vs dflt))))
+(define (info-1value key lst (dflt #f))
+  (match (info-value key lst dflt)
+    [(cons v _) v]
+    [else dflt]))
 
 (define (find-first lst f?)
   (if (empty? lst)
@@ -60,6 +64,13 @@
   (match (ooo? p)
     [#f #f]
     [(list a b mn o mx) (cons (string->number mn) (string->number mx))]))
+
+(define (syntax-srcloc stx)
+  (srcloc (syntax-source stx)
+          (syntax-line stx)
+          (syntax-column stx)
+          (syntax-position stx)
+          (syntax-span stx)))
 
 (module+ test
   (require rackunit)

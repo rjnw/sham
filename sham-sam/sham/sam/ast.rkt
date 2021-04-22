@@ -58,7 +58,7 @@
     [(_ cid:id gs:ast-spec)
      (define-values (ast-syntaxes ast-spec) (build-syntax #`cid (attribute gs.spec)))
      (match-define (pub:ast id tids grps inf) ast-spec)
-     (define spec-storage (pub:spec->storage ast-spec))
+     (define spec-storage (pub:store-syntax ast-spec))
      (define stx
        #`(begin
            (define-for-syntax #,(pub:get-tid tids) #,spec-storage)

@@ -1,6 +1,7 @@
 #lang racket
 
-(require (for-syntax syntax/parse))
+(require (for-syntax syntax/parse)
+         syntax/parse/define)
 
 (require sham/llvm/ir/simple)
 
@@ -16,7 +17,12 @@
 (define-syntax (define-ops stx)
   (syntax-parse stx
     [(_ op-name:id ...)
-     #`(begin (define (op-name #:flags (flags #f) result . args) (lli-op result (quote op-name) flags (flatten args))) ...)]))
+     #:with (orig-op ...) (syntax->list #`(op-name ...))
+     #'(begin (define-syntax (op-name stx)
+                (syntax-parse stx
+                  [(_ (~optional (~seq #:flags flags) #:defaults ([flags #'#f])) result args (... ...))
+                   #`(inst-op result (quote op-name) flags args (... ...))]))
+              ...)]))
 
 (define-syntax basic-ops
   `(

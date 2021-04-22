@@ -2,13 +2,35 @@
 
 (require "runtime/generics.rkt"
          "runtime/props.rkt"
-         (for-syntax syntax/parse))
+         (for-syntax syntax/parse
+                     "syntax/private/utils.rkt"))
 
 (provide (all-defined-out)
          gmap gfold)
 
-(struct ast:location:union [of])        ;; (list/c (cons/c symbol:tag srcloc?))
-(struct ast:metadata [loc (custom #:mutable)])
+(struct ast:location [sloc tag] #:transparent)
+(struct ast:metadata [locs custom] #:transparent)     ;; locs : tree of ast:location
+
+(define (metadata-with-location vs loc (tag #f))
+  (define (split lst f?)
+    (for/fold ([t '()] [f '()]) ([v lst])
+      (if (f? v) (values (cons v t) f) (values t (cons v f)))))
+  (let*-values
+      ([(mds mds^) (split vs ast:metadata?)]
+       [(lcs lcs^) (split mds^ ast:location?)])
+    (ast:metadata (cons (ast:location loc tag)
+                        (append (map ast:metadata-locs mds)
+                                lcs))
+                  (match (append lcs^ (map ast:metadata-custom mds))
+                    [(list c) c]
+                    ['() (make-hash)]
+                    [cs cs]))))
+
+(define-syntax (generic-metadata stx)
+  (syntax-parse stx
+    [(_ (~optional (~seq (~datum #:tag) tag) #:defaults ([tag '#%default])) v ...)
+     #`(metadata-with-location (list v ...) #,(syntax-srcloc stx) tag)]
+    [_ #`(metadata-with-location (list) #,(syntax-srcloc stx) '#%default)]))
 
 (struct ast [md])
 (struct ast:group ast [args])

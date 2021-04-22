@@ -6,7 +6,8 @@
 
 (define (dump-llvm-ir mod-env)
   (LLVMDumpModule (llvm-env-module-ref mod-env)))
-
+(define (print-llvm-ir mod-env)
+  (printf (LLVMPrintModuleToString (llvm-env-module-ref mod-env))))
 (define (dump-llvm-function-ir mod-env fsym)
   (LLVMDumpValue (llvm-env-lookup-value mod-env fsym)))
 

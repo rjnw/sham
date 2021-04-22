@@ -6,7 +6,9 @@
 
 (require (prefix-in rt: "runtime.rkt")
          "spec.rkt"
-         "pattern.rkt")
+         "pattern.rkt"
+         "private/utils.rkt"
+         (for-template (prefix-in rrt: "../runtime.rkt")))
 
 (provide rkt-pattern-transformer
          rkt-match-expander)
@@ -46,21 +48,27 @@
 
 (define (rkt-pattern-transformer tt stx)
   (match-define (rt:term-type rt mt ss ts) tt)
-  (match-define (ast tid tids grps info) ts)
+  (match-define (ast tid tids grps tinfo) ts)
+  (define default-tmd (info-1value 'default-metadata tinfo))
   (syntax-parse stx
     [nid:id (get-struct-id (ast:basic-id ss))]
     [(_ (~optional (~seq (~datum #:md) md:expr)) args ...)
      (match ss
        [(ast:node ids ninfo nargs pat)
         (define gs (find-node-group ss ts))
+        (match-define (ast:group gids ginfo gprnt giargs gnodes) gs)
         (define gargs (full-group-args gs ts))
         (define-values (gargs-stx rest-stx) (match-group-args gargs (syntax-e #`(args ...))))
         (define nargs-stx (expand-with-pattern pat #`(#,@rest-stx)))
-        #`(#,(ast:id-gen ids) (~? md #f) (vector #,@gargs-stx) #,nargs-stx)]
+        (define default-nmd (info-1value 'default-metadata ninfo))
+        (define default-gmd (info-1value 'default-metadata ginfo))
+        #`(#,(ast:id-gen ids)
+           (rrt:generic-metadata #:tag '#%from-pattern-constructor (~? md #,(or default-nmd default-gmd default-tmd)))
+           (vector #,@gargs-stx) #,nargs-stx)]
        [(ast:group ids ginfo prnt gargs nodes)
         (define gargs (full-group-args ss ts))
         (define-values (gargs-stx rest-stx) (match-group-args gargs (syntax-e #`(args ...))))
-        ;; (error 'sham:sam "todo match expander for group types: ~a" (ast:id-orig ids))
-        #`(#,(ast:id-gen ids) (~? md #f) (vector #,@gargs-stx) (vector))])
-     ;; #`(#,(get-struct-id nids) (~? md #f) (vector) #,(expand-with-pattern pat #`(args ...)))
-     ]))
+        (define default-gmd (info-1value 'default-metadata ginfo))
+        #`(#,(ast:id-gen ids)
+           (rrt:generic-metadata #:tag '#%from-pattern-constructor (~? md #,(or default-gmd default-tmd)))
+           (vector #,@gargs-stx) (vector))])]))

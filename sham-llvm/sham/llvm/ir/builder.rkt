@@ -24,7 +24,7 @@
       (eprintf "llvm-diagnose: ~a\n" (cast diag-desc _pointer _string))
       (LLVMDisposeMessage diag-desc))
     (LLVMContextSetDiagnosticHandler llvm-context diag-handler #f))
-  (match-define (llvm:def:module #:md module-md module-name module-defs) module-ast)
+  (match-define (llvm:def:module #:md module-md module-name module-defs ...) module-ast)
   (define llvm-module (LLVMModuleCreateWithNameInContext (to-string module-name) llvm-context))
   (define llvm-builder (LLVMCreateBuilderInContext llvm-context))
   (when llvm-data-layout (LLVMSetDataLayout llvm-module llvm-data-layout))
@@ -37,7 +37,7 @@
        (if (llvm:type:struct? t)
            (assoc-env-extend decl-env name (LLVMStructCreateNamed llvm-context (to-string name)))
            decl-env)]
-      [(llvm:def:function name type body)
+      [(llvm:def:function name type blocks ...)
        (define type-ref (compile-type type internal-env decl-env))
        (define value-ref (LLVMAddFunction llvm-module (to-string name) type-ref))
        (assoc-env-extend decl-env name (llvm-function value-ref type-ref))]
@@ -89,9 +89,9 @@
       [(llvm:value:ui value t)
        (LLVMConstInt (compile-type t internal-env decl-env) value #f)]
       [(llvm:value:llvm v) v]
-      [(llvm:value:basic-struct fields)
+      [(llvm:value:basic-struct fields ...)
        (LLVMConstStruct (map (curryr value-compiler internal-env decl-env) fields) #f)]
-      [(llvm:value:named-struct fields type)
+      [(llvm:value:named-struct fields ... type)
        (LLVMConstNamedStruct (compile-type type internal-env decl-env)
                              (map (curryr value-compiler internal-env decl-env) fields))]
       [(llvm:value:array vals t)
@@ -170,7 +170,7 @@
                        (LLVMBuildCall llvm-builder value
                                       (map compile-value args)
                                       (to-string result)))])
-               md flags))]))
+               (llvm-metadata md) flags))]))
         (define (build-terminator-instruction! terminator)
           (match terminator
             [(llvm:instruction:terminator:ret value)
@@ -213,8 +213,8 @@
       [(llvm:def:type type-name t)
        (compile-type-definition! def type-name t)
        (values type-name (assoc-env-lookup decl-env type-name))]
-      [(llvm:def:function function-name type body)
-       (compile-function-definition! def function-name type body)
+      [(llvm:def:function function-name type blocks ...)
+       (compile-function-definition! def function-name type blocks)
        (values function-name (assoc-env-lookup decl-env function-name))]
       [(llvm:def id)
        (values id (assoc-env-lookup decl-env id))]))

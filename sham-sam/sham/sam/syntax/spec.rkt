@@ -105,8 +105,10 @@
     (define ginfo (dedup-assoc ginfo^))
     (define (do-group-args args)
       (for/list ([arg args])
-        (define (f i (inf '()))
-          (ast:group:arg (do-id i i) inf (build-group-arg-type i inf ginfo)))
+        (define (f i (info '()))
+          (define arg-typ (build-group-arg-type i info ginfo))
+          (define syn-id (id-without-type i #f arg-typ))
+          (ast:group:arg (do-id syn-id syn-id) info arg-typ))
         (syntax-parse arg
           [i:identifier (f #`i)]
           [(i:identifier ki:keyword-info) (f #`i (attribute ki.spec))])))
@@ -136,71 +138,32 @@
      (ast aid (make-ast-id aid (generate-temporary aid) aid)
           (map do-group gs) (dedup-assoc inf))]))
 
-(define (spec->storage spec)
-  (define (list-storage l item-storage)
-    #`(list #,@(map item-storage l)))
-  (define (assoc-storage a key-storage value-storage)
-    #`(list #,@(for/list ([v a])
-                 (match-define (cons key value) v)
-                 #`(cons #,(key-storage key) #,(value-storage value)))))
-  (define (hash-storage h key-storage value-storage)
-    #`(make-hash (list #,@(for/list ([(key value) h])
-                            #`(cons #,(key-storage key) #,(value-storage value))))))
-  (define (datum-storage v) #``#,v)
-  (define (syntax-storage v) #`#'#,v)
-  (define (id-storage id)
-    (assoc-storage id datum-storage syntax-storage))
-  (define (info-storage info)
-    (define (info-value v)
-      (cond [(syntax? v) #`#'#,v]
-            [(symbol? v) #`'#,v]
-            [(list? v) #`(list #,@(map info-value v))]
-            [(false? v) #`#f]))
-    (if info
-        (assoc-storage info datum-storage info-value)
-        #`#f))
-  (define (type-storage type) #`#f)
-  (define (arg-storage a)
-    (match a
+(define (store-syntax val)
+  (let store ([v val])
+    (match v
+      [(? symbol?) #``#,v]
+      [(? syntax?) #`#'#,v]
+      [(list vs ...) #`(list #,@(map store vs))]
+      [(cons a b) #`(cons #,(store a) #,(store b))]
       [(ast:group:arg id info type)
-       #`(ast:group:arg #,(id-storage id)
-                        #,(info-storage info)
-                        #,(type-storage type))]
+       #`(ast:group:arg #,(store id) #,(store info) #,(store type))]
       [(ast:node:arg id info type)
-       #`(ast:node:arg #,(id-storage id)
-                       #,(info-storage info)
-                       #,(type-storage type))]))
-
-  (define (group-storage group)
-    (match-define (ast:group gid ginfo gparent gargs gnodes) group)
-    (define (node-storage node)
-      (define (pattern-storage pattern)
-        (match pattern
-          [(ast:pat:single c id)        ;;TODO check for #f for c,id
-           (define (store v)
-             (if (false? v) v #`#'#,v))
-           #`(ast:pat:single #,(store c) #,(store id))]
-          [(ast:pat:datum syn)
-           #`(ast:pat:datum `#,syn)]
-          [(ast:pat:multiple specs)
-           #`(ast:pat:multiple (vector-immutable #,@(for/list ([s specs]) (pattern-storage s))))]
-          [(ast:pat:repeat spec k)
-           #`(ast:pat:repeat #,(pattern-storage spec) `#,k)]))
-      (match-define (ast:node nid ninfo nargs npat) node)
-      #`(ast:node #,(id-storage nid)
-                  #,(info-storage ninfo)
-                  #,(list-storage nargs arg-storage)
-                  #,(pattern-storage npat)))
-    #`(ast:group #,(id-storage gid)
-                 #,(info-storage ginfo)
-                 '#,gparent
-                 #,(list-storage gargs arg-storage)
-                 #,(assoc-storage gnodes datum-storage node-storage)))
-  (match-define (ast id tid groups info) spec)
-  #`(ast #'#,id
-         #,(id-storage tid)
-         #,(assoc-storage groups datum-storage group-storage)
-         #,(info-storage info)))
+       #`(ast:node:arg #,(store id) #,(store info) #,(store type))]
+      [(ast:pat:single c id)
+       #`(ast:pat:single #,(store c) #,(store id))]
+      [(ast:pat:datum syn)
+       #`(ast:pat:datum #,(store syn))]
+      [(ast:pat:multiple specs)
+       #`(ast:pat:multiple (vector-immutable #,@(for/list ([s specs]) (store s))))]
+      [(ast:pat:repeat spec k)
+       #`(ast:pat:repeat #,(store spec) #,(store k))]
+      [(ast:node nid ninfo nargs npat)
+       #`(ast:node #,(store nid) #,(store ninfo) #,(store nargs) #,(store npat))]
+      [(ast:group gid ginfo gparent gargs gnodes)
+       #`(ast:group #,(store gid) #,(store ginfo) #,(store gparent) #,(store gargs) #,(store gnodes))]
+      [(ast id tid groups info)
+       #`(ast #,(store id) #,(store tid) #,(store groups) #,(store info))]
+      [else v])))
 
 (define (pretty-info info)
   (for/list ([ip info])
