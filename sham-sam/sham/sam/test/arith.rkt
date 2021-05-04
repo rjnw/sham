@@ -13,7 +13,7 @@
    [sub ('- e1 e2 ...)]
    [mul ('* e ...)])
   #:with struct-helpers sexp-printer
-  #:format 'clean)
+  #:format (#f - #f - -))
 
 (module+ test
   (begin-for-syntax

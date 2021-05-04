@@ -39,12 +39,12 @@
         (define gargs (full-group-args gs ts))
         (define-values (gargs-stx rest-stx) (match-group-args gargs (syntax-e #`(args ...))))
         (define nargs-stx (expand-with-pattern pat #`(#,@rest-stx)))
-        #`(#,(ast:id-gen ids) (~? md _) (vector #,@gargs-stx) #,nargs-stx)]
+        #`(#,(get-struct-id ids) (~? md _) (vector #,@gargs-stx) #,nargs-stx)]
        [(ast:group ids ginfo prnt gargs nodes)
         (define gargs (full-group-args ss ts))
         (define-values (gargs-stx rest-stx) (match-group-args gargs (syntax-e #`(args ...))))
         ;; (error 'sham:sam "todo match expander for group types: ~a" (ast:id-orig ids))
-        #`(#,(ast:id-gen ids) (~? md _) (vector #,@gargs-stx) _)])]))
+        #`(#,(get-struct-id ids) (~? md _) (vector #,@gargs-stx) _)])]))
 
 (define (rkt-pattern-transformer tt stx)
   (match-define (rt:term-type rt mt ss ts) tt)
@@ -62,13 +62,13 @@
         (define nargs-stx (expand-with-pattern pat #`(#,@rest-stx)))
         (define default-nmd (info-1value 'default-metadata ninfo))
         (define default-gmd (info-1value 'default-metadata ginfo))
-        #`(#,(ast:id-gen ids)
+        #`(#,(get-struct-id ids)
            (rrt:generic-metadata #:tag '#%from-pattern-constructor (~? md #,(or default-nmd default-gmd default-tmd)))
            (vector #,@gargs-stx) #,nargs-stx)]
        [(ast:group ids ginfo prnt gargs nodes)
         (define gargs (full-group-args ss ts))
         (define-values (gargs-stx rest-stx) (match-group-args gargs (syntax-e #`(args ...))))
         (define default-gmd (info-1value 'default-metadata ginfo))
-        #`(#,(ast:id-gen ids)
+        #`(#,(get-struct-id ids)
            (rrt:generic-metadata #:tag '#%from-pattern-constructor (~? md #,(or default-gmd default-tmd)))
            (vector #,@gargs-stx) (vector))])]))

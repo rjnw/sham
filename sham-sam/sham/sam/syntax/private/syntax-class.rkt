@@ -54,3 +54,10 @@
 (define-syntax-class language-spec
   #:description "language specification"
   (pattern (lang:id (name:id var:id ...) ...)))
+
+(module* reader #f
+  (require (submod "spec.rkt" reader))
+  (define-splicing-syntax-class reader-spec
+    #:description "sham language reader specification"
+    (pattern (~seq ast:id info:keyword-info)
+             #:attr spec (reader #`ast (attribute info.spec)))))

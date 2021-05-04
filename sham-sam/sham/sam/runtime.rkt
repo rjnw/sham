@@ -50,3 +50,8 @@
       md
       ((gmap-rec-vl f) gas)
       ((gmap-rec-vl f) tas)))])
+
+(struct ast:id ast [orig gen ;; scopes
+                         ])
+(struct ast:id:def ast:id [(maybe-refs #:mutable)])
+(struct ast:id:ref ast:id [(maybe-def #:mutable)])

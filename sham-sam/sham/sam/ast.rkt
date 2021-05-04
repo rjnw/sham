@@ -3,8 +3,8 @@
 (require
  (for-syntax "syntax/private/spec.rkt"
              "syntax/private/syntax-class.rkt"
-             "syntax/private/generics.rkt"
              "syntax/private/utils.rkt"
+             "syntax/format.rkt"
              (prefix-in pub: "syntax/spec.rkt")
              "syntax/type.rkt"
              "generics.rkt"
@@ -20,25 +20,18 @@
   (require syntax/datum)
 
   (define (build-syntax ast-id raw-ast-spec)
-    (define formatter
-      (let ([fv (info-value `format (ast-info raw-ast-spec))])
-        (cond [(and fv (identifier? fv) (syntax-local-value fv #f)) => (λ (f) (f))]
-              [else (get-formatter ast-id (if fv (syntax->datum fv) fv))])))
+    (define formatter (ast-format (info-value `format (ast-info raw-ast-spec))))
     (define default-builders
-      (cond [(info-value `default (ast-info raw-ast-spec))
-             => (λ (f) ((syntax-local-value f)))]
+      (cond [(info-value `default (ast-info raw-ast-spec)) => (λ (f) ((syntax-local-value f)))]
             [else (default-rkt-struct-builder)]))
     (define raw-builders
-      (append
-       (flatten
-        (map (λ (g) ((syntax-local-value g)))
-             (assoc-default `with (ast-info raw-ast-spec) '())))
-       default-builders))
+      (append (flatten (map (λ (g) ((syntax-local-value g))) (assoc-default `with (ast-info raw-ast-spec) '())))
+              default-builders))
 
     (define all-builders (foldr update-others raw-builders raw-builders))
     (define (foldr-builders f base) (foldr f base all-builders))
 
-    (define ast-spec (foldr-builders build-spec (pub:from-private ast-id raw-ast-spec formatter)))
+    (define ast-spec (foldr-builders update-spec (pub:from-private ast-id raw-ast-spec formatter)))
 
     (define top-struct (foldr-builders (curryr build-top ast-spec) empty))
     (define (group-def group-spec)
@@ -61,8 +54,8 @@
      (define spec-storage (pub:store-syntax ast-spec))
      (define stx
        #`(begin
-           (define-for-syntax #,(pub:get-tid tids) #,spec-storage)
-           (define-syntax cid #,(pub:get-tid tids))
+           (define-for-syntax #,(pub:get-sid tids) #,spec-storage)
+           (define-syntax cid #,(pub:get-sid tids))
            #,@ast-syntaxes))
      ;; (pretty-print (syntax->datum stx))
      stx]))

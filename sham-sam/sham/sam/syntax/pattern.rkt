@@ -121,7 +121,7 @@
            [else 0]))
        ;; (printf "fr-min-req-after: ~a\n" min-req-after)
        (define (enough? top rst nis)
-         ;; (printf "fr-en?: \n\t~a \n\t~a \n\t~a\n" top rst nis)
+         ;; (printf "fr-en?: \ntop\t~a \nrst\t~a \nnis\t~a\n" top rst nis)
          (define (consumed-min? lst need)
            (if need
                (match lst
@@ -154,7 +154,14 @@
   (car (stack-output (pattern-with-zipper f (stack (list stx) '()) opat))))
 
 (define (expand-with-pattern pat stx)
-  (define parsed (parse-with-pattern pat stx))
+  (define norm-stx
+    (match pat
+      [(ast:pat:single c i)
+       (if (equal? (length (syntax-e stx)) 1)
+           (car (syntax-e stx))
+           (error 'sham/sam/internal "cannot match single pattern with a list syntax ~a ~a\n" pat stx))]
+      [else stx]))
+  (define parsed (parse-with-pattern pat norm-stx))
   (let rec ([ps parsed])
     (match ps
       [`(multiple (,args ...) ,pat) #`(vector #,@(map rec (reverse args)))]
@@ -259,12 +266,34 @@
   (check-match (parse-with-pattern rs2 #'(b))
                `(multiple ((single ,sb ,pb) (repeat () ,rp)) ,mp)
                (and (datum=? sb 'b)))
+
+  (define rc1 (mlt (rpt (mlt (rpt (sng a)) (sng b)))))
+  (check-match (parse-with-pattern rc1 #'((a* (... ...) b) (... ...)))
+               `(multiple ((repeat ((ooo ,os1 ,f1 ,op1)
+                                    (multiple ((single ,bs ,bp)
+                                               (repeat ((ooo ,os2 ,f2 ,op2)
+                                                        (single ,a* ,a*p))
+                                                       ,rp2))
+                                              ,mp2))
+                                   ,rp1))
+                          ,mp1)
+               (and (datum=? a* 'a*) (equal? a*p (sng a))
+                    (datum=? bs 'b) (equal? bp (sng b))))
+
   ;; (parse-with-pattern (mlt (sng a) (sng b) (sng c)) s1)
   ;; (parse-with-pattern p3 s1)
 
   (define plam (mlt (dat 'lam) (mlt (rpt (mlt (sng a) (sng b)))) (sng c)))
   ;; (parse-with-pattern plam (datum->syntax #f `(([a 1] [b 2] [c 3]) d)))
   ;; (parse-with-pattern plam (datum->syntax #f `(([i v] ...) d)))
+
+  (define pg (mlt (mlt (rpt (sng a))) (rpt (mlt (rpt (sng b)) (sng c)))))
+  (parse-with-pattern pg #'((a1 a2 a3) (b11 b12 b13 c1) (b21 b22 c2)))
+  (expand-with-pattern pg #'((a1 a2 a3) (b11 b12 b13 c1) (b21 b22 c2)))
+
+  (define pg1 (mlt (rpt (sng a)) (rpt (mlt (rpt (sng b)) (sng c)))))
+  (parse-with-pattern pg1 #'(a1 a2 a3 (b11 b12 b13 c1) (b21 b22 c2)))
+  (expand-with-pattern pg1 #'(a1 a2 a3 (b11 b12 b13 c1) (b21 b22 c2)))
 
   (define pneg (mlt (dat '-) (sng a) (rpt (sng b))))
   ;; (parse-with-pattern pneg (datum->syntax #f `(a b)))

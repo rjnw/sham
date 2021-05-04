@@ -13,13 +13,20 @@
 
 (define (node-args-storage nargs pat)
   (define (fsingle i p)
-    (ast:id-form (ast:basic-id (findf (λ (a) (equal? i (get-id 'wtype (ast:basic-id a))))
-                                      nargs))))
+    (get-fid
+     (ast:basic-id
+      (findf (λ (a) (equal? i (get-oid (ast:basic-id a)))) nargs))))
   (define (fdatum d p) #f)
   (define (fmultiple ss p)
-    #`(vector #,@(for/list ([s ss] #:when s) s)))
-  (define (frepeat s p) s)
-  (rec-pattern pat fsingle fdatum fmultiple frepeat))
+    (cons #`vector (for/list ([s ss] #:when s) s)))
+  (define (frepeat s p)
+    (if (list? s) (cons #`map s) s))
+  (define (flat-syn s)
+    (match s
+      [(list ss ...)
+       #`(#,@(map flat-syn ss))]
+      [(? syntax?) s]))
+  (flat-syn (rec-pattern pat fsingle fdatum fmultiple frepeat)))
 
 (define ((generate-access path) val)
   (define-values (stx _)
@@ -47,7 +54,7 @@
 ;; returns pattern path for the sub-pattern matching the given argument in full pattern
 (define (arg-path arg pat)
   (cond
-    [(find-pattern pat (curry arg-pattern? (get-id 'wtype (ast:basic-id arg)))) => cdr]
+    [(find-pattern pat (curry arg-pattern? (get-oid (ast:basic-id arg)))) => cdr]
     [else #f]))
 
 (define (from-node-storage arg pat)
@@ -57,8 +64,11 @@
 (module+ test
   (require rackunit)
   (require (submod "pattern.rkt" test))
-  (define aa (ast:node:arg `((wtype . ,a)) #f '()))
-  (define ba (ast:node:arg `((wtype . ,b)) #f '()))
+  (define (node-arg i) (ast:node:arg `((0 . ,i) (f . ,i)) '() '()))
+  (define aa (node-arg a))
+  (define ba (node-arg b))
+  (define ca (node-arg c))
+  (define args (list aa ba ca))
   (check-equal? (syntax->datum ((from-node-storage aa p1) f))
                 `f)
   (define pp (mlt (dat 'lambda) (mlt (rpt (mlt (sng a) (sng b))) (sng c))))
@@ -71,4 +81,6 @@
                 `(vector-ref f 0))
   (check-equal? (syntax->datum ((from-node-storage ba p2) f))
                 `(vector-ref (vector-ref f 1) 0))
-  )
+
+  (check-equal? (syntax->datum (node-args-storage args plam))
+                `(vector (vector (map vector a b)) c)))

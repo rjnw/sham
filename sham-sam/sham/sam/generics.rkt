@@ -29,14 +29,14 @@
 
 (define-generics ast-builder
   (update-others ast-builder builders)
-  (build-spec ast-builder ast-spec)
+  (update-spec ast-builder ast-spec)
   (build-top ast-builder top-constructs ast-spec)
   (build-group ast-builder group-constructs ast-spec group-spec)
   (build-node ast-builder node-constructs ast-spec group-spec node-spec)
   #:defaults
   ([any/c
     (define (update-others ab bs) bs)
-    (define (build-spec ab as) as)
+    (define (update-spec ab as) as)
     (define (build-top ab tcs as) tcs)
     (define (build-group ab gcs as gs) gcs)
     (define (build-node ab ncs as gs ns) ncs)]))
@@ -58,7 +58,7 @@
              (for/list [(og-gen
                          (syntax->list
                           #`((define (update-others ab bs) bs)
-                             (define (build-spec ab as) as)
+                             (define (update-spec ab as) as)
                              (define (build-top ab tconstruct as) tconstruct)
                              (define (build-group ab gconstruct as gs) gconstruct)
                              (define (build-node ab nconstruct as gs ns) nconstruct))))]
@@ -118,7 +118,30 @@
 ;;      asr oid
 ;;      (option-value-f (hash-ref (ast:struct:rkt-options asr) oid (~? option-value-default))))))
 
+(define (update-each-spec spec f)
+  (let rec ([s spec])
+    (match s
+      [(ast rid id grps inf)
+       (f (ast rid id (for/list ([g grps]) (cons (car g) (rec (cdr g)))) inf))]
+      [(ast:group gid ginfo gparent gargs gnodes)
+       (f (ast:group gid ginfo gparent gargs (for/list ([n gnodes]) (cons (car n) (rec (cdr n))))))]
+      [(ast:node nid ninfo nargs npat) (f s)]
+      [else (f s)])))
+(define (update-ids spec f)
+  (match spec
+    [(ast rid ids grps info) (ast rid (f spec ids) grps info)]
+    [(ast:group gids ginfo gparent gargs gnodes)
+     (ast:group (f spec gids) ginfo gparent gargs gnodes)]
+    [(ast:node nids ninfo nargs npat)
+     (ast:node (f spec nids) ninfo nargs npat)]
+    [else spec]))
+;; (add-id nids key (if value value (ast-custom-id spec key)))
+
 (define-ast-builder (rkt-struct)
+  (update-spec
+   (as)
+   (define (upd spec) (update-ids spec (λ (s ids) (add-id 'rkt-struct (format-id (get-fid ids) "struct-~a" (get-fid ids)) ids))))
+   (update-each-spec as upd))
   (build-top
    (tcs as)
    (match-define (ast tid tids groups tinfo) as)
@@ -196,29 +219,45 @@
    (update ast:struct:rkt? ncs add-props)))
 
 (define-ast-builder (ast-spec)
+  (update-spec
+   (as)
+   (define (upd spec) (update-ids spec (λ (s ids) (add-id 'spec (format-id (get-fid ids) "spec-~a" (get-fid ids)) ids))))
+   (update-each-spec as upd))
   (build-group
    (gcs as gs)
    (match-define (ast tid tids groups tinfo) as)
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
-   (cons #`(define-for-syntax #,(get-tid gids) (find-group-spec #'#,(get-oid gids) #,(get-tid tids)))
+   (cons #`(define-for-syntax #,(get-sid gids) (find-group-spec #'#,(get-oid gids) #,(get-sid tids)))
          gcs))
   (build-node
    (ncs as gs ns)
    (match-define (ast tid tids groups tinfo) as)
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
    (match-define (ast:node nids ninfo nargs pat) ns)
-   (cons #`(define-for-syntax #,(get-tid nids)
-             (find-node-spec #'#,(get-oid nids) #,(get-tid gids) #,(get-tid tids) ))
+   (cons #`(define-for-syntax #,(get-sid nids)
+             (find-node-spec #'#,(get-oid nids) #,(get-sid gids) #,(get-sid tids) ))
          ncs)))
 
 (define-ast-builder (rkt-term-type)
+  (update-spec
+   (as)
+   (define (upd spec)
+     (update-ids spec
+                 (λ (s ids)
+                   (add-id 'f
+                           (cond
+                             [(ast:group? s) (format-group-id as s)]
+                             [(ast:node? s) (format-node-id as s)]
+                             [(ast? s) (get-oid ids)])
+                           ids))))
+   (update-each-spec as upd))
   (build-group
    (gcs as gs)
    (match-define (ast tid tids groups tinfo) as)
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
    (cons
     #`(define-syntax #,(get-fid gids)
-        (sr:term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-tid gids) #,(get-tid tids)))
+        (sr:term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-sid gids) #,(get-sid tids)))
     gcs))
   (build-node
    (ncs as gs ns)
@@ -226,7 +265,7 @@
    (match-define (ast:group gids ginfo parent gargs nodes) gs)
    (match-define (ast:node nids ninfo nargs pat) ns)
    (cons #`(define-syntax #,(get-fid nids)
-             (sr:term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-tid nids) #,(get-tid tids)))
+             (sr:term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-sid nids) #,(get-sid tids)))
          ncs)))
 
 (define (default-rkt-struct-builder)

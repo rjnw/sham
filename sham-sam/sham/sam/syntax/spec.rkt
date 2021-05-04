@@ -4,19 +4,21 @@
          syntax/parse)
 
 (require "type.rkt"
+         "format.rkt"
          "private/utils.rkt"
-         "private/generics.rkt"
          "private/syntax-class.rkt"
          (prefix-in prv: "private/spec.rkt")
-         (submod "private/spec.rkt" pattern))
+         (submod "private/spec.rkt" pattern)
+         (submod "private/spec.rkt" type))
 
 (provide (all-defined-out)
-         (all-from-out (submod "private/spec.rkt" pattern)))
+         (all-from-out
+          (submod "private/spec.rkt" pattern)
+          (submod "private/spec.rkt" type)))
 
 (struct ast (rename-id id groups info)
   #:property prop:rename-transformer 1)
 
-;; (struct ast:id (orig gen form) #:prefab)
 (struct ast:basic (id info) #:prefab)
 (struct ast:group ast:basic (parent args nodes) #:prefab)
 (struct ast:group:arg ast:basic (type) #:prefab)
@@ -31,7 +33,6 @@
                      (struct/c ast:pat:repeat pat/c (cons/c (maybe/c natural-number/c)
                                                             (maybe/c natural-number/c)))))
 
-;; (define ast:id/c (struct/c ast:id syntax? syntax? syntax?))
 (define ast:id/c (assoc/c symbol? syntax?))
 (define ast:info/c (listof (cons/c symbol? (listof syntax?))))
 (define ast:type/c ast:type?)
@@ -48,19 +49,19 @@
                               (assoc/c symbol? ast:node/c)))
 (define ast/c (struct/c ast syntax? ast:id/c (assoc/c symbol? ast:group/c) ast:info/c))
 
-(define (make-ast-id orig temp formatted)
-  `((0 . ,orig) (t0 . ,temp) (f . ,formatted)))
+(define (make-ast-id orig) `((0 . ,orig) ;; (t0 . ,(generate-temporary orig))
+                             ))
 (define (get-ast-id ast) (ast:basic-id ast))
+(define (empty-ids) '())
 (define (add-id key val ids) (cons (cons key val) ids))
+(define (add-ids keys vals ids) (append (map cons keys vals) ids))
 (define (get-id key ids) (assoc-default key ids))
-(define ast:id-orig (curry get-id '0))
-(define ast:id-form (curry get-id 'f))
-(define ast:id-gen (curry get-id 't0))
 
-(define get-oid ast:id-orig)
-(define get-fid ast:id-form)
-(define get-tid ast:id-gen)
-(define get-struct-id get-tid)
+(define get-struct-id (curry get-id 'rkt-struct))
+(define get-oid (curry get-id '0))
+(define get-fid (curry get-id 'f))
+(define get-sid (curry get-id 'spec))
+(define get-tid (curry get-id 't0))
 
 (define (group-nodes gs) (map cdr (ast:group-nodes gs)))
 
@@ -96,47 +97,63 @@
     (or (and (equal? (->symbol spec-id) (car ga)) (cdr ga))
         (find-node-spec spec-id (cdr ga) ast-spec)))
   (find-first (ast-groups ast-spec) f?))
+(define (group-parents group-id ast-spec)
+  (if group-id
+      (cons group-id
+            (group-parents (ast:group-parent (find-group-spec group-id ast-spec)) ast-spec))
+      '()))
+(define (find-node-arg node-spec aid)
+  (match-define (ast:node nids ninfo nargs npat) node-spec)
+  (define (is? arg)
+    (match-define (ast:node:arg aids ainfo atype) arg)
+    (equal? (get-id 'wtype aids) aid))
+  (findf is? nargs))
+
+(define (format-info inf) (info-value 'format inf))
+(define (format-group-id spec gspec)
+  (match-define (ast tid tids grps info) spec)
+  (match-define (ast:group gids ginfo gparent gargs gnodes) gspec)
+  (define gprs (group-parents (get-oid gids) spec))
+  (ast-format-id tid (cdr gprs) (get-oid gids) (or (format-info ginfo) (format-info info))))
+(define (format-node-id spec nspec)
+  (match-define (ast tid tids grps info) spec)
+  (match-define (ast:node nids ninfo nargs npat) nspec)
+  (match-define (ast:group gids ginfo gparent gargs gnodes) (find-node-group nspec spec))
+  (define gprs (group-parents (get-oid gids) spec))
+  (ast-format-id tid gprs (get-oid nids) (or (format-info ninfo) (format-info ginfo) (format-info info))))
 
 (define (from-private aid ps formatter)
-  (define (do-id i f)
-    (make-ast-id i (generate-temporary i) f))
   (define (do-group gs)
     (match-define (prv:ast:group gid parent nodes ginfo^) gs)
     (define ginfo (dedup-assoc ginfo^))
     (define (do-group-args args)
       (for/list ([arg args])
         (define (f i (info '()))
-          (define arg-typ (build-group-arg-type i info ginfo))
-          (define syn-id (id-without-type i #f arg-typ))
-          (ast:group:arg (do-id syn-id syn-id) info arg-typ))
+          (define-values (arg-id arg-typ) (group-arg-id&type i info ginfo))
+          (ast:group:arg (add-id 'f arg-id (make-ast-id i)) info arg-typ))
         (syntax-parse arg
           [i:identifier (f #`i)]
           [(i:identifier ki:keyword-info) (f #`i (attribute ki.spec))])))
-    (let* ([syn-id (format-group-id formatter gid ps gs)]
-           [group-args (do-group-args (assoc-default `common ginfo '()))])
+    (let* ([group-args (do-group-args (assoc-default `common ginfo '()))])
       (define (do-node ns)
         (match-define (prv:ast:node nid pattern ninfo^) ns)
         (define ninfo (dedup-assoc ninfo^))
         (define (do-args pat (depth 0))
           (match pat
             [(ast:pat:single c s)
-             (let* ([t (build-node-arg-type c s depth ninfo)]
-                    [syn (id-without-type s c t)]
-                    [id (add-id 'wtype s (do-id syn syn))])
-               (ast:node:arg id (node-arg-info syn t ninfo) t))]
+             (define arg-info '())
+             (define-values (arg-id arg-typ) (node-arg-id&type c s depth ninfo))
+             (define ids (add-id 'f arg-id (make-ast-id s)))
+             (ast:node:arg ids arg-info arg-typ)]
             [(ast:pat:datum d) '()]
             [(ast:pat:multiple s) (for/list ([p s]) (do-args p depth))]
-            [(ast:pat:repeat r k) (do-args r (add1 depth))]))
+            [(ast:pat:repeat r k) (do-args r (cons k depth))]))
         (cons (->symbol nid)
-              (ast:node (do-id nid (format-node-id formatter nid ps gs ns))
-                        ninfo
-                        (flatten (do-args pattern)) pattern)))
+              (ast:node (make-ast-id nid) ninfo (flatten (do-args pattern)) pattern)))
       (cons (->symbol gid)
-            (ast:group (do-id gid syn-id) ginfo parent group-args (map do-node nodes)))))
+            (ast:group (make-ast-id gid) ginfo parent group-args (map do-node nodes)))))
   (match ps
-    [(prv:ast gs inf)
-     (ast aid (make-ast-id aid (generate-temporary aid) aid)
-          (map do-group gs) (dedup-assoc inf))]))
+    [(prv:ast gs inf) (ast aid (make-ast-id aid) (map do-group gs) (add-info 'format formatter (dedup-assoc inf)))]))
 
 (define (store-syntax val)
   (let store ([v val])
@@ -145,6 +162,13 @@
       [(? syntax?) #`#'#,v]
       [(list vs ...) #`(list #,@(map store vs))]
       [(cons a b) #`(cons #,(store a) #,(store b))]
+      [(ast:type:internal d of) #`(ast:type:internal #,(store d) #,(store of))]
+      [(ast:type:check d chk) #`(ast:type:check #,(store d) #,(store chk))]
+      [(ast:type:identifier d) #`(ast:type:identifier #,(store d))]
+      [(ast:type:intrinsic d k) #`(ast:type:intrinsic #,(store d) #,(store k))]
+      [(ast:type:unknown d) #`(ast:type:unknown #,(store d))]
+      [(ast:format t? ts mc ms bs)
+       #`(ast:format #,(store t?) #,(store ts) #,(store mc) #,(store ms) #,(store bs))]
       [(ast:group:arg id info type)
        #`(ast:group:arg #,(store id) #,(store info) #,(store type))]
       [(ast:node:arg id info type)
@@ -199,7 +223,6 @@
 
 (define (pretty-spec spec)
   (match-define (ast id sid groups info) spec)
-
   `((#:ast ,(syntax-e id) ,(pretty-id sid))
     ,@(for/list ([gp groups])
         `((#:group  ,(car gp)) ,(pretty-group (cdr gp))))

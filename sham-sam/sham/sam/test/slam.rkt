@@ -10,7 +10,7 @@
    [lambda ('lambda (n) body)]
    [letrec ('letrec ((ids vals) ...) e)]
    [app (rator rand ...)]
-   [sym !identifier]
+   [sym id:id]
    [num !integer])
   #:with struct-helpers)
 
@@ -30,10 +30,20 @@
   (check-equal? (LC:expr:letrec-vals lr2) `(1 2 3))
   (check-equal? (LC:expr:letrec-e lr2) 'd)
 
+  (check-equal? (LC:expr:letrec-ids lr1) `(a b c))
+  (check-equal? (LC:expr:letrec-vals lr1) `(1 2 3))
+  (check-equal? (LC:expr:letrec-e lr1) 'd)
+
   (define lam1 (make-LC:expr:lambda 'a 'b))
   (define lam2 (LC:expr:lambda ('a) 'b))
   (check-equal? (LC:expr:lambda-n lam2) 'a)
   (check-equal? (LC:expr:lambda-body lam2) 'b)
   (check-equal?
    (match lr2 [(LC:expr:letrec ([i v] ...) e) (list i v e)])
-   `((a b c) (1 2 3) d)))
+   `((a b c) (1 2 3) d))
+  (define sym1 (LC:expr:sym 'a))
+  (check-equal? (LC:expr:sym-id sym1) 'a)
+
+  (define ap1 (LC:expr:app 'a 1 2 3))
+  (define ap2 (make-LC:expr:app 'a `(1 2 3)))
+  (check-equal? (LC:expr:app-rand ap1) (LC:expr:app-rand ap2)))

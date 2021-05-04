@@ -1,5 +1,6 @@
 #lang racket
 
+(require racket/syntax)
 (provide (all-defined-out))
 
 ;;; keyword info is stored in (list (cons keyword values) ...)
@@ -16,11 +17,12 @@
 (define info/c (listof (cons/c symbol? (listof syntax?))))
 
 (define (info-value key lst (dflt #f))
-  (let ([vs (assoc-default key lst dflt)]) (if (cons? vs) (car vs) (or vs dflt))))
+  (let ([vs (assoc-default key lst dflt)]) (if (and (cons? vs) (empty? (cdr vs))) (car vs) (or vs dflt))))
 (define (info-1value key lst (dflt #f))
   (match (info-value key lst dflt)
     [(cons v _) v]
     [else dflt]))
+(define (add-info key val inf) (cons (cons key val) inf))
 
 (define (find-first lst f?)
   (if (empty? lst)
@@ -50,7 +52,10 @@
         [(string? s) (string->symbol s)]
         [(or (integer? s) (symbol? s)) s]
         [else (error 'sham/sam "->symbol: couldn't force ~a to symbol" s)]))
-
+(define (punctuate ids sep)
+  (for/fold ([i (if (>= (length ids) 1) (car ids) #'||)])
+            ([id (if (cons? ids) (cdr ids) '())])
+    (format-id #f "~a~a~a" i sep id)))
 (define (ooo? s)
   (let ([se (syntax-e s)])
     (and (symbol? se)
@@ -74,6 +79,7 @@
 
 (module+ test
   (require rackunit)
+  (check-equal? (->symbol (punctuate `(a b c d) ":")) 'a:b:c:d)
   (check-equal? (ooo #'a) #f)
   (check-equal? (ooo #'(a b)) #f)
   (check-equal? (ooo #'(... ...)) (cons #f #f))
