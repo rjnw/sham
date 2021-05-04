@@ -2,9 +2,8 @@
 
 (require sham/md
          sham/parameters
-         sham/ir/ast/core
-         sham/ir/ast/simple
-         sham/ir/ast/syntax
+         sham/ir/ast
+         sham/ir/simple
          sham/ir/builder
          sham/llvm/ir/callconv)
 

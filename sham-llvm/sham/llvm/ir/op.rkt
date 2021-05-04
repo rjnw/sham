@@ -49,6 +49,7 @@
 
 (define-for-syntax ints `(i8 i32 i64))
 (define-for-syntax floats `(f32 f64))
+(define-for-syntax ptrs (append `(void) ints floats))
 (define-syntax intrinsic-ops
   `(
     (memcpy ("p0" . (* i8)) ("p0" . (* i8)) ("" . ,ints) i1 void)
@@ -76,3 +77,8 @@
     (fmuladd ("" . ,floats) 0 0 0)
     (convert.to.fp16 ("" . ,floats) i16)
     (convert.from.fp16 i16 ("" . ,floats))))
+
+;; (define v4i32 (llvm-type-vector i32 4))
+;; (define v4i64 (llvm-type-vector i64 4))
+;; (define v4f32 (llvm-type-vector f32 4))
+;; (define v4f64 (llvm-type-vector f64 4))

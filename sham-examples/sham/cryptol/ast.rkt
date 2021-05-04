@@ -75,7 +75,7 @@
    ;; {vars, ...} (cop cvars ...) ... => body
    [poly ([id_vars ...] [(id_cop id_cvars ...) ...] t_body)
          #:bind [vars #:in type-scope #:of cvars body poly]]
-   [func (t_from t_to)]
+   [func (t_from '-> t_to)]
    #:alias t)
 
   (dim                                  ;; dimension for sequences: integer, infinity or a poly variable
@@ -83,3 +83,23 @@
    [inf]
    [var id
         #:in-scope type-scope]))
+
+(module+ test
+  (define cry-foldl
+    (cry:decl:def foldl (cry:type:poly [n a b] [(fin n)]
+                                       (a -> ((a -> (b -> a)) -> ((sequence n b) -> a))))
+                  (cry:decl:bind foldl [seed f xs]
+                                 (cry:expr:where (cry:expr:app (cry:expr:app ! () res) cry:expr:zero)
+                                                 (cry:decl:bind res []
+                                                                (cry:expr:app
+                                                                 (cry:expr:app # () (cry:expr:sequence:basic seed))
+                                                                 ()
+                                                                 (cry:expr:sequence:comp
+                                                                  (cry:expr:app (cry:expr:app f () a) () x)
+                                                                  [a res]
+                                                                  [x xs])))))))
+  (define cry-fold-pretty
+    ($cry (def foldl ({n a b} [(fin n)] (a -> (a -> (b -> a)) -> (seq n b) -> a))
+            (foldl (seed f xs)
+                   (where (! res zero)
+                          [res (# seed [(f a x) | a <- res | x <- xs])]))))))

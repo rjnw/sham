@@ -7,7 +7,7 @@
          sham/llvm/ir/specific
          (prefix-in op- sham/llvm/ir/op)
          sham/llvm/ir/env
-         sham/ir/ast/core
+         sham/ir/ast
          sham/ir/env
          sham/ir/dump
          sham/parameters
