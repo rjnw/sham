@@ -101,7 +101,9 @@
               ;;; rec goes through the input list with index over length of pms
               (cond [(equal? i (vector-length pms)) cval]
                     [else (rec (frec cval i) (add1 i))])))
-          (unless (empty? nis) (error 'sham/sam "fold-with-pattern/post-multiple: could not consume sequence ~a" is))
+          (unless (empty? nis)
+            (error 'sham/sam
+                   "fold-with-pattern/post-multiple: could not consume sequence ~a ~a" is stx))
           (stack (cdr is) (cons `(multiple ,nos ,pat) os))])]
       [(ast:pat:repeat p (cons mn mx))
        ;; (printf "fr: ~a\n" is) (pretty-print (pretty-path path))

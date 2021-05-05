@@ -1,7 +1,7 @@
 #lang racket
 
 (require sham/llvm/ir/ast
-         sham/ir/ast/core
+         sham/ir/ast
          sham/ir/rkt
          sham/md
          sham/ir/env)

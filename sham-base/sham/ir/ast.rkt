@@ -11,12 +11,12 @@
   (def
     [module (defs:def ...)]
     [function (type body:stmt)]
-    [struct ((field-name field-type:type) ...)]
+    [struct ((field-names:id field-types:type) ...)]
     [racket (value type rkt-type)]
     #:common id:id)
   (rator
-   [ref id]
-   [llvm      id]
+   [reference (id)]
+   [llvm      (id)]
    [intrinsic (id type)]
    [external  (lib-id id type var-arg?)])
   (stmt
@@ -33,15 +33,12 @@
    [return   (value)]
    [return-void ()])
   (expr
-   [ref      sym]
+   [ref      (sym)]
    [op       (rator flags args ...)]
    [access   (struct-field value)]
    [void     ()]
    [etype    (t:type)]
-   [let      (((ids:id vals:expr types:type)
-               ...)
-              stmt:stmt
-              expr:expr)])
+   [let      (((ids:id vals:expr types:type) ...) stmt:stmt expr:expr)])
   #:with struct-helpers
   #:default-metadata (empty-md))
 

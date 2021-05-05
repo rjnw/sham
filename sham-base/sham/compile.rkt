@@ -5,9 +5,9 @@
          sham/ir/verify
          sham/ir/builder
          sham/ir/optimize
-         sham/ir/ast/core
-         sham/ir/ast/simple
-         sham/ir/ast/open
+         sham/ir/ast
+         sham/ir/simple
+         sham/ir/open
          sham/parameters
          sham/jit)
 

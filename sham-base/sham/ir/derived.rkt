@@ -1,10 +1,8 @@
 #lang racket
 
-(require sham/ir/ast/core
-         sham/llvm/ir/ast
-         sham/ir/ast/simple
-         sham/ir/ast/syntax
-         sham/ir/ast/op)
+(require sham/ir/ast
+         sham/ir/simple
+         sham/llvm/ir/ast)
 
 (require syntax/parse/define)
 

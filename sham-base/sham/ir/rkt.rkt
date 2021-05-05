@@ -10,7 +10,7 @@
          sham/ir/ast/simple
          sham/ir/ast/syntax
          sham/ir/derived
-         sham/ir/ast/core
+         sham/ir/ast
          sham/llvm/ir/ast
          sham/md
          (prefix-in rkt- sham/rkt/conv))
