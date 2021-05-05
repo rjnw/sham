@@ -135,4 +135,6 @@
   (sexp-printer-builder))
 
 (define-syntax (struct-helpers)
-  (rkt-struct-functions-builder))
+  '()
+  ;; (rkt-struct-functions-builder)
+  )

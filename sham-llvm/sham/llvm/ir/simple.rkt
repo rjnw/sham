@@ -6,7 +6,6 @@
 (provide (all-defined-out))
 
 (define-aliases llvm
-  #:sep -
   [def]
   [value -> val]
   [type]

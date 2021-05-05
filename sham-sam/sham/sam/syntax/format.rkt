@@ -18,8 +18,9 @@
       [#f default-ast-format]
       [(? ast:format?) frmt]
       [(? identifier?) (rec (syntax-local-value frmt #f))]
-      [(list t? ts mc ms bs) (ast:format t? ts mc ms bs)]
-      [(? syntax?) (rec (syntax->datum frmt))]
+      [(list t? ts mc ms bs) #:when (boolean? (syntax->datum t?)) (ast:format t? ts mc ms bs)]
+      [(list op args ...) (rec (apply (syntax-local-value op) args))]
+      [(? syntax?) (rec (syntax-e frmt))]
       [frmt (error 'sham/sam "unknown ast formatter ~a" frmt)])))
 
 (define (join-to-syntax tree (ctxt #f))

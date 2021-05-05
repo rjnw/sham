@@ -271,6 +271,7 @@
 (define (default-rkt-struct-builder)
   (list
    (rkt-struct-prop-builder)
+   (rkt-struct-functions-builder)
    (rkt-struct-builder)
    (ast-spec-builder)
    (rkt-term-type-builder)))
