@@ -4,6 +4,7 @@
          sham/parameters
          sham/ir/ast
          sham/ir/simple
+         (prefix-in ll- sham/llvm/ir/simple)
          sham/ir/builder
          sham/llvm/ir/callconv)
 
@@ -39,7 +40,7 @@
                      (map car attrs)
                      (map cdr attrs)
                      (flatten (lookup-keyword attrs #:metadata #:md '()))))
-    (define mast (d-module md name (map close-value (list-unbox vals))))
+    (define mast (make-def-module md name (map close-value (list-unbox vals))))
     (set-open-sham-env-closed! om mast)
     mast)
   (from-maybe closed close))
@@ -73,7 +74,7 @@
              md conv (callconv! flags conv)))])
     flags)
   (if (andmap expr? rest-args)
-      (e-app name (combine-with-def-attrs (lookup-keyword ka #:flags #f) attrs) rest-args)
+      (expr-app name (combine-with-def-attrs (lookup-keyword ka #:flags #f) attrs) rest-args)
       (apply compiled-app rest-args)))
 
 (struct open-sham-function [id arg-syms type body-lambda attributes in-modules (compiled-app #:mutable) (closed #:mutable)]
@@ -87,7 +88,7 @@
                      (map car attrs)
                      (map cdr attrs)
                      (flatten (lookup-keyword attrs #:metadata #:md '()))))
-    (define f (d-function md name type (bodyf)))
+    (define f (make-def-function #:md md name type (bodyf)))
     (set-open-sham-function-closed! of f)
     f)
   (from-maybe closed close))
@@ -99,7 +100,7 @@
     (make-keyword-procedure
      (λ (kws kw-args . rest-args)
        (error 'sham:function "sham function used in application before compilation ~a" name))))
-  (define f (open-sham-function name arg-ids (t-function arg-types ret-type)
+  (define f (open-sham-function name arg-ids (ll-make-type-function arg-types ret-type)
                                 bodyf
                                 attrs
                                 in-mods
@@ -128,5 +129,5 @@
 (define-simple-macro (define-sham-efunction header ... body)
   (define-sham-function header ... (return^ body)))
 
-(define sham-function? (or/c open-sham-function? d-function?))
+(define sham-function? (or/c open-sham-function? def-function?))
 (define sham-define? (or/c sham-function? def?))

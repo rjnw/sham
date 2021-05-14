@@ -1,17 +1,15 @@
 #lang racket
 
 (provide raw-type raw-val
-         sym-type sym* sym-val sym sym-case e-sym-case
+         sym-type sym-val sym sym-case e-sym-case
          bool true false
          array-from-vector array-from-list
          to-rkt-type)
 
-(require sham/ir/ast/specific
-         sham/ir/ast/simple
-         sham/ir/ast/syntax
-         sham/ir/derived
+(require sham/ir/simple
          sham/ir/ast
          sham/llvm/ir/ast
+         (prefix-in ll- sham/llvm/ir/simple)
          sham/md
          (prefix-in rkt- sham/rkt/conv))
 
@@ -20,12 +18,16 @@
          ffi/unsafe
          syntax/parse/define)
 
+;; TODO cs does not support ptr to non-atomic memory
 (define raw-type
-  (sham-metadata! (t-ref 'i64)
-                  (set-type-md-special-rkt! (empty-type-md)
-                                            (make-ctype _uint64 rkt-raw-uintptr rkt-unraw-uintptr))))
+  (ll-type-ref #:md (set-type-md-special-rkt! (empty-type-md)
+                                           (make-ctype _uint64 rkt-raw-uintptr rkt-unraw-uintptr))
+            'i64))
+
 (define (raw-val v)
-  (v-ui (rkt-raw-uintptr v) raw-type))
+  (unless (exact-positive-integer? v)
+    (printf "converting incorrect raw value for llvm: ~a\n" v))
+  (ll-val-ui v raw-type))
 
 (define sym-type raw-type)
 (define sym-val raw-val)
@@ -35,7 +37,7 @@
     [(_ v:id) #`(sym-val `v)]
     [(_ v) #`(sym-val v)]
     [(~literal sym) #`sym-type]))
-(define sym* (t-pointer sym-type))
+(define sym* (ll-type-pointer sym-type))
 
 (define bool-type raw-type)
 (define bool-val raw-val)
@@ -44,8 +46,8 @@
   (syntax-parse stx
     [(_ v:id) #`(bool-val v)]
     [(~literal bool) #`bool-type]))
-(define true (bool-val rkt:true))
-(define false (bool-val rkt:false))
+;; (define true (bool-val rkt:true))
+;; (define false (bool-val rkt:false))
 
 (define-simple-macro (sym-case test [(~or single-datum:id (datum:id ...)) body ...] ... [(~datum else) default])
   (m-switch^ test [(~? ((sym single-datum)) ((sym datum) ...)) (block^ body ...)] ... default))
@@ -70,7 +72,7 @@
     (define specialized-type (ref-type-md-special-rkt (sham-metadata t)))
     (or specialized-type
         (match t
-          [(llvm:ast:type:ref md to)
+          [(llvm:type:ref #:md md to)
            (cond
              [(from-llvm-type to) => identity]
              [(and (hash? def-map)
@@ -78,12 +80,12 @@
               =>
               (λ (d)
                 (match d
-                  [(llvm:def:type _ _ t) (or (ref-type-md-special-rkt md)
+                  [(llvm:def:type _ t) (or (ref-type-md-special-rkt md)
                                              (rec t))]
-                  [(sham:def:struct md _ _ _) (ref-type-md-special-rkt md)]))])]
-          [(llvm:ast:type:pointer _ _) _pointer]
-          [(llvm:ast:type:array _ _ _) _pointer]
-          [(llvm:ast:type:function _ args var-arg? ret)
+                  [(sham:def:struct #:md md _ _ _) (ref-type-md-special-rkt md)]))])]
+          [(llvm:type:pointer _) _pointer]
+          [(llvm:type:array _ _) _pointer]
+          [(llvm:type:function args var-arg? ret)
            (define arg-types (map rec args))
            (define ret-type (rec ret))
            (if (or (ormap false? arg-types) (false? ret-type))

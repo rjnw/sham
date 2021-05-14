@@ -63,7 +63,9 @@
         (define default-nmd (info-1value 'default-metadata ninfo))
         (define default-gmd (info-1value 'default-metadata ginfo))
         #`(#,(get-struct-id ids)
-           (rrt:generic-metadata #:tag '#%from-pattern-constructor (~? md #,(or default-nmd default-gmd default-tmd)))
+           (rrt:generic-metadata
+            (~? md #,(or default-nmd default-gmd default-tmd))
+            #:srcloc (rrt:ast:location #,(syntax-srcloc stx) '#%from-pattern-constructor))
            (vector #,@gargs-stx) #,nargs-stx)]
        [(ast:group ids ginfo prnt gargs nodes)
         (define gargs (full-group-args ss ts))

@@ -3,7 +3,9 @@
 (require (for-template racket))
 (require "spec.rkt"
          "private/utils.rkt")
+
 (provide parse-with-pattern
+         pattern-with-zipper
          expand-with-pattern
          rec-pattern
          find-pattern)

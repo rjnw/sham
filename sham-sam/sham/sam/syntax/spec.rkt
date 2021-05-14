@@ -106,7 +106,7 @@
   (match-define (ast:node nids ninfo nargs npat) node-spec)
   (define (is? arg)
     (match-define (ast:node:arg aids ainfo atype) arg)
-    (equal? (get-id 'wtype aids) aid))
+    (free-identifier=? (get-oid aids) aid))
   (findf is? nargs))
 
 (define (format-info inf) (info-value 'format inf))

@@ -4,7 +4,9 @@
 
 (provide (all-defined-out))
 
-(define (raw-uintptr value) (cast value _scheme _uintptr))
+(define (raw-uintptr value)
+  (printf "raw-uintptr: ~a\n" value)
+  (cast value _scheme _uintptr))
 (define (unraw-uintptr uintptr) (cast uintptr _uintptr _scheme))
 
 (define (func-uintptr value type)

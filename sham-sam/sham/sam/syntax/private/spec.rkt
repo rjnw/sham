@@ -24,6 +24,7 @@
 (module reader racket
   (provide (all-defined-out))
   (struct reader (id info)))
+
 (require (submod "." pattern))
 (provide (all-defined-out)
          (all-from-out (submod "." pattern)))

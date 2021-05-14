@@ -12,12 +12,12 @@
 (define ((build-rkt-types s-env))
   (match-define (sham-env s-mod ll-env s-md) s-env)
   (match-define (sham-module s-ast ll-ast ext) s-mod)
-  (match-define (sham:def:module m-info mod-id defs) s-ast)
+  (match-define (sham:def:module #:md m-info mod-id defs ...) s-ast)
   (define def-map (for/hash ([d defs])
                     (values (if (sham:def? d) (sham:def-id d) (llvm:def-id d)) d)))
   (for/hash ([d defs]
              #:when (sham:def:function? d))
-    (match-define (sham:def:function f-md f-name t-ast f-body) d)
+    (match-define (sham:def:function #:md f-md f-name t-ast f-body) d)
     (values f-name (or (ref-function-md-jit-rkt-type f-md) (to-rkt-type t-ast def-map)))))
 
 (define (try-populate-rkt-types! s-env)

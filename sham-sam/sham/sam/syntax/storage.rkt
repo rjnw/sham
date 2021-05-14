@@ -25,7 +25,9 @@
     (match s
       [(list ss ...)
        #`(#,@(map flat-syn ss))]
-      [(? syntax?) s]))
+      [(? syntax?) s]
+      [#f (match pat
+            [(ast:pat:datum d) d])]))
   (flat-syn (rec-pattern pat fsingle fdatum fmultiple frepeat)))
 
 (define ((generate-access path) val)

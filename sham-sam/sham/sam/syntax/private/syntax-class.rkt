@@ -57,6 +57,7 @@
 
 (module* reader #f
   (require (submod "spec.rkt" reader))
+  (provide (all-defined-out))
   (define-splicing-syntax-class reader-spec
     #:description "sham language reader specification"
     (pattern (~seq ast:id info:keyword-info)
