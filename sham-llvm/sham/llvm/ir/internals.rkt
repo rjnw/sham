@@ -5,8 +5,7 @@
          sham/llvm/ffi
          sham/llvm/ir/env)
 
-(provide create-internal-environment)
-
+(provide (all-defined-out))
 (define (create-internal-environment context)
   (register-llvm-internal-types
    (register-llvm-internal-instructions (empty-assoc-env))
@@ -223,7 +222,6 @@
     (int-cast  ,LLVMBuildIntCast)
     (fp-cast   ,LLVMBuildFPCast)))
 
-
 (define unary-internals
   `((neg ,LLVMBuildNeg)
     (neg-nsw ,LLVMBuildNSWNeg)
@@ -233,6 +231,70 @@
     (not ,LLVMBuildNot)
     (load ,LLVMBuildLoad)))
 
+(define-syntax basic-ops
+  `(
+    icmp-eq icmp-ne icmp-ugt icmp-uge icmp-ult icmp-ule icmp-sgt icmp-sge icmp-slt icmp-sle
+    fcmp-oeq fcmp-ogt fcmp-oge fcmp-olt fcmp-ole fcmp-one fcmp-ord fcmp-uno fcmp-ueq
+    fcmp-ugt fcmp-uge fcmp-ult fcmp-ule fcmp-une
+    add add-nsw add-nuw fadd
+    sub sub-nsw sub-nuw fsub
+    mul mul-nsw mul-nuw fmul
+    udiv sdiv exact-sdiv fdiv
+    urem srem frem
+    shl lshr ashr
+    or xor and
+    extract-element insert-element
+    trunc zext sext fp->ui fp->si ui->fp si->fp
+    fp-trunc fp-ext ptr->int int->ptr
+    bitcast addr-space-cast zext-or-bit-cast sext-or-bit-cast
+    ptr-cast int-cast fp-cast
+    neg neg-nsw neg-nuw fneg
+    not load malloc alloca free store! array-malloc array-alloca
+    gep phi app))
+
+(define-for-syntax iwidths `(1 8 16 32 64))
+(define-for-syntax fwidths `(32 64))
+
+(define-syntax int-widths iwidths)
+(define-syntax float-widths fwidths)
+
+(define-for-syntax ints (map (λ (w) (format "i~a" w)) iwidths))
+(define-for-syntax floats (map (λ (w) (format "f~a" w)) fwidths))
+
+(define-syntax numeric-types (append ints floats))
+(define-syntax basic-types (append `(void) ints floats))
+(define-syntax intrinsic-ops
+  `(
+    (memcpy ("p0" . (* i8)) ("p0" . (* i8)) ("" . ,ints) i1 void)
+    (memcpy.inline ("p0" . (* i8)) ("p0" . (* i8)) ("" . ,ints) i1 void)
+    (memmove ("p0" . (* i8)) ("p0" . (* i8)) ("" . ,ints) i1 void)
+    (memset ("p0" . (* i8)) i8 ("" . ,ints) i1 void)
+    (pow ("" . ,floats) 0 0)
+    (powi ("" . ,floats) i32 0)
+    ((sqrt sin cons exp exp2 log log10 log2) ("" . ,floats) 0)
+    (fma ("" . ,floats) 0 0 0)
+    (fabs ("" . ,floats) 0)
+    ((minnum maxnum minimum maximum copysign) ("" . ,floats) 0 0)
+    ((floor ceil trunc rint nearbyint round) ("" . ,floats) 0)
+    ((lround llround lrint llrint) ((1 . "") . ,floats) ((0 . "") . ,ints))
+    ((bitreverse bswap ctpop) ("" . ,ints) 0)
+    ((ctlz cttz) ("" . ,ints) i1 0)
+    ((fshl fshr) ("" . ,ints) 0 0 0)
+    ((sadd.with.overflow uadd.with.overflow ssub.with.overflow usub.with.overflow smul.with.overflow umul.with.overflow)
+     ("" . ,ints) 0 (:struct 0 i1))
+    ((sadd.sat uadd.sat ssub.sat usub.sat)
+     ("" . ,ints) 0 0)
+    ((smul.fix umul.fix smul.fix.sat umul.fix.sat sdiv.fix udiv.fix sdiv.fix.sat udiv.fix.sat)
+     ("" . ,ints) 0 i32 0)
+    (canonicalize ("" . ,floats) 0)
+    (fmuladd ("" . ,floats) 0 0 0)
+    (convert.to.fp16 ("" . ,floats) i16)
+    (convert.from.fp16 i16 ("" . ,floats))))
+
+;; (define v4i32 (llvm-type-vector i32 4))
+;; (define v4i64 (llvm-type-vector i64 4))
+;; (define v4f32 (llvm-type-vector f32 4))
+;; (define v4f64 (llvm-type-vector f64 4))
 
 (module+ test
   (display (register-llvm-internal-instructions (empty-assoc-env))))

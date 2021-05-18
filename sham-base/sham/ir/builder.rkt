@@ -4,7 +4,6 @@
 
 (require sham/llvm/ir
          sham/llvm/ir/simple
-         (prefix-in op- sham/llvm/ir/op)
          sham/llvm/ir/env
          sham/ir/ast
          sham/ir/env
@@ -84,7 +83,7 @@
     (define (add-allocas! names types)
       (for ([n names]
             [t types])
-        (add-alloca! (op-alloca n (translate-type t)))))
+        (add-alloca! (op-alloca n ((translate-type t))))))
     (define entry-block 'entry-block)
     (define (alloca-block)
       (make-def-block 'alloca-block (reverse (unbox allocas)) (inst-bru entry-block)))
@@ -98,7 +97,7 @@
         [(? llvm:value?) (values expr current-block)]
         [(sham:expr:ref sym)
          (define expr-value (gensym 'ref))
-         (add-instruction! current-block (op-load expr-value sym))
+         (add-instruction! current-block (op-load expr-value (sym)))
          (values expr-value current-block)]
         [(sham:expr:op rator flags args ...)
          (define expr-value (gensym 'op))
@@ -113,7 +112,7 @@
              [(? (or/c symbol? string?)) rator]
              [(sham:expr:ref sym)
               (define rator-value (gensym 'var-rator))
-              (add-instruction! current-block (op-load rator-value sym))
+              (add-instruction! current-block (op-load rator-value (sym)))
               rator-value]
              [(sham:rator:reference s) s]
              [(sham:rator:llvm s) s]
@@ -133,7 +132,7 @@
                           external-name))]
              [else (error 'sham:ir:builder "unknown rator ~a" rator)]))
          (add-instruction! current-block
-                           (inst-op expr-value llvm-rator flags arg-vals))
+                           (make-inst-op expr-value llvm-rator flags arg-vals))
          (values expr-value current-block)]
         [(sham:expr:access struct-field value)
          (match-define (cons struct-name field-name) struct-field)
@@ -143,8 +142,8 @@
          (define field-ptr (gensym 'struct-field-ptr))
          (define-values (val val*) (build-expr! value current-block continue-block break-block))
          (errored-terminate val* "expr" "struct access")
-         (add-instruction! val* (op-gep field-ptr value (val-ui 0 i32) (val-ui field-index i32)))
-         (add-instruction! val* (op-load expr-value field-ptr))
+         (add-instruction! val* (op-gep field-ptr [value (val-ui 0 i32) (val-ui field-index i32)]))
+         (add-instruction! val* (op-load expr-value [(field-ptr)]))
          (values expr-value val*)]
         [(sham:expr:void ) (values #f current-block)]
         [(sham:expr:etype t) (values (translate-type t) current-block)]
@@ -163,7 +162,7 @@
                       [i id-names]
                       #:when v)
              (define-values (v-val v*) (build-expr! v block* continue-block break-block))
-             (add-instruction! v* (op-store! #f v-val i))
+             (add-instruction! v* (op-store! #f (v-val i)))
              v*))
          (errored-terminate block* "one of the binding" "let")
          (define stmt* (build-stmt! stmt-body block* continue-block break-block))
@@ -188,7 +187,7 @@
            [(sham:expr:ref sym)
             (define-values (val-val val*) (build-expr! val current-block continue-block break-block))
             (errored-terminate val* "lhs" "set!")
-            (add-instruction! val* (op-store! #f val-val sym))
+            (add-instruction! val* (op-store! #f (val-val sym)))
             val*])]
         [(sham:stmt:if tst thn els)
          (let* ([entry-block (gensym 'if-entry)]

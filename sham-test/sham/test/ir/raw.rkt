@@ -1,42 +1,39 @@
 #lang racket
 
 (require sham/md
-         sham/ir/ast
-         sham/ir/optimize
-         sham/ir/builder
-         (prefix-in llvm- sham/llvm/ir/simple))
+         sham/ir
+         (prefix-in ll- sham/llvm/ir))
 
 (provide (all-defined-out))
 
 (define identity-f
-  (d-function (empty-function-md)
+  (make-def-function
               'identity
-              (t-function (list i32) i32)
-              (s-expr (e-let `(v) (list (llvm-val-param 0)) (list i32)
-                             (s-return (e-ref 'v))
-                             (e-void)))))
+              (ll-make-type-function (list i32) #f i32)
+              (stmt-expr (make-expr-let `(v) (list (ll-val-param 0)) (list i32)
+                             (stmt-return (expr-ref 'v))
+                             (expr-void)))))
 (define pow-f
-  (d-function (empty-function-md)
-              'pow
-              (t-function (list i64 i64) i64)
-              (s-expr (e-let `(x n) (list (llvm-val-param 0) (llvm-val-param 1)) (list i64 i64)
-                             (s-if (ll-e-icmp-ule (list (e-ref 'n) (ui64 0)))
-                                   (s-return (ui64 1))
-                                   (s-return (ll-e-mul
-                                              (list (e-ref 'x)
-                                                    (e-op 'pow #f (list (e-ref 'x)
-                                                                        (ll-e-sub-nuw
-                                                                         (list (e-ref 'n) (ui64 1)))))))))
-                             (e-void)))))
+  (make-def-function
+   'pow
+   (ll-make-type-function (list i64 i64) #f i64)
+   (stmt-expr
+    (make-expr-let `(x n) (list (ll-val-param 0) (ll-val-param 1)) (list i64 i64)
+                   (stmt-if (ll-op-icmp-ule ((expr-ref 'n) (ui64 0)))
+                            (s-return (ui64 1))
+                            (s-return (ll-op-mul
+                                       (list (expr-ref 'x)
+                                             (expr-op 'pow #f (list (expr-ref 'x)
+                                                                 (ll-op-sub-nuw
+                                                                  (list (expr-ref 'n) (ui64 1)))))))))
+                   (expr-void)))))
 
 (module+ test
   (require rackunit
            sham/ir/dump
            sham/ir/verify)
   (define t-module
-    (d-module (empty-module-md)
-              'raw-sham-function-test-module
-              (list identity-f pow-f)))
+    (make-def-module 'raw-sham-function-test-module (list identity-f pow-f)))
   (define s-env (build-sham-env t-module))
   (sham-dump-llvm-ir s-env)
   (sham-env-optimize-llvm! s-env #:opt-level 2)

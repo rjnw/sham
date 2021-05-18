@@ -1,54 +1,55 @@
 #lang racket
-(require (for-syntax syntax/parse racket/syntax racket/match)
+(require (for-syntax racket/syntax syntax/parse racket/match racket/list)
          sham/llvm/ir/simple
-         sham/llvm/ir/op)
+         sham/llvm/ir/internals)
 
 (provide (except-out (all-defined-out)
                      define-ref-types))
 
 (define-syntax (define-ref-types stx)
-  (syntax-parse stx
-    [(_ names:id ...)
-     (define name-list (map (λ (n) (map (λ (i) (format-id n "~a~a" n i))
-                                        (build-list 4 (λ (j) (make-string j #\*)))))
-                            (syntax->list #`(names ...))))
-     (define (rec prev l)
-       (match* (prev l)
-         [(#f (cons curr next))
-          (cons #`(define #,curr (type-ref (quote #,curr))) (rec curr next))]
-         [(p (cons curr next))
-          (cons #`(define #,curr (type-pointer #,p)) (rec curr next))]
-         [(p empty) empty]))
-     #`(begin #,@(apply append (map (λ (n) (rec #f n)) name-list)))]))
+  (define stars (build-list 4 (λ (j) (make-string j #\*))))
+  (define (do-type t)
+    (let rec ([prev #f]
+              [l (map (λ (i) (format-id stx "~a~a" t i)) stars)])
+      (match* (prev l)
+        [(#f (cons curr next))
+         (cons #`(define #,curr (type-ref (quote #,curr))) (rec curr next))]
+        [(p (cons curr next))
+         (cons #`(define #,curr (type-pointer #,p)) (rec curr next))]
+        [(p empty) empty])))
+  (syntax-case stx ()
+    [(_ types-reference)
+     #`(begin #,@(append-map do-type (syntax-local-value #'types-reference)))]))
 
-(define-ref-types i1 i8 i16 i32 i64 f32 f64 void)
+(define-ref-types basic-types)
 
-;; (define-simple-macro (define-llvm-alias names:id ...)
-;;   #:with (llvm-names ...) (map (λ (n) (format-id n "llvm-~a" n))
-;;                                (syntax->list #`(names ...)))
-;;   (begin (define names llvm-names) ...))
+(define-syntax (define-basic-ops stx)
+  (define (do-op op)
+    (with-syntax ([op-syn (datum->syntax stx op)]
+                  [op-name (format-id stx "op-~a" op)])
+      #`(define-syntax (op-name stx)
+          (syntax-parse stx
+            [(_ (~optional (~seq #:flags flags) #:defaults ([flags #'#f])) result args)
+             (syntax/loc stx (inst-op result (quote op-syn) flags args))]))))
+  (syntax-case stx ()
+    [(_ ops-reference)
+     #`(begin #,@(map do-op (syntax-local-value #'ops-reference)))]))
 
-;; (define-simple-macro (define-alias-with-ptr-types names:id ...)
-;;   #:with ((name-list ...) ...)
-;;   (map (λ (n) (map (λ (i) (format-id n "~a~a" n i))
-;;                    (build-list 4 (λ (j) (make-string j #\*)))))
-;;        (syntax->list #`(names ...)))
-;;   (begin (define-llvm-alias name-list ...) ...))
-;; (define-alias-with-ptr-types i1 i8 i16 i32 i64 f32 f64 void)
+(define-basic-ops basic-ops)
 
-;; (define-simple-macro (define-int-const-alias widths ...)
-;;   #:with (is ...) (map (λ (t) (format-id t "i~a" (syntax->datum t))) (syntax->list #`(widths ...)))
-;;   #:with (us ...) (map (λ (t) (format-id t "ui~a" (syntax->datum t))) (syntax->list #`(widths ...)))
-;;   #:with (ss ...) (map (λ (t) (format-id t "si~a" (syntax->datum t))) (syntax->list #`(widths ...)))
-;;   (begin (define (ui v t) (llvm-val-ui v t))
-;;          (define (us v) (llvm-val-ui v is)) ...
-;;          (define (si v t) (llvm-val-si v t))
-;;          (define (ss v) (si v is)) ...))
-;; (define-int-const-alias 1 8 16 32 64)
+(define-syntax (define-int-const-alias stx)
+  (define (do-size s)
+    (list #`(define (#,(format-id stx "ui~a" s) v) (val-ui v #,(format-id stx "i~a" s)))
+          #`(define (#,(format-id stx "si~a" s) v) (val-si v #,(format-id stx "i~a" s)))))
+  (syntax-case stx ()
+    [(_ size-reference)
+     #`(begin #,@(append-map do-size (syntax-local-value #'size-reference)))]))
+(define-syntax (define-float-const-alias stx)
+  (define (do-size s)
+    #`(define (#,(format-id stx "fl~a" s) v) (val-fl v #,(format-id stx "f~a" s))))
+  (syntax-case stx ()
+    [(_ size-reference)
+     #`(begin #,@(map do-size (syntax-local-value #'size-reference)))]))
 
-;; (define-simple-macro (define-float-const-alias widths ...)
-;;   #:with (fn ...) (map (λ (w) (format-id w "fl~a" (syntax->datum w))) (syntax->list #`(widths ...)))
-;;   #:with (ft ...) (map (λ (w) (format-id w "f~a" (syntax->datum w))) (syntax->list #`(widths ...)))
-;;   (begin (define (fl v t) (llvm-val-fl v t))
-;;          (define (fn v) (fl v ft)) ...))
-;; (define-float-const-alias 32 64)
+(define-int-const-alias int-widths)
+(define-float-const-alias float-widths)
