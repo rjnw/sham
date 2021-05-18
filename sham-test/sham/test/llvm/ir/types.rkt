@@ -25,9 +25,9 @@
   (define tfun
     (def-function 'testf (type-function at #f at)
       (def-block 'entry
-        (op-int->ptr 'null-i32* (val-ui 0 i32) i32*)
-        (op-int->ptr 'null-void* (val-ui 0 i32) void*)
-        (op-int->ptr 'null-fptr (val-ui 0 i32) (type-pointer (type-function i32 i32 #f void)))
+        (op-int->ptr 'null-i32* ((val-ui 0 i32) i32*))
+        (op-int->ptr 'null-void* ((val-ui 0 i32) void*))
+        (op-int->ptr 'null-fptr ((val-ui 0 i32) (type-pointer (type-function i32 i32 #f void))))
         (inst-ret (val-named-struct
                    (val-named-struct (val-ui 42 i32) 'null-i32* size-array-ref)
                    (val-named-struct 'null-void* 'null-void* ll-node-ref)

@@ -1,6 +1,7 @@
 #lang racket
 
 (require (for-syntax syntax/parse)
+         (for-syntax syntax/quote)
          syntax/parse/define)
 
 (require sham/llvm/ir/simple)

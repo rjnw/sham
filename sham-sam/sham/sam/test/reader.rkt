@@ -15,4 +15,4 @@
    ;; [f (a:e (b:e ...) ...)]
    [g (a:e ...)]))
 
-;; (build-reader ast)
+(build-reader ast)

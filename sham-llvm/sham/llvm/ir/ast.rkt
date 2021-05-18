@@ -27,7 +27,7 @@
    [vector   (of:type size)]
    #:default-metadata (empty-type-md))
   (instruction
-   [op (result op flags args ...)]
+   [op (result op flags (args ...))]
    #:default-metadata (empty-instruction-md))
   (terminator instruction
               [ret    (value)]

@@ -140,14 +140,14 @@
             [else (error 'sham:llvm "unknown value ~a" v)]))
         (define (build-initial-instruction! instruction)
           (match instruction
-            [(llvm:instruction:op #:md md result 'phi flags type vars labels)
+            [(llvm:instruction:op #:md md result 'phi flags (type vars labels))
              (define value (LLVMBuildPhi llvm-builder (compile-type type internal-env decl-env) (to-string result)))
              (LLVMAddIncoming value (map compile-value vars) (map block-ref labels))
              value]
             [else (build-instruction! instruction)]))
         (define (build-instruction! instruction)
           (match instruction
-            [(llvm:instruction:op #:md md result op flags args ...)
+            [(llvm:instruction:op #:md md result op flags (args ...))
              (add-local-var!
               result
               (add-instruction-md!

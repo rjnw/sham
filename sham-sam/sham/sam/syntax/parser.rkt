@@ -76,7 +76,7 @@
             [(ast:type:internal depth of)
              (with-syntax ([parser-op (parser-from-path of)]
                            [value-syn vid])
-               #'#,(parser-op #`value-syn))]
+               #`(parser-op value-syn))]
             [(ast:type:check depth chk)
              #`(if (#,chk #,vid)
                    #,vid
