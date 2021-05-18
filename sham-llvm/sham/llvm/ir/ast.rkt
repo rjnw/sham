@@ -53,8 +53,10 @@
 
 (define (llvm-metadata v)
   (match v
-    [(? ast?) (ast:metadata-custom (ast-md v))]
-    [(? ast:metadata?) (ast:metadata-custom v)]
+    [(? ast?) (llvm-metadata (ast:metadata-custom (ast-md v)))]
+    [(? ast:metadata?) (llvm-metadata (ast:metadata-custom v))]
+    [(? metadata?) v]
+    [(list mds ...) (findf metadata? mds)]
     [else (error 'sham/llvm "unknown value for getting metadata: ~a" v)]))
 
 (define llvm-md llvm-metadata)

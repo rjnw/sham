@@ -59,7 +59,8 @@
               " Some functions will not be available.\n")))])
         (compile-adjunct)))
     (cond
-      [(file-exists? adjunct-so-path) (ffi-lib adjunct-so-path)]
+      [(file-exists? adjunct-so-path)
+       (ffi-lib adjunct-so-path)]
       [else #f])))
 
 (define (adjunct-available?)

@@ -24,8 +24,8 @@
 
 (define (add-external-mappings env mcjit-ref)
   (match-define (llvm-env mref cref ast vrefs) env)
-  (match-define (llvm:def:module md mid mdefs) ast)
-  (define external-mappings (ref-module-md-jit-external-mappings md))
+  (match-define (llvm:def:module #:md md mid mdefs ...) ast)
+  (define external-mappings (ref-module-md-jit-external-mappings (llvm-metadata md)))
   (when external-mappings
     (for ([m external-mappings])
       (match-define (external-mapping name uintptr) m)

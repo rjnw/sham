@@ -6,48 +6,43 @@
          sham/llvm/jit/mc)
 
 (define a-f
-  (def-function (fastcc! (empty-function-md))
-    'a (type-function (list i64 i64 i64) #f i64)
-    (list (ast-block 'entry
-                     (list (op-icmp-eq 'cond (list 0 (val-ui 0 i64))))
-                     (ast-br 'cond 'then 'else))
-          (ast-block 'then
-                     `()
-                     (ast-ret 2))
-          (ast-block 'else
-                     (list
-                      (op-sub 'subi (list 0 (val-ui 1 i64)))
-                      (op-add-nuw 'resv (list 2 1))
-                      (fastcc! (ast-op 'ret 'b #f (list 'subi 1 'resv))))
-                     (ast-ret 'ret)))))
+  (def-function #:md (fastcc! (empty-function-md))
+    'a (type-function i64 i64 i64 #f i64)
+    (def-block 'entry
+      (op-icmp-eq 'cond (0 (val-ui 0 i64)))
+      (inst-br 'cond 'then 'else))
+    (def-block 'then
+      (inst-ret 2))
+    (def-block 'else
+      (op-sub 'subi (0 (val-ui 1 i64)))
+      (op-add-nuw 'resv (2 1))
+      (inst-op #:md (fastcc! (empty-instruction-md)) 'ret 'b #f ('subi 1 'resv))
+      (inst-ret 'ret))))
 
 (define b-f
-  (def-function (fastcc! (empty-function-md))
-    'b (type-function (list i64 i64 i64) #f i64)
-    (list (ast-block 'entry
-                     (list (op-icmp-eq 'cond (list 0 (val-ui 0 i64))))
-                     (ast-br 'cond 'then 'else))
-          (ast-block 'then
-                     `()
-                     (ast-ret 2))
-          (ast-block 'else
-                     (list
-                      (op-sub 'subi (list 0 (val-ui 1 i64)))
-                      (fastcc! (ast-op 'ret 'a #f (list 'subi 1 2))))
-                     (ast-ret 'ret)))))
+  (def-function #:md (fastcc! (empty-function-md))
+    'b (type-function i64 i64 i64 #f i64)
+    (def-block 'entry
+      (op-icmp-eq 'cond (0 (val-ui 0 i64)))
+      (inst-br 'cond 'then 'else))
+    (def-block 'then
+      (inst-ret 2))
+    (def-block 'else
+      (op-sub 'subi (0 (val-ui 1 i64)))
+      (inst-op #:md (fastcc! (empty-instruction-md)) 'ret 'a #f ('subi 1 2))
+      (inst-ret 'ret))))
 (define wrap-f
-  (def-function (empty-function-md)
-    'wrap (type-function (list i64) #f i64)
-    (list (ast-block 'entry
-                     (list
-                      (fastcc! (ast-op 'ret 'b #f (list 0 0 (val-ui 1 i64)))))
-                     (ast-ret 'ret)))))
+  (def-function
+    'wrap (type-function i64 #f i64)
+    (def-block 'entry
+      (inst-op #:md (fastcc! (empty-instruction-md)) 'ret 'b #f (0 0 (val-ui 1 i64)))
+      (inst-ret 'ret))))
 
 (module+ test
   (require rackunit ffi/unsafe)
   (define t-module
-    (def-module (empty-module-md) 'call-conv-test-module
-      (list a-f b-f wrap-f)))
+    (def-module 'call-conv-test-module
+      a-f b-f wrap-f))
   (define l-env (build-llvm-env t-module))
   (dump-llvm-ir l-env)
   (test-true "verify-call-conv" (verify-llvm-module l-env))
