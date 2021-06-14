@@ -3,7 +3,7 @@
 (require
  sham/llvm/ir/ast
  sham/llvm/ir/simple
- sham/llvm/ir/specific
+ (submod sham/llvm/ir/specific numerics)
  sham/llvm/ir/builder
  sham/llvm/ir/dump
  sham/llvm/ir/env
@@ -16,7 +16,7 @@
  (all-from-out
   sham/llvm/ir/ast
   sham/llvm/ir/simple
-  sham/llvm/ir/specific
+  (submod sham/llvm/ir/specific numerics)
   sham/llvm/ir/builder
   sham/llvm/ir/dump
   sham/llvm/ir/env

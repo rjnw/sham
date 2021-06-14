@@ -8,6 +8,7 @@
                      racket/syntax))
 
 (require "syntax/spec.rkt"
+         "syntax/info-values.rkt"
          (prefix-in sr: "syntax/runtime.rkt")
          (prefix-in st: "syntax/transformer.rkt")
          (prefix-in ss: "syntax/storage.rkt")
@@ -174,8 +175,9 @@
      (define (node-accessor arg fid)
        #`(define (#,fid #,nido)
            #,((ss:from-node-storage arg pat) #`(rt:ast:term-args #,nido))))
-     #`(begin (define (#,make-f #:md (md #f) #,@garg-ids #,@narg-ids)
-                (#,nid md #,(ss:group-arg-storage gargs) #,(ss:node-args-storage nargs pat)))
+     #`(begin (define (#,make-f #:md (md #,(default-metadata ninfo ginfo tinfo)) #,@garg-ids #,@narg-ids)
+                ;; TODO add optional arg for srcloc
+                (#,nid (rt:generic-metadata md) #,(ss:group-arg-storage garg-ids) #,(ss:node-args-storage nargs pat)))
               (define (#,f? term) (#,(format-id nid "~a?" nid) term))
               #,@(map node-accessor nargs arg-fs)))))
 

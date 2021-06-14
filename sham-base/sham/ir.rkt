@@ -1,17 +1,28 @@
 #lang racket
 
-(require sham/ir/ast
-         sham/ir/builder
-         sham/ir/optimize
-         sham/ir/dump
-         sham/ir/simple
-         sham/ir/specific
-         sham/ir/verify)
+(require
+ sham/md
+ sham/ir/ast
+ sham/ir/builder
+ sham/ir/optimize
+ sham/ir/dump
+ sham/ir/simple
+ sham/ir/specific
+ sham/ir/verify
+ (submod sham/ir/specific ops)
 
-(provide (all-from-out sham/ir/ast
-                       sham/ir/builder
-                       sham/ir/optimize
-                       sham/ir/dump
-                       sham/ir/simple
-                       sham/ir/specific
-                       sham/ir/verify))
+ (submod sham/llvm/ir/specific numerics))
+
+(provide
+ (prefix-out op- (all-from-out (submod sham/ir/specific ops)))
+ (all-from-out
+  sham/md
+  sham/ir/ast
+  sham/ir/builder
+  sham/ir/optimize
+  sham/ir/dump
+  sham/ir/simple
+  sham/ir/specific
+  sham/ir/verify
+
+  (submod sham/llvm/ir/specific numerics)))

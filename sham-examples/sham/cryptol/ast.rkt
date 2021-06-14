@@ -4,8 +4,7 @@
 
 (define-ast cry
   (top
-   [mod (id (ps:parameter ...) (is:import ...) decl_body ...)]
-   [import (name:id qualifier:id (only:id ...) (hide:id ...) (ps:parameter ...))])
+   [mod (id (parameter_ps ...) decl_body ...)])
 
   (parameter
    [type (id kind (~optional value))]
@@ -14,10 +13,11 @@
    #:alias p)
 
   (decl
+   [import (id_name id_qualifier (id_only ...) (id_hide ...) (parameter_ps ...))]
    [mod-inst (id_name id_of (p_ps ...) (d_ds ...))]
    [type (id_name (id_vars ...) t_body)]
    [newtype (id_name (id_vars ...) t_body)]
-   [def (id_name t body:decl.bind ...)]
+   [def (id_name t decl.bind_body ...)]
    [private (d_ds ...)]
    [bind (id_name (vars_id ...) e_body)]
    #:alias d)
@@ -29,7 +29,7 @@
    [var id]
    [type-var id]
    [qualified-var (id_from id_var)]
-   [where (e_body bs:decl.bind ...)]
+   [where (e_body decl.bind_bs ...)]
    [zero]
    #:alias e)
 
@@ -42,8 +42,8 @@
   (bit expr [true] [false])
 
   (numeric expr
-           [polynomial ((i:int e:int) ...)] ;; polynomial expression e*x^i ...
-           [int int_val])
+           [polynomial ((integer_e integer_i) ...)] ;; polynomial expression e*x^i ...
+           [int integer_val])
 
   (sequence expr
             [basic (e_val ...)]
@@ -64,7 +64,7 @@
    #:alias t)
 
   (dim                                  ;; dimension for sequences: integer, infinity or a poly variable
-   [int (? positive-integer?)]
+   [int integer_v]
    [inf]
    [var id]))
 

@@ -16,7 +16,6 @@
     #:common id:id)
   (rator
    [reference (id)]
-   [llvm      (id)]
    [intrinsic (id type)]
    [external  (lib-id id type var-arg?)])
   (stmt
@@ -29,12 +28,11 @@
    [void     ()]
    [expr     (e:expr)]
    [block    (stmts:stmt ...)]
-   [label    (name body:stmt)]
    [return   (value)]
    [return-void ()])
   (expr
    [ref      (sym)]
-   [op       (rator flags args ...)]
+   [op       (rator args ...)]
    [access   (struct-field value)]
    [void     ()]
    [etype    (t:type)]

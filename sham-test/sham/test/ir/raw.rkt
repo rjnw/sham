@@ -19,13 +19,13 @@
    (ll-make-type-function (list i64 i64) #f i64)
    (stmt-expr
     (make-expr-let `(x n) (list (ll-val-param 0) (ll-val-param 1)) (list i64 i64)
-                   (stmt-if (ll-op-icmp-ule ((expr-ref 'n) (ui64 0)))
-                            (s-return (ui64 1))
-                            (s-return (ll-op-mul
-                                       (list (expr-ref 'x)
-                                             (expr-op 'pow #f (list (expr-ref 'x)
-                                                                 (ll-op-sub-nuw
-                                                                  (list (expr-ref 'n) (ui64 1)))))))))
+                   (stmt-if (op-icmp-ule (expr-ref 'n) (ui64 0))
+                            (stmt-return (ui64 1))
+                            (stmt-return (op-mul
+                                          (expr-ref 'x)
+                                          (expr-app 'pow (expr-ref 'x)
+                                                    (op-sub-nuw
+                                                     (expr-ref 'n) (ui64 1))))))
                    (expr-void)))))
 
 (module+ test

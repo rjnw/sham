@@ -1,10 +1,8 @@
 #lang racket
+
 (require (for-syntax racket/syntax syntax/parse racket/match racket/list)
          sham/llvm/ir/simple
          sham/llvm/ir/internals)
-
-(provide (except-out (all-defined-out)
-                     define-ref-types))
 
 (define-syntax (define-ref-types stx)
   (define stars (build-list 4 (λ (j) (make-string j #\*))))
@@ -21,22 +19,6 @@
     [(_ types-reference)
      #`(begin #,@(append-map do-type (syntax-local-value #'types-reference)))]))
 
-(define-ref-types basic-types)
-
-(define-syntax (define-basic-ops stx)
-  (define (do-op op)
-    (with-syntax ([op-syn (datum->syntax stx op)]
-                  [op-name (format-id stx "op-~a" op)])
-      #`(define-syntax (op-name stx)
-          (syntax-parse stx
-            [(_ (~optional (~seq #:flags flags) #:defaults ([flags #'#f])) result args)
-             (syntax/loc stx (inst-op result (quote op-syn) flags args))]))))
-  (syntax-case stx ()
-    [(_ ops-reference)
-     #`(begin #,@(map do-op (syntax-local-value #'ops-reference)))]))
-
-(define-basic-ops basic-ops)
-
 (define-syntax (define-int-const-alias stx)
   (define (do-size s)
     (list #`(define (#,(format-id stx "ui~a" s) v) (val-ui v #,(format-id stx "i~a" s)))
@@ -51,5 +33,23 @@
     [(_ size-reference)
      #`(begin #,@(map do-size (syntax-local-value #'size-reference)))]))
 
-(define-int-const-alias int-widths)
-(define-float-const-alias float-widths)
+(define-syntax (define-basic-ops stx)
+  (define (do-op op)
+    (with-syntax ([op-syn (datum->syntax stx op)])
+      #`(define-syntax (op-syn stx)
+          (syntax-parse stx
+            [(_ (~optional (~seq #:flags flags) #:defaults ([flags #'#f])) result args)
+             (syntax/loc stx (inst-op result (quote op-syn) flags args))]))))
+  (syntax-case stx ()
+    [(_ ops-reference)
+     #`(begin #,@(map do-op (syntax-local-value #'ops-reference)))]))
+
+(module* numerics #f
+  (provide (all-defined-out))
+  (define-ref-types basic-types)
+  (define-int-const-alias int-widths)
+  (define-float-const-alias float-widths))
+
+(module* ops #f
+  (provide (all-defined-out))
+  (define-basic-ops basic-ops))

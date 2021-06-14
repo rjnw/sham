@@ -4,6 +4,7 @@
 
 (require sham/llvm/ir
          sham/llvm/ir/simple
+         (prefix-in op- (submod sham/llvm/ir/specific ops))
          sham/llvm/ir/env
          sham/ir/ast
          sham/ir/env
@@ -87,7 +88,8 @@
     (define entry-block 'entry-block)
     (define (alloca-block)
       (make-def-block 'alloca-block (reverse (unbox allocas)) (inst-bru entry-block)))
-    ;; -> (values llvm-val [maybe current-block-name])
+
+    ;; -> (values llvm-val? [maybe current-block-name])
     (define (build-expr! expr current-block continue-block break-block)
       (define (errored-terminate block-name value type)
         (unless (block? block-name)
@@ -95,8 +97,11 @@
 
       (match expr
         [(? llvm:value?) (values expr current-block)]
+        [(? llvm:instruction:op?)
+         (add-instruction! current-block expr)
+         (values (inst-op-result expr) current-block)]
         [(sham:expr:ref sym)
-         (define expr-value (gensym 'ref))
+         (define expr-value (gensym 'base-ref))
          (add-instruction! current-block (op-load expr-value (sym)))
          (values expr-value current-block)]
         [(sham:expr:op rator flags args ...)
@@ -107,52 +112,45 @@
              (unless (equal? arg* current-block)
                (error 'sham:ir:builder "expr op values changed a block ~a/~a" arg expr))
              arg-val))
-         (define llvm-rator
+         (define-values (llvm-rator new-block)
            (match rator
-             [(? (or/c symbol? string?)) rator]
-             [(sham:expr:ref sym)
-              (define rator-value (gensym 'var-rator))
-              (add-instruction! current-block (op-load rator-value (sym)))
-              rator-value]
-             [(sham:rator:reference s) s]
-             [(sham:rator:llvm s) s]
+             [(? (or/c symbol? string?)) (values rator current-block)]
+             [(? sham:expr?)
+              (build-expr! rator current-block continue-block break-block)]
+             [(sham:rator:reference s) (values s current-block)]
              [(sham:rator:intrinsic #:md md id type)
-              (hash-ref! intrinsic-map rator
-                         (thunk
-                          (let ([intrinsic-name (gensym (if (string? id) (string->symbol id) id))])
-                            (collect-def! (llvm:def:intrinsic #:md md intrinsic-name id type))
-                            intrinsic-name)))]
+              (values (hash-ref! intrinsic-map rator
+                                 (thunk
+                                  (let ([intrinsic-name (gensym (if (string? id) (string->symbol id) id))])
+                                    (collect-def! (llvm:def:intrinsic #:md md intrinsic-name id type))
+                                    intrinsic-name)))
+                      current-block)]
              [(sham:rator:external #:md md lib-id id type var-arg?)
-              (hash-ref! external-map rator
-                         (thunk
-                          (define external-name (gensym (string->symbol (format "~a-~a" lib-id id))))
-                          (define llvm-def (llvm:def:external #:md md external-name (translate-type type)))
-                          (collect-def! llvm-def)
-                          (collect-jit-lib-external! llvm-def rator)
-                          external-name))]
+              (values (hash-ref! external-map rator
+                                 (thunk
+                                  (define external-name (gensym (string->symbol (format "~a-~a" lib-id id))))
+                                  (define llvm-def (llvm:def:external #:md md external-name (translate-type type)))
+                                  (collect-def! llvm-def)
+                                  (collect-jit-lib-external! llvm-def rator)
+                                  external-name))
+                      current-block)]
              [else (error 'sham:ir:builder "unknown rator ~a" rator)]))
-         (add-instruction! current-block
-                           (make-inst-op expr-value llvm-rator flags arg-vals))
-         (values expr-value current-block)]
+         (add-instruction! new-block (make-inst-op expr-value llvm-rator flags arg-vals))
+         (values expr-value new-block)]
         [(sham:expr:access struct-field value)
          (match-define (cons struct-name field-name) struct-field)
          (match-define (sham:def:struct name (fields typs) ...) (lookup-def struct-name))
          (define field-index (index-of fields field-name))
          (define expr-value (gensym 'struct-field))
          (define field-ptr (gensym 'struct-field-ptr))
-         (define-values (val val*) (build-expr! value current-block continue-block break-block))
-         (errored-terminate val* "expr" "struct access")
-         (add-instruction! val* (op-gep field-ptr [value (val-ui 0 i32) (val-ui field-index i32)]))
-         (add-instruction! val* (op-load expr-value [(field-ptr)]))
-         (values expr-value val*)]
-        [(sham:expr:void ) (values #f current-block)]
+         (define-values (val block*) (build-expr! value current-block continue-block break-block))
+         (errored-terminate block* "expr" "struct access")
+         (add-instruction! block* (op-gep field-ptr [val (val-ui 0 i32) (val-ui field-index i32)]))
+         (add-instruction! block* (op-load expr-value [(field-ptr)]))
+         (values expr-value block*)]
+        [(sham:expr:void) (values #f current-block)]
         [(sham:expr:etype t) (values (translate-type t) current-block)]
-        [(sham:expr:let [(ids vals types) ...] stmt-body expr-body)
-         (define (id-sym v)
-           (match v
-             [(? symbol?) v]
-             [(sham:expr:ref sym) sym]))
-         (define id-names (map id-sym ids))
+        [(sham:expr:let [(id-names vals types) ...] stmt-body expr-body)
          (define let-val-block (gensym 'let-values))
          (add-allocas! id-names types)
          (terminate-block! current-block (inst-bru let-val-block))
@@ -248,7 +246,7 @@
                (terminate-block! body* (inst-bru entry-block))
                (warn "while body terminated! ~a" curr-stmt))
            (if-block body* after-block))]
-        [(sham:stmt:void ) current-block]
+        [(sham:stmt:void) current-block]
         [(sham:stmt:expr e)
          (define-values (val block*) (build-expr! e current-block continue-block break-block))
          block*]
@@ -256,17 +254,22 @@
          (for/fold ([block current-block])
                    ([s stmts])
            (build-stmt! s block continue-block break-block))]
-        [(sham:stmt:label label-block body)
-         (check-terminate! current-block (inst-bru label-block))
-         (build-stmt! body label-block continue-block break-block)]
+        ;; [(sham:stmt:label label-block body)
+        ;;  (check-terminate! current-block (inst-bru label-block))
+        ;;  (build-stmt! body label-block continue-block break-block)]
         [(sham:stmt:return val)
          (define-values (val-val block*) (build-expr! val current-block continue-block break-block))
          (errored-terminate block* "expr" "return")
          (terminate-block! block* (inst-ret val-val))]
         [(sham:stmt:return-void)
          (terminate-block! current-block (inst-retv))]))
-    (build-stmt! body entry-block #f #f)
+    (match body
+      [(list llvm-blocks ... base-stmt)
+       (map collect-block! llvm-blocks)
+       (build-stmt! body entry-block #f #f)]
+      [else (build-stmt! body entry-block #f #f)])
     (cons (alloca-block) (reverse (unbox finished-blocks))))
+
   (define (collect-sham-function! def)
     (match-define (sham:def:function #:md md name type body) def)
     (collect-def! (make-llvm:def:function #:md md name

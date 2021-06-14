@@ -120,6 +120,7 @@
       (define (append-block! n)
         (LLVMAppendBasicBlockInContext (LLVMGetModuleContext llvm-module)
                                        function-ref (to-string n)))
+      ;; Generate empty LLVM basic blocks first for referencing using LLVM C value
       (for ([b blocks])
         (match b
           [(llvm:def:block name instructions ... terminator)

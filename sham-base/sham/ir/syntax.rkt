@@ -81,23 +81,26 @@
   (syntax-parse stx
     [(_ (~optional (~seq (~or (~datum #:md)
                               (~datum #:metadata)) md))
-        (name:expr (args:id (~datum :) arg-types:expr) ... (~datum :) ret-type:expr)
+        (name:expr (args:id (~datum :) arg-types:expr) ... (~optional (~and va (~datum ...))) (~datum :) ret-type:expr)
         body:expr ...)
      #:with (arg-type-names ...) (generate-temporaries #`(args ...))
+     #:with va-type (if (attribute va) #`#t #`#f)
      #`(let ([arg-type-names arg-types] ...)
-         (d-function (~? md (empty-function-md))
-                     (quasiquote name) (t-function (list arg-type-names ...) ret-type)
-                     (function-body^ [(args : arg-type-names) ...] body ...)))]))
+         (def-function
+           (~? (~@ #:md md))
+           (quasiquote name)
+           (ll-type-function arg-type-names ... va-type ret-type)
+           (function-body^ [(args : arg-type-names) ...] body ...)))]))
 
-(define-simple-macro (efunction^ header ... body)
-  (function^ header ... (return^ body)))
+(define-simple-macro (efunction^ header ... ebody)
+  (function^ header ... (return^ ebody)))
 
 (define-syntax (struct^ stx)
   (syntax-parse stx
     [(_ (~optional (~seq #:md md)) name:id (field-name:id field-type:expr) ...)
-     #`(d-struct (~? md (empty-struct-md)) (quasiquote name) `(field-name ...) (list field-type ...))]))
+     #`(def-struct (~? (~@ #:md md)) (quasiquote name) `(field-name ...) (list field-type ...))]))
 
 (define-syntax (module^ stx)
   (syntax-parse stx
     [(_ (~optional (~seq #:md md)) name:id (defs ...))
-     #`(d-module (~? md (empty-module-md)) (quasiquote name) (list defs ...))]))
+     #`(def-module (~? (~@ #:md md)) (quasiquote name) (list defs ...))]))
