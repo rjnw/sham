@@ -12,6 +12,10 @@
   (struct ast:pat:multiple ast:pat (specs) #:prefab)
   (struct ast:pat:repeat ast:pat (spec count) #:prefab)) ;; repeat count is (cons min max) with #f for no limit
 
+(require (submod "." pattern))
+(provide (all-defined-out)
+         (all-from-out (submod "." pattern)))
+
 (module type racket
   (provide (all-defined-out))
   (struct ast:type (depth) #:prefab)
@@ -23,8 +27,18 @@
 
 (module reader racket
   (provide (all-defined-out))
-  (struct reader (id info)))
+  (struct reader (id info) #:prefab))
 
-(require (submod "." pattern))
-(provide (all-defined-out)
-         (all-from-out (submod "." pattern)))
+
+(module compiler racket
+  (provide (all-defined-out))
+  (struct cmplr [header groups] #:prefab)
+  (struct cmplr:header [id args type] #:prefab)
+  (struct cmplr:group [id type nodes info] #:prefab)
+  (struct cmplr:type [from to] #:prefab)
+
+  (struct cmplr:binding [var val info] #:prefab)
+  (struct cmplr:pat [] #:prefab)
+  (struct cmplr:pat:ooo cmplr:pat [pat cnt] #:prefab)
+  (struct cmplr:pat:op cmplr:pat [op body] #:prefab)
+  (struct cmplr:pat:app cmplr:pat [rator rands] #:prefab))

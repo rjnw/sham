@@ -10,12 +10,6 @@
    [typ (t:type)]
    [val (t:type body:expr)]
    #:common id:id)
-  (pattern
-   [sub (which ps:pat ...)]
-   [val (v:expr)]
-   [all ()]
-   [chk (c?)]
-   #:common id:id)
   (expr
    [var id]
    [app (op:expr args:expr ...)]
@@ -24,6 +18,12 @@
    [case ((args:expr ...) (pats:pattern ... body:expr) ... dflt:expr)]
    [lam ((args:id ...) body:expr)]
    [lit (val t:type)])
+  (pattern
+   [sub (which ps:pat ...)]
+   [val (v:expr)]
+   [all ()]
+   [chk (c?)]
+   #:common id:id)
   (type
    [sig ((field:id t:type) ...)]        ;; signature of a module
    [adt ((subi:id subt:type ...) ...)]

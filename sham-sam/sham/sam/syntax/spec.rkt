@@ -191,7 +191,7 @@
 
 (define (pretty-info info)
   (for/list ([ip info])
-    (cons (car ip) (map syntax->datum (flatten (cdr ip))))))
+    (cons (car ip) (map (λ (s) (if (syntax? s) (syntax->datum s) s)) (flatten (cdr ip))))))
 (define (pretty-id id) (assoc-default 0 id))
 (define (pretty-arg arg)
   (match arg

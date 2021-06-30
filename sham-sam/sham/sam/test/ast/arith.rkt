@@ -4,6 +4,7 @@
          sham/sam/custom
          sham/sam/runtime
          (for-syntax sham/sam/syntax/spec))
+(provide (all-defined-out))
 
 (define-ast math
   (expr
@@ -24,6 +25,7 @@
     ;; (pretty-print mcv)
     ;; (pretty-print (pretty-spec mcv))
     )
+
   (require sham/sam/runtime/generics)
   ;; (- (- x)) -> x
 

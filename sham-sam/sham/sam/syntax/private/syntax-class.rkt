@@ -20,7 +20,7 @@
            #:attr spec (ast:pat:single #f #`name))
   (pattern ((~datum quote) datum:id)
            #:attr spec (ast:pat:datum #`datum))
-  (pattern ((~datum ?) name:id check:id)
+  (pattern ((~datum ?) check:id name:id)
            #:attr spec (ast:pat:single (cons '? #`check) #`name))
   (pattern ((~datum ~) type:expr name:id)
            #:attr spec (ast:pat:single (cons '~ #`type) #`name))
@@ -62,3 +62,42 @@
     #:description "sham language reader specification"
     (pattern (~seq ast:id info:keyword-info)
              #:attr spec (reader #`ast (attribute info.spec)))))
+
+(module* compiler #f
+  (require (submod "spec.rkt" compiler))
+  (provide (all-defined-out))
+
+  (define-syntax-class compiler-type
+    (pattern (from:id (~datum ->) to:id) #:attr spec (cmplr:type #'from #'to)))
+
+  (define-splicing-syntax-class (compiler-pattern #:legal-ops legal-ops)
+    (pattern (~seq (~var maybe-repeat (compiler-pattern #:legal-ops legal-ops)) maybe-ooo:id)
+             #:when (ooo? #`maybe-ooo)
+             #:attr spec (cmplr:pat:ooo (attribute maybe-repeat.spec) (ooo #`maybe-ooo)))
+    (pattern (op:id body:expr ...)
+             #:when (ormap (λ (f) (f #`op)) legal-ops)
+             #:attr spec (cmplr:pat:op #`op (attribute body)))
+    (pattern (rator:id (~var rands (compiler-pattern #:legal-ops legal-ops)) ...)
+             #:attr spec (cmplr:pat:app #`rator (attribute rands.spec)))
+    (pattern var:id #:attr spec #`var))
+
+  (define-syntax-class (compiler-node #:binding-ops binding-ops #:body-ops body-ops)
+    (pattern ((~var bpat (compiler-pattern #:legal-ops binding-ops))
+              (~var body (compiler-pattern #:legal-ops body-ops)))
+             #:attr spec (cons (attribute bpat.spec) (attribute body.spec))))
+  (define-syntax-class (compiler-group #:legal-ops legal-ops)
+    ;; each group is a separate recursive function performing over set of production nodes
+    (pattern (name:id type:compiler-type
+                      info:keyword-info
+                      (~var node (compiler-node
+                                  #:binding-ops (car legal-ops)
+                                  #:body-ops (cdr legal-ops))) ...)
+             #:attr spec (cmplr:group #'name (attribute type.spec) (attribute node.spec) (attribute info.spec))))
+
+  (define-splicing-syntax-class compiler-header
+    (pattern (~seq (name:id [arg:id dflt:expr] ...) type:compiler-type)
+             #:attr spec (cmplr:header #`name (map cons (attribute arg) (attribute dflt)) (attribute type.spec))))
+
+  (define-splicing-syntax-class (compiler-spec #:legal-ops legal-ops)
+    (pattern (~seq header:compiler-header (~var groups (compiler-group #:legal-ops legal-ops)) ...)
+             #:attr spec (cmplr (attribute header.spec) (attribute groups.spec)))))
