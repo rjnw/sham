@@ -83,7 +83,7 @@
 
   (define-syntax-class (compiler-node #:binding-ops binding-ops #:body-ops body-ops)
     (pattern ((~var bpat (compiler-pattern #:legal-ops binding-ops))
-              (~var body (compiler-pattern #:legal-ops body-ops)))
+              (~var body (compiler-pattern #:legal-ops body-ops)) ...)
              #:attr spec (cons (attribute bpat.spec) (attribute body.spec))))
   (define-syntax-class (compiler-group #:legal-ops legal-ops)
     ;; each group is a separate recursive function performing over set of production nodes

@@ -11,5 +11,5 @@
   (iexpr (expr -> any)
          [(neg (^ e)) (op - (list e))]
          [(div (^ n) (^ d)) (op / (list n d))]
-         [(add (^ e) ...) (op + e)]
-         [(mul (^ e) ...) (op * e)]))
+         [(add (^ es) ...) (op + es)]
+         [(mul (^ es) ...) (op * es)]))

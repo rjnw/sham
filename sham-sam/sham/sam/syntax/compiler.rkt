@@ -6,4 +6,6 @@
  (submod "syntax/private/syntax-class.rkt" compiler))
 
 (define-generics compiler-pattern
-  (expand-pattern stx input-zipper output-zipper))
+  (expand-pattern stx input-zipper)
+  (perform-pattern stx output-zipper)
+  )
