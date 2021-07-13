@@ -70,34 +70,17 @@
   (define-syntax-class compiler-type
     (pattern (from:id (~datum ->) to:id) #:attr spec (cmplr:type #'from #'to)))
 
-  (define-splicing-syntax-class (compiler-pattern #:legal-ops legal-ops)
-    (pattern (~seq (~var maybe-repeat (compiler-pattern #:legal-ops legal-ops)) maybe-ooo:id)
-             #:when (ooo? #`maybe-ooo)
-             #:attr spec (cmplr:pat:ooo (attribute maybe-repeat.spec) (ooo #`maybe-ooo)))
-    (pattern (op:id body:expr ...)
-             #:when (ormap (λ (f) (f #`op)) legal-ops)
-             #:attr spec (cmplr:pat:op #`op (attribute body)))
-    (pattern (rator:id (~var rands (compiler-pattern #:legal-ops legal-ops)) ...)
-             #:attr spec (cmplr:pat:app #`rator (attribute rands.spec)))
-    (pattern var:id #:attr spec #`var))
-
-  (define-syntax-class (compiler-node #:binding-ops binding-ops #:body-ops body-ops)
-    (pattern ((~var bpat (compiler-pattern #:legal-ops binding-ops))
-              (~var body (compiler-pattern #:legal-ops body-ops)) ...)
-             #:attr spec (cons (attribute bpat.spec) (attribute body.spec))))
-  (define-syntax-class (compiler-group #:legal-ops legal-ops)
-    ;; each group is a separate recursive function performing over set of production nodes
-    (pattern (name:id type:compiler-type
-                      info:keyword-info
-                      (~var node (compiler-node
-                                  #:binding-ops (car legal-ops)
-                                  #:body-ops (cdr legal-ops))) ...)
-             #:attr spec (cmplr:group #'name (attribute type.spec) (attribute node.spec) (attribute info.spec))))
+  (define-syntax-class compiler-group
+    (pattern (name:id type:compiler-type (node-binding:expr node-body:expr ...) ... info:keyword-info)
+             #:attr spec (cmplr:group #`name
+                                      (attribute type.spec)
+                                      (map cons (attribute node-binding) (attribute node-body))
+                                      (attribute info.spec))))
 
   (define-splicing-syntax-class compiler-header
     (pattern (~seq (name:id [arg:id dflt:expr] ...) type:compiler-type)
              #:attr spec (cmplr:header #`name (map cons (attribute arg) (attribute dflt)) (attribute type.spec))))
 
-  (define-splicing-syntax-class (compiler-spec #:legal-ops legal-ops)
-    (pattern (~seq header:compiler-header (~var groups (compiler-group #:legal-ops legal-ops)) ...)
-             #:attr spec (cmplr (attribute header.spec) (attribute groups.spec)))))
+  (define-splicing-syntax-class compiler-spec
+    (pattern (~seq header:compiler-header groups:compiler-group ... info:keyword-info)
+             #:attr spec (cmplr (attribute header.spec) (attribute groups.spec) (attribute info.spec)))))

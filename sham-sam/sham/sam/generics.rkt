@@ -277,3 +277,33 @@
    (rkt-struct-builder)
    (ast-spec-builder)
    (rkt-term-type-builder)))
+
+(module* compiler racket
+  (require racket/generic)
+  (provide (all-defined-out))
+  (define-generics cmplr-spec-builder
+    (update-cmplr-spec cmplr-spec-builder cmplr-spec))
+  (define-generics cmplr-group-builder
+    (build-cmplr-group cmplr-group-builder group-constructs cmplr-spec cmplr-group-spec))
+  (define-generics cmplr-node-builder
+    (build-cmplr-node cmplr-node-builder node-construct cmplr-spec cmplr-group-spec cmplr-node-spec))
+  (define-generics cmplr-body-builder
+    (build-cmplr-body cmplr-body-builder body-construct cmplr-spec))
+  (define (update-spec builder spec)
+    (if (cmplr-spec-builder? builder) (update-cmplr-spec builder spec) spec))
+  (define ((build-group builder group-construct) cmplr-spec group-spec)
+    (if (cmplr-group-builder? builder)
+        (build-cmplr-group builder group-construct cmplr-spec group-spec)
+        group-construct))
+  (define ((build-node builder node-construct) cmplr-spec group-spec node-spec)
+    (if (cmplr-node-builder? builder)
+        (build-cmplr-node builder node-construct cmplr-spec group-spec node-spec)
+        node-construct))
+  (define ((build-body builder body-construct) cmplr-spec)
+    (if (cmplr-body-builder? builder)
+        (build-cmplr-body builder body-construct cmplr-spec)
+        body-construct))
+
+  (define-generics cmplr-node-pattern
+    (node-operation-id cmplr-node-pattern)
+    (parse-node-binding cmplr-node-pattern stx path cmplr-spec group-spec node-spec)))

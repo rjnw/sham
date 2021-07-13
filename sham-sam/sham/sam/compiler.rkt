@@ -1,10 +1,14 @@
 #lang racket
 (require (for-syntax syntax/parse
                      racket/match
+                     racket/list
                      racket/pretty
                      "syntax/spec.rkt"
+                     "common/ooo.rkt"
+                     "common/generics.rkt"
                      (submod "syntax/private/spec.rkt" compiler)
-                     (submod "syntax/private/syntax-class.rkt" compiler))
+                     (submod "syntax/private/syntax-class.rkt" compiler)
+                     (submod "generics.rkt" compiler))
          racket/stxparam)
 (require (for-template (prefix-in rkt: racket)))
 (provide (all-defined-out))
@@ -13,85 +17,56 @@
 (define-syntax-parameter ^ (make-rename-transformer #'rkt:^))
 
 (begin-for-syntax
-  (define (cmplr-pattern-with-path f val pat)
-    (let rec
-        ([path null]
-         [val val]
-         [pat pat])
-      (match pat
-        [(cmplr:pat:ooo p cnt) (f rec `(ooo ,p ,cnt ,path) val pat)]
-        [(cmplr:pat:op op body) (f rec `(op ,op ,body ,path) val pat)]
-        [(cmplr:pat:app rator rands) (f rec `(app ,rator ,rands ,path) val pat)]
-        [(? syntax?) (f rec `(syn ,pat ,path) val pat)]))))
+  (define (get-ast-spec syn)
+    (define-values (spec-value ff) (syntax-local-value/immediate syn))
+    (unless (ast? spec-value) (error 'sham:sam "unknown ast specification" syn))
+    spec-value)
+
+  (define (build-compiler-syntax raw-cmplr-spec)
+    (define builders (cmplr-info raw-cmplr-spec)) ;TODO get from info + defaults
+    (define (foldr-builders f base) (foldr f base builders))
+    (define cmplr-spec (foldr-builders update-spec empty))
+    (match-define (cmplr header groups info) cmplr-spec)
+
+    (define (do-group group-spec)
+      (match-define (cmplr:group name type nodes info) group-spec)
+      (define (do-node node-pair)
+        (match-define (cons binding bodys) node-pair)
+        (define (is-legal-op op) void)
+        (define ((apply-pattern op) rands) void)
+        (define (parse-node-expr e p)
+          (let rec ([stx e]
+                    [path p])
+            (match (parse-for-ooo stx)
+              [(cons op rands)
+               (cond [(is-legal-op op) => (apply-pattern rands)]
+                     [else (cmplr:pat:app op (map (λ (r) (rec r `(app ,op ,rands ,path))) rands))])]
+              [(stx:ooo ns cnt) (cmplr:pat:ooo (rec ns `(ooo ,ns ,cnt ,path)) cnt)]
+              [e e])))
+        (define (parse-node-bodys bs binding-path)
+          (for/fold ([out '()])
+                    ([be bs] [i (length bs)])
+            (parse-node-expr be `(body ,i ,be ,out ,binding-path))))
+        (define node-binding (parse-node-expr binding))
+        (define node-bodys (parse-node-bodys bodys `(binding ,node-binding)))
+        (define node-spec (cmplr:node node-binding node-bodys))
+        (foldr-builders (build-node cmplr-spec group-spec node-spec) empty))
+      (define node-defs (map do-node nodes))
+      (define group-def (foldr-builders (build-group cmplr-spec group-spec) empty))
+      (append node-defs group-def))
+
+    (define body-def (foldr-builders (build-body cmplr-spec) empty))
+    (define cmplr-stx (map ->syntax (append (append-map do-group groups) (list body-def))))
+    (values cmplr-stx cmplr-spec)))
 
 (define-syntax (define-compiler stx)
-  (define binding-ops (list #`^))
-  (define body-ops (list #`compile #`with))
-  (define (func s) (λ (sop) (free-identifier=? sop s)))
   (syntax-parse stx
-    [(_ (~var s (compiler-spec #:legal-ops (cons (map func binding-ops) (map func body-ops)))))
-     (define spec (attribute s.spec))
-     (match-define (cmplr header groups) spec)
-     (match-define (cmplr:header compiler-id top-args top-type) header)
-     (match-define (cmplr:type tfrom tto) top-type)
-     (define-values (from-spec-value ff) (syntax-local-value/immediate tfrom))
-     (define-values (to-spec-value tf) (syntax-local-value/immediate tto))
-     (let ([intrinsic-args (map car top-args)])
-       (define (do-group grp)
-         (match-define (cmplr:group name type nodes info) grp)
-         (define (do-node nde)
-           (match-define (cons bind body) nde)
-           (define (expand-bind-pattern pat)
-             (let rec ([p pat]
-                       [bvars null]
-                       [ooo-depth 0]))
-             (match p
-               [(cmplr:pat:ooo pooo cnt) (rec pooo bvars (add1 ooo-depth))]
-               [(cmplr:pat:op op body)
-                (match (syntax->datum op)
-                  ['^
-                   (match (car body)
-                     [(? identifier?) (car (cons (car body)
-                                                 `(to-compile ,ooo-depth)))])])]
-               [(cmplr:pat:app rator rands) #`(#,rator #,@(map expand-bind-pattern rands))]
-               [(? syntax?) pat]))
-           (define (expand-body-pattern pat)
-             (match pat
-               [(cmplr:pat:ooo pat cnt) (expand-body-pattern pat)]
-               [(cmplr:pat:op op body)
-                (match (syntax->datum op)
-                  ['with (do-with-op body)])]
-               [(cmplr:pat:app rator rands) #`(#,rator #,@(map expand-bind-pattern rands))]
-               [(? syntax?) pat])  )
-           (cons (expand-bind-pattern bind)
-                 (expand-body-pattern body)))
-         #`(define (#,name #,@intrinsic-args)
-             (match #,input
-               #,@(map do-node nodes))))
-       #`(define (#,hid input #,@args)
-           #,@(map do-groups groups)
-           #f))
-
-     ;; (let ([header-spec (attribute header.spec)]
-     ;;       [type-spec (attribute type.spec)]
-     ;;       [groups-spec (attribute groups.spec)])
-     ;;   (match-define (cmplr:header hid args) header-spec)
-     ;;   (printf "define-compiler: ~a\n" hid)
-     ;;   (match-define (cmplr:type tfrom tto) type-spec)
-     ;;   (define-values (from-spec-value ff) (syntax-local-value/immediate tfrom))
-     ;;   (define-values (to-spec-value tf) (syntax-local-value/immediate tto))
-     ;;   (printf "from: \n") (pretty-print (pretty-spec from-spec-value)) (newline)
-     ;;   (define (parse-pattern stx)
-     ;;     (syntax-parse stx
-     ;;       [(id:id args ...) ]))
-     ;;   (pretty-print
-     ;;    (syntax->datum
-     ;;     #`(define (#,hid input #,@args)
-     ;;         #,@(for/list ([group groups-spec])
-     ;;              (match-define (cmplr:group id type nodes info) group)
-     ;;              #`(define (#,id input #,@(map car args))
-     ;;                  (match input
-     ;;                    #,@nodes)))
-     ;;         #f)))
-     ;;   #`42)
-     ]))
+    [(_ cmplr:compiler-spec)
+     (define-values (cmplr-stx cmplr-spec) (build-compiler-syntax (attribute cmplr.spec)))
+     ;; (match-define (cmplr header groups info) cmplr-spec)
+     (define stx
+       #`(begin
+           ;; (define-syntax #,(cmplr:header-id header) #,(compiler-syntax-storage cmplr-spec))
+           #,@cmplr-stx))
+     (pretty-print stx)
+     #`42]))

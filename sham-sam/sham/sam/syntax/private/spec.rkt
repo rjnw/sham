@@ -32,9 +32,10 @@
 
 (module compiler racket
   (provide (all-defined-out))
-  (struct cmplr [header groups] #:prefab)
+  (struct cmplr [header groups info] #:prefab)
   (struct cmplr:header [id args type] #:prefab)
   (struct cmplr:group [id type nodes info] #:prefab)
+  (struct cmplr:node [bind body] #:prefab)
   (struct cmplr:type [from to] #:prefab)
 
   (struct cmplr:binding [var val info] #:prefab)
