@@ -5,11 +5,11 @@
          racket/exn
          (for-template racket racket/match))
 
-(require (prefix-in rt: "runtime.rkt")
-         "spec.rkt"
+(require (prefix-in rt: (submod "runtime.rkt" ast))
+         (submod "spec.rkt" ast)
          "pattern.rkt"
-         "info-values.rkt"
-         "private/utils.rkt"
+         "kw-info.rkt"
+         "utils.rkt"
          (for-template (prefix-in rrt: "../runtime.rkt")))
 
 (provide rkt-pattern-transformer

@@ -1,8 +1,11 @@
 #lang racket
 
 (require (for-template racket))
-(require "spec.rkt"
-         "private/utils.rkt")
+
+(require (submod "spec.rkt" ast)
+         "ooo.rkt"
+         "kw-info.rkt"
+         "utils.rkt")
 
 (provide parse-with-pattern
          pattern-with-zipper

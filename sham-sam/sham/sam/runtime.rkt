@@ -3,8 +3,8 @@
 (require "runtime/generics.rkt"
          "runtime/props.rkt"
          (for-syntax syntax/parse
-                     "syntax/private/syntax-class.rkt"
-                     "syntax/private/utils.rkt"))
+                     "syntax/kw-info.rkt"
+                     "syntax/utils.rkt"))
 
 (provide (all-defined-out)
          gmap gfold)

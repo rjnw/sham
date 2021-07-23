@@ -1,9 +1,9 @@
 #lang racket
 
 (require (for-template racket))
-(require "spec.rkt"
+(require (submod "spec.rkt" ast)
          "pattern.rkt"
-         "private/utils.rkt")
+         "utils.rkt")
 (provide group-arg-storage
          node-args-storage
          from-node-storage)

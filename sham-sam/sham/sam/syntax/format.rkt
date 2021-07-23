@@ -1,7 +1,8 @@
 #lang racket
 
 (require racket/syntax)
-(require "private/utils.rkt")
+(require "utils.rkt"
+         "kw-info.rkt")
 
 (provide (all-defined-out))
 
