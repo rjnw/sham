@@ -21,15 +21,17 @@
            (for-template racket)
            (for-syntax racket/match
                        racket/syntax))
-  (require (submod "spec.rkt" ast)
-           "kw-info.rkt"
-           (prefix-in sr: "runtime.rkt")
+  (require "kw-info.rkt"
+           (submod "spec.rkt" ast)
+           (submod "runtime.rkt" ast)
            (prefix-in st: "transformer.rkt")
            (prefix-in ss: "storage.rkt")
+
            (for-template
             (prefix-in rt: "../runtime.rkt")
             (prefix-in rp: "../runtime/props.rkt")))
   (provide (all-defined-out))
+
   (define-generics ast-builder
     (update-others ast-builder builders)
     (update-spec ast-builder ast-spec)
@@ -264,7 +266,7 @@
      (match-define (ast:group gids ginfo parent gargs nodes) gs)
      (cons
       #`(define-syntax #,(get-fid gids)
-          (sr:term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-sid gids) #,(get-sid tids)))
+          (term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-sid gids) #,(get-sid tids)))
       gcs))
     (build-node
      (ncs as gs ns)
@@ -272,7 +274,7 @@
      (match-define (ast:group gids ginfo parent gargs nodes) gs)
      (match-define (ast:node nids ninfo nargs pat) ns)
      (cons #`(define-syntax #,(get-fid nids)
-               (sr:term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-sid nids) #,(get-sid tids)))
+               (term-type st:rkt-pattern-transformer st:rkt-match-expander #,(get-sid nids) #,(get-sid tids)))
            ncs)))
 
   (define (default-rkt-struct-builder)
@@ -281,8 +283,8 @@
      (rkt-struct-functions-builder)
      (rkt-struct-builder)
      (ast-spec-builder)
-     (rkt-term-type-builder)))
-  )
+     (rkt-term-type-builder))))
+
 (module* compiler racket
   (require racket/generic)
   (provide (all-defined-out))

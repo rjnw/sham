@@ -1,5 +1,7 @@
 #lang racket
-(require syntax/parse)
+(require syntax/parse
+         "pat.rkt")
+
 (provide (all-defined-out))
 
 (define (ooo? s)
@@ -16,15 +18,13 @@
     [#f #f]
     [(list a b mn o mx) (cons (string->number mn) (string->number mx))]))
 
-(struct stx:ooo [s cnt] #:prefab)
-
 (define-syntax-class single-pattern
   (pattern i:id #:attr result #`i)
   (pattern (m:multiple-pattern ...) #:attr result (attribute m.result)))
 (define-splicing-syntax-class multiple-pattern
   (pattern (~seq maybe-repeat:expr maybe-ooo:id)
            #:when (ooo? #`maybe-ooo)
-           #:attr result (stx:ooo (attribute maybe-repeat) (ooo #`maybe-ooo)))
+           #:attr result (pat:ooo (attribute maybe-repeat) (ooo #`maybe-ooo)))
   (pattern s:expr #:attr result (attribute s)))
 
 ;; parses a syntax at one level to either identifier / (listof (or syntax stx:ooo?))

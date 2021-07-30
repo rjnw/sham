@@ -26,7 +26,7 @@
   (struct ast:pat:datum ast:pat (syn) #:prefab)
   (struct ast:pat:single ast:pat (maybe-check maybe-id) #:prefab)
   (struct ast:pat:multiple ast:pat (specs) #:prefab)
-  (struct ast:pat:repeat ast:pat (spec count) #:prefab) ;; repeat count is (cons min max) with #f for no limit
+  (struct ast:pat:repeat ast:pat (spec ooo) #:prefab) ;; repeat ooo is (cons min max) with #f for no limit
 
   (struct ast:type (depth) #:prefab)
   (struct ast:type:internal ast:type (of) #:prefab)
@@ -270,8 +270,4 @@
   (struct cmplr:node [bind body] #:prefab)
   (struct cmplr:type [from to] #:prefab)
 
-  (struct cmplr:binding [var val info] #:prefab)
-  (struct cmplr:pat [] #:prefab)
-  (struct cmplr:pat:ooo cmplr:pat [pat cnt] #:prefab)
-  (struct cmplr:pat:op cmplr:pat [op body] #:prefab)
-  (struct cmplr:pat:app cmplr:pat [rator rands] #:prefab))
+  (struct cmplr:binding [var val info] #:prefab))

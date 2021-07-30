@@ -1,14 +1,13 @@
 #lang racket
 
 (require
- "syntax/spec.rkt"
- (submod "syntax/private/spec.rkt" compiler)
- (submod "syntax/private/syntax-class.rkt" compiler))
+ "spec.rkt"
+ (submod "spec.rkt" compiler)
+ (submod "syntax-class.rkt" compiler))
 
 (define-generics compiler-pattern
   (expand-pattern stx input-zipper)
-  (perform-pattern stx output-zipper)
-  )
+  (perform-pattern stx output-zipper))
 
 (define (get-ast-spec syn)
   (define-values (spec-value ff) (syntax-local-value/immediate syn))

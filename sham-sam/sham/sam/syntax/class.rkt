@@ -5,6 +5,24 @@
 (require "kw-info.rkt"
          "ooo.rkt")
 
+(module* pat #f
+  (require "pat.rkt"
+           "ooo.rkt")
+  (provide (all-defined-out))
+  (define-syntax-class syn-pat
+    (pattern name:id #:attr pat (pat:syn #`name)))
+  (define-syntax-class dat-pat
+    (pattern ((~datum quote) val:id) #:attr pat (pat:dat #`val)))
+  (define-splicing-syntax-class seq-pat
+    (pattern (~seq v:expr ...) #:attr pat (pat:seq (attribute v))))
+  (define-splicing-syntax-class ooo-pat
+    (pattern (~seq maybe-repeat:expr maybe-ooo:id)
+             #:when (ooo? #`maybe-ooo)
+             #:attr pat (pat:ooo (attribute maybe-repeat) (ooo #`maybe-ooo))))
+  (define-syntax-class app-pat
+    (pattern (v:expr . body:expr) #:attr pat (pat:app #`v #`body)))
+  (define-syntax-class pat-cls))
+
 (module* ast #f
   (provide (all-defined-out))
   (require (submod "spec.rkt" ast))

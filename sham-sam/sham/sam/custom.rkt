@@ -1,8 +1,8 @@
 #lang racket
 
 (require
- (for-syntax "generics.rkt"
-             "syntax/spec.rkt"
+ (for-syntax (submod "syntax/generics.rkt" ast)
+             (submod "syntax/spec.rkt" ast)
              syntax/parse
              racket/match
              racket/syntax

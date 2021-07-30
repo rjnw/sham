@@ -5,11 +5,10 @@
                      racket/list
                      racket/pretty
                      "syntax/spec.rkt"
-                     "common/ooo.rkt"
-                     "common/generics.rkt"
-                     (submod "syntax/private/spec.rkt" compiler)
-                     (submod "syntax/private/syntax-class.rkt" compiler)
-                     (submod "generics.rkt" compiler))
+                     "syntax/ooo.rkt"
+                     "syntax/generics.rkt"
+                     (submod "syntax/spec.rkt" compiler)
+                     (submod "syntax/syntax-class.rkt" compiler))
          racket/stxparam)
 (require (for-template (prefix-in rkt: racket)))
 (provide (all-defined-out))

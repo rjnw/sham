@@ -3,7 +3,6 @@
 (require (for-template racket))
 
 (require (submod "spec.rkt" ast)
-         "ooo.rkt"
          "kw-info.rkt"
          "utils.rkt")
 
@@ -13,19 +12,8 @@
          rec-pattern
          find-pattern)
 
-(define (remove-datum pts) (filter-not ast:pat:datum? pts))
-(define (kid s c) s)                  ;; todo check c is fully consumed
-(define (consume c (n 1))
-  (match c
-    [(cons h t) (cons (if h (- h n) h) t)]
-    [null null]))
-(define (is-consumed? c)
-  (match c
-    [(list h t) (and (is-consumed? h) (is-consumed? t))]
-    [null #t]
-    [#f #t]
-    [0 #t]
-    [else #f]))
+
+(define (remove-datum pts) (filter-not pat:datum? pts))
 
 (define (pattern-path/c val/c)
   (flat-rec-contract pattern-path/c
