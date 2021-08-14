@@ -1,6 +1,6 @@
 #lang racket
-(require syntax/parse
-         "pat.rkt")
+
+(require "utils.rkt")
 
 (provide (all-defined-out))
 
@@ -8,6 +8,10 @@
   (let ([se (syntax-e s)])
     (and (symbol? se)
          (regexp-match #px"^(([[:digit:]]*)(_|\\.)+([[:digit:]]*))$" (symbol->string se)))))
+
+(define ooo-count/c
+  (cons/c (maybe/c natural-number/c)
+          (maybe/c natural-number/c)))
 
 ;; ooo: syntax? -> (maybe/c (cons/c (maybe/c postive-number?) (maybe/c positive-number?)))
 ;;  returns: (cons min max) for a range specified in given syntax
@@ -18,20 +22,20 @@
     [#f #f]
     [(list a b mn o mx) (cons (string->number mn) (string->number mx))]))
 
-(define-syntax-class single-pattern
-  (pattern i:id #:attr result #`i)
-  (pattern (m:multiple-pattern ...) #:attr result (attribute m.result)))
-(define-splicing-syntax-class multiple-pattern
-  (pattern (~seq maybe-repeat:expr maybe-ooo:id)
-           #:when (ooo? #`maybe-ooo)
-           #:attr result (pat:ooo (attribute maybe-repeat) (ooo #`maybe-ooo)))
-  (pattern s:expr #:attr result (attribute s)))
+;; (define-syntax-class single-pattern
+;;   (pattern i:id #:attr result #`i)
+;;   (pattern (m:multiple-pattern ...) #:attr result (attribute m.result)))
+;; (define-splicing-syntax-class multiple-pattern
+;;   (pattern (~seq maybe-repeat:expr maybe-ooo:id)
+;;            #:when (ooo? #`maybe-ooo)
+;;            #:attr result (pat:ooo (attribute maybe-repeat) (ooo #`maybe-ooo)))
+;;   (pattern s:expr #:attr result (attribute s)))
 
-;; parses a syntax at one level to either identifier / (listof (or syntax stx:ooo?))
-;;  basically syntax->datum but with stx:ooo spliced if there
-(define (parse-for-ooo stx)
-  (syntax-parse stx
-    [e:single-pattern (attribute e.result)]))
+;; ;; parses a syntax at one level to either identifier / (listof (or syntax stx:ooo?))
+;; ;;  basically syntax->datum but with stx:ooo spliced if there
+;; (define (parse-for-ooo stx)
+;;   (syntax-parse stx
+;;     [e:single-pattern (attribute e.result)]))
 
 (module+ test
   (require rackunit)
