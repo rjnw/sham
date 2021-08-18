@@ -4,12 +4,13 @@
          syntax/parse)
 
 (require "format.rkt"
+         "pat.rkt"
          "kw-info.rkt"
          "utils.rkt")
 
 (provide (all-defined-out))
 
-(struct spec [])
+(struct spec [] #:prefab)
 
 (module* ast #f
   (provide (all-defined-out))
@@ -22,11 +23,11 @@
   (struct ast:node ast:basic (args pattern) #:prefab)
   (struct ast:node:arg ast:basic (type) #:prefab)
 
-  (struct ast:pat () #:prefab)
-  (struct ast:pat:datum ast:pat (syn) #:prefab)
-  (struct ast:pat:single ast:pat (maybe-check maybe-id) #:prefab)
-  (struct ast:pat:multiple ast:pat (specs) #:prefab)
-  (struct ast:pat:repeat ast:pat (spec ooo) #:prefab) ;; repeat ooo is (cons min max) with #f for no limit
+  (struct ast:pat pat () #:prefab)
+  (struct ast:pat:datum pat:dat () #:prefab)
+  (struct ast:pat:single pat:var (maybe-check) #:prefab)
+  (struct ast:pat:multiple pat:seq () #:prefab)
+  (struct ast:pat:repeat pat:ooo () #:prefab)
 
   (struct ast:type (depth) #:prefab)
   (struct ast:type:internal ast:type (of) #:prefab)
@@ -38,7 +39,7 @@
   (define ast:pat/c
     (flat-rec-contract pat/c
                        (struct/c ast:pat:datum symbol?)
-                       (struct/c ast:pat:single (maybe/c (cons/c symbol? syntax?)) (maybe/c symbol?))
+                       (struct/c ast:pat:single (maybe/c symbol?) (maybe/c (cons/c symbol? syntax?)))
                        (struct/c ast:pat:multiple (listof pat/c))
                        (struct/c ast:pat:repeat pat/c (cons/c (maybe/c natural-number/c)
                                                               (maybe/c natural-number/c)))))
@@ -173,7 +174,7 @@
           (define ninfo (dedup-assoc ninfo^))
           (define (do-args pat (depth 0))
             (match pat
-              [(ast:pat:single c s)
+              [(ast:pat:single s c)
                (define arg-info '())
                (define-values (arg-id arg-typ) (node-arg-id&type c s depth ninfo))
                (define ids (add-id 'f arg-id (make-ast-id s)))
@@ -207,8 +208,8 @@
          #`(ast:group:arg #,(store id) #,(store info) #,(store type))]
         [(ast:node:arg id info type)
          #`(ast:node:arg #,(store id) #,(store info) #,(store type))]
-        [(ast:pat:single c id)
-         #`(ast:pat:single #,(store c) #,(store id))]
+        [(ast:pat:single id c)
+         #`(ast:pat:single #,(store id) #,(store c))]
         [(ast:pat:datum syn)
          #`(ast:pat:datum #,(store syn))]
         [(ast:pat:multiple specs)
@@ -232,8 +233,8 @@
       [(ast:basic id inf) (pretty-id id)]))
   (define (pretty-pattern pattern)
     (match pattern
-      [(ast:pat:single #f id) `(~s ,(syntax-e id))]
-      [(ast:pat:single check id) `(~s? ,(syntax-e check) ,id)]
+      [(ast:pat:single id #f) `(~s ,(syntax-e id))]
+      [(ast:pat:single id check) `(~s? ,(syntax-e check) ,id)]
       [(ast:pat:datum syn) `',syn]
       [(ast:pat:multiple specs)
        (map pretty-pattern (vector->list specs))]
@@ -267,7 +268,7 @@
   (struct cmplr spec [header groups info] #:prefab)
   (struct cmplr:header [id args type] #:prefab)
   (struct cmplr:group [id type nodes info] #:prefab)
-  (struct cmplr:node [bind body] #:prefab)
+  (struct cmplr:node [bind bodys] #:prefab)
   (struct cmplr:type [from to] #:prefab)
 
   (struct cmplr:binding [var val info] #:prefab))

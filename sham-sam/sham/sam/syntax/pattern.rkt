@@ -3,6 +3,7 @@
 (require (for-template racket))
 
 (require (submod "spec.rkt" ast)
+         "ooo.rkt"
          "kw-info.rkt"
          "utils.rkt")
 
@@ -13,7 +14,7 @@
          find-pattern)
 
 
-(define (remove-datum pts) (filter-not pat:datum? pts))
+(define (remove-datum pts) (filter-not ast:pat:datum? pts))
 
 (define (pattern-path/c val/c)
   (flat-rec-contract pattern-path/c
@@ -172,7 +173,7 @@
                      for-repeat)
   (define (rec pat)
     (match pat
-      [(ast:pat:single c i) (for-single i pat)]
+      [(ast:pat:single i c) (for-single i pat)]
       [(ast:pat:datum s) (for-datum s pat)]
       [(ast:pat:multiple s) (for-multiple (vector-map rec s) pat)]
       [(ast:pat:repeat s k) (for-repeat (rec s) pat)]))

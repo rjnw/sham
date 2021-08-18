@@ -10,33 +10,42 @@
            "ooo.rkt")
   (provide (all-defined-out))
   (define-syntax-class syn-pat
-    (pattern name:id #:attr pat (pat:syn #`name)))
+    (pattern name:id #:attr pat (pat:var #`name)))
   (define-syntax-class dat-pat
     (pattern ((~datum quote) val:id) #:attr pat (pat:dat #`val)))
-  (define-splicing-syntax-class seq-pat
-    (pattern (~seq v:expr ...) #:attr pat (pat:seq (attribute v))))
   (define-splicing-syntax-class ooo-pat
     (pattern (~seq maybe-repeat:expr maybe-ooo:id)
              #:when (ooo? #`maybe-ooo)
              #:attr pat (pat:ooo (attribute maybe-repeat) (ooo #`maybe-ooo))))
+  (define-splicing-syntax-class maybe-ooo-pat
+    (pattern o:ooo-pat #:attr pat (attribute o.pat))
+    (pattern v:expr #:attr pat #`v))
+  (define-syntax-class seq-pat
+    (pattern (p:maybe-ooo-pat ...)
+             #:attr pat (pat:seq (apply vector-immutable (attribute p.pat)))))
   (define-syntax-class app-pat
     (pattern (v:expr . body:expr) #:attr pat (pat:app #`v #`body)))
-  (define-syntax-class pat-cls))
+
+  (define-syntax-class any-pat
+    (pattern s:syn-pat #:attr pat (attribute s.pat))
+    (pattern s:dat-pat #:attr pat (attribute s.pat))
+    (pattern s:seq-pat #:attr pat (attribute s.pat))
+    (pattern s:app-pat #:attr pat (attribute s.pat))))
 
 (module* ast #f
   (provide (all-defined-out))
   (require (submod "spec.rkt" ast))
   (define-syntax-class node-pattern
     (pattern name:id
-             #:attr spec (ast:pat:single #f #`name))
+             #:attr spec (ast:pat:single #`name #f))
     (pattern ((~datum quote) datum:id)
              #:attr spec (ast:pat:datum #`datum))
     (pattern ((~datum ?) check:id name:id)
-             #:attr spec (ast:pat:single (cons '? #`check) #`name))
+             #:attr spec (ast:pat:single #`name (cons '? #`check)))
     (pattern ((~datum ~) type:expr name:id)
-             #:attr spec (ast:pat:single (cons '~ #`type) #`name))
+             #:attr spec (ast:pat:single #`name (cons '~ #`type)))
     (pattern ((~datum !) type:expr name:id)
-             #:attr spec (ast:pat:single (cons '! #`type) #`name))
+             #:attr spec (ast:pat:single #`name (cons '! #`type)))
     (pattern (multiple:node-multiple-pattern ...)
              #:attr spec (ast:pat:multiple (apply vector-immutable (attribute multiple.spec)))))
   (define-splicing-syntax-class node-multiple-pattern
@@ -84,7 +93,7 @@
     (pattern (name:id type:compiler-type (node-binding:expr node-body:expr ...) ... info:keyword-info)
              #:attr spec (cmplr:group #`name
                                       (attribute type.spec)
-                                      (map cons (attribute node-binding) (attribute node-body))
+                                      (map cmplr:node (attribute node-binding) (attribute node-body))
                                       (attribute info.spec))))
 
   (define-splicing-syntax-class compiler-header

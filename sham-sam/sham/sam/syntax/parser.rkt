@@ -45,7 +45,7 @@
             ['() of]
             [(list grp subs ...) #`(#,(parser-from-path (cons grp subs)) #,of)]))
         (match pat
-          [(ast:pat:single check id)
+          [(ast:pat:single id check)
            (define arg (find-node-arg (cdr node-spec-pair) id))
            (unless arg (error 'sham/sam "node argument not found ~a ~a.~a" ast-id nid id))
            (match-define (ast:node:arg aids ainfo atype) arg)
@@ -61,7 +61,7 @@
       (define (pattern->syntax pat)
         (define (ppat p)
           (match p
-            [(ast:pat:single check id) id]
+            [(ast:pat:single id check) id]
             [(ast:pat:datum syn) #`(~datum #,syn)]
             [(ast:pat:multiple ps) #`(#,@(flatten (for/list ([p ps]) (ppat p))))]
             [(ast:pat:repeat p cnt)
@@ -89,7 +89,7 @@
           (printf "zipper:f: \n\t~a\n\t~a\n\t~a\n" c pat path)
           (match-define (ctxt val syn) c)
           (match pat
-            [(ast:pat:single check id)
+            [(ast:pat:single id check)
              (define arg (find-node-arg (cdr node-spec-pair) id))
              (unless arg (error 'sham/sam "node argument not found ~a.~a" node-spec-pair id))
              (match-define (ast:node:arg aids ainfo atype) arg)

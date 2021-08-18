@@ -50,7 +50,7 @@
 ;; checks whether given identifier matches with the given single pattern
 (define (arg-pattern? id p)
   (match p
-    [(ast:pat:single c i) (equal? i id)]
+    [(ast:pat:single i c) (equal? i id)]
     [else #f]))
 
 ;; returns pattern path for the sub-pattern matching the given argument in full pattern

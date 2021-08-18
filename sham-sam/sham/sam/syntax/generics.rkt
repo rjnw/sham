@@ -294,23 +294,27 @@
     (build-cmplr-group cmplr-group-builder group-constructs cmplr-spec cmplr-group-spec))
   (define-generics cmplr-node-builder
     (build-cmplr-node cmplr-node-builder node-construct cmplr-spec cmplr-group-spec cmplr-node-spec))
-  (define-generics cmplr-body-builder
-    (build-cmplr-body cmplr-body-builder body-construct cmplr-spec))
+  (define-generics cmplr-top-builder
+    (build-cmplr-top cmplr-top-builder top-construct cmplr-spec))
   (define (update-spec builder spec)
     (if (cmplr-spec-builder? builder) (update-cmplr-spec builder spec) spec))
-  (define ((build-group builder group-construct) cmplr-spec group-spec)
+  (define ((build-group cmplr-spec group-spec) builder group-construct)
     (if (cmplr-group-builder? builder)
         (build-cmplr-group builder group-construct cmplr-spec group-spec)
         group-construct))
-  (define ((build-node builder node-construct) cmplr-spec group-spec node-spec)
+  (define ((build-node cmplr-spec group-spec node-spec) builder node-construct)
     (if (cmplr-node-builder? builder)
         (build-cmplr-node builder node-construct cmplr-spec group-spec node-spec)
         node-construct))
-  (define ((build-body builder body-construct) cmplr-spec)
-    (if (cmplr-body-builder? builder)
-        (build-cmplr-body builder body-construct cmplr-spec)
-        body-construct))
+  (define ((build-top cmplr-spec) builder top-construct)
+    (if (cmplr-top-builder? builder)
+        (build-cmplr-top builder top-construct cmplr-spec)
+        top-construct))
 
   (define-generics cmplr-node-pattern
     (node-operation-id cmplr-node-pattern)
-    (parse-node-binding cmplr-node-pattern stx path cmplr-spec group-spec node-spec)))
+    (parse-node-binding cmplr-node-pattern stx path cmplr-spec group-spec node-spec))
+(define-generics cmplr-pattern
+  (expand-pattern cmplr-pattern stx input-zipper)
+  (perform-pattern cmplr-pattern stx output-zipper))
+  )

@@ -5,14 +5,14 @@
 
 (provide (all-defined-out))
 
-(struct pat [])
+(struct pat [] #:prefab)
 
-(struct pat:var pat [s])
-(struct pat:dat pat [v])
-(struct pat:seq pat [ps])
-(struct pat:alt pat [ps])
-(struct pat:ooo pat [p k])
-(struct pat:app pat [o r])
+(struct pat:var pat [s] #:prefab)
+(struct pat:dat pat [v] #:prefab)
+(struct pat:seq pat [ps] #:prefab)
+(struct pat:alt pat [ps] #:prefab)
+(struct pat:ooo pat [p k] #:prefab)
+(struct pat:app pat [o r] #:prefab)
 
 (define pat/c
   (flat-rec-contract pat/c
@@ -57,7 +57,7 @@
 ;;  f is also polymorphic for pre and post multiple values
 ;;    repeat pattern is done with a special path containing a recursive function to perform
 ;;    the fold differently
-(define (pat-zipper f val pat)
+(define (pat-zipper f val pat (ipath '()))
   (define (go path val pat)
     (match pat
       [(pat:var s) (f val pat path)]
@@ -74,7 +74,7 @@
        (define (frec cval nk)
          (go `(in-ooo ,pat ,nk ,path) cval p))
        (f val pat `(at-ooo ,frec ,path))]))
-  (go null val pat))
+  (go ipath val pat))
 
 
 (struct stk [inp out] #:prefab)

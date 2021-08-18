@@ -5,7 +5,7 @@
 
 (define (find-first lst f?)
   (if (empty? lst)
-      lst
+      #f
       (or (and (f? (car lst)) (car lst))
           (find-first (cdr lst) f?))))
 

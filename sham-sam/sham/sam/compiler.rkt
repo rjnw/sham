@@ -1,20 +1,9 @@
 #lang racket
+(require (for-syntax syntax/parse))
+(require (for-syntax "syntax/compiler.rkt"
+                     (submod "syntax/class.rkt" compiler)))
 
-(require (for-syntax syntax/parse
-                     racket/match
-                     racket/list
-                     racket/pretty
-                     "syntax/spec.rkt"
-                     "syntax/ooo.rkt"
-                     "syntax/generics.rkt"
-                     (submod "syntax/spec.rkt" compiler)
-                     (submod "syntax/syntax-class.rkt" compiler))
-         racket/stxparam)
-(require (for-template (prefix-in rkt: racket)))
 (provide (all-defined-out))
-
-(define-syntax-parameter compile (make-rename-transformer #'rkt:compile))
-(define-syntax-parameter ^ (make-rename-transformer #'rkt:^))
 
 (define-syntax (define-compiler stx)
   (syntax-parse stx
@@ -25,5 +14,4 @@
        #`(begin
            ;; (define-syntax #,(cmplr:header-id header) #,(compiler-syntax-storage cmplr-spec))
            #,@cmplr-stx))
-     (pretty-print stx)
      #`42]))
