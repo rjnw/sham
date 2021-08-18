@@ -314,7 +314,12 @@
   (define-generics cmplr-node-pattern
     (node-operation-id cmplr-node-pattern)
     (parse-node-binding cmplr-node-pattern stx path cmplr-spec group-spec node-spec))
-(define-generics cmplr-pattern
-  (expand-pattern cmplr-pattern stx input-zipper)
-  (perform-pattern cmplr-pattern stx output-zipper))
+  (define-generics cmplr-pattern
+    (expand-pattern cmplr-pattern stx input-zipper)
+    (perform-pattern cmplr-pattern stx output-zipper))
+
+  (define-generics cmplr-bind-operator
+    (operator-identifier cmplr-bind-operator)
+    (variables-bound-in-pattern cmplr-bind-operator pattern)
+    (expand-syntax-pattern cmplr-bind-operator fst-stx rst-stx))
   )

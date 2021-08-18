@@ -25,11 +25,11 @@
 (define info/c (listof (cons/c symbol? (listof syntax?))))
 
 (define (info-value key lst (dflt #f))
-  (let ([vs (assoc-default key lst dflt)]) (if (and (cons? vs) (empty? (cdr vs))) (car vs) (or vs dflt))))
+  (let ([vs (assoc-default key lst dflt)]) (or vs dflt)))
 (define (info-1value key lst (dflt #f))
   (match (info-value key lst dflt)
-    [(cons v _) v]
-    [else dflt]))
-(define (add-info key val inf) (cons (cons key val) inf))
+    [(list v) v]
+    [v (or v dflt)]))
+(define (add-info key val inf) (cons (list key val) inf))
 (define (default-metadata . specs)
   (ormap (curry info-1value 'default-metadata) specs))

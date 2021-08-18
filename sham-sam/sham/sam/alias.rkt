@@ -1,10 +1,11 @@
 #lang racket
 
 (require
- (for-syntax "syntax/spec.rkt"
+ (for-syntax (submod "syntax/spec.rkt" ast)
+             (submod "syntax/class.rkt" ast)
+             "syntax/kw-info.rkt"
              "syntax/format.rkt"
-             "syntax/private/syntax-class.rkt"
-             "syntax/private/utils.rkt"
+             "syntax/utils.rkt"
              racket/match
              racket/list
              racket/syntax

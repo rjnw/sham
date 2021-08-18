@@ -271,4 +271,6 @@
   (struct cmplr:node [bind bodys] #:prefab)
   (struct cmplr:type [from to] #:prefab)
 
-  (struct cmplr:binding [var val info] #:prefab))
+  (struct cmplr:binding [var val info] #:prefab)
+
+  (struct cmplr:pat:node-construct pat:app [nspec]))
