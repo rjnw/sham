@@ -9,11 +9,11 @@
 
 (define-ast math
   (expr
-   [neg ('- e)]
-   [div ('/ n d)]
-   [add ('+ e ...)]
-   [sub ('- e1 e2 ...)]
-   [mul ('* e ...)])
+   [neg ('- e:expr)]
+   [div ('/ n:expr d:expr)]
+   [add ('+ e:expr ...)]
+   [sub ('- e1:expr e2:expr ...)]
+   [mul ('* e:expr ...)])
   #:with struct-helpers sexp-printer
   #:format (#f - #f - -))
 

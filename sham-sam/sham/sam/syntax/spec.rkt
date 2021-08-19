@@ -120,7 +120,7 @@
       (free-identifier=? (get-oid aids) aid))
     (findf is? nargs))
 
-  (define (format-info inf) (info-value 'format inf))
+  (define (format-info inf) (info-1value 'format inf))
   (define (format-group-id spec gspec)
     (match-define (ast tid tids grps info) spec)
     (match-define (ast:group gids ginfo gparent gargs gnodes) gspec)

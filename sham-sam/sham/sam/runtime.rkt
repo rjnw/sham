@@ -22,7 +22,7 @@
   (syntax-parse stx
     [(_ (~optional v #:defaults ([v #f])) kws:keyword-info)
      (define inf (attribute kws.spec))
-     #`(metadata-with-location v #,(info-value 'srcloc inf (syntax-srcloc stx)))]))
+     #`(metadata-with-location v #,(info-1value 'srcloc inf (syntax-srcloc stx)))]))
 
 (struct ast [md])
 (struct ast:group ast [args])

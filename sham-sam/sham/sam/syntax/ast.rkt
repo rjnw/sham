@@ -8,7 +8,7 @@
 (provide (all-defined-out))
 
 (define (build-syntax raw-ast-spec)
-  (define formatter (ast-format (info-value `format (ast-info raw-ast-spec))))
+  (define formatter (ast-format (info-1value `format (ast-info raw-ast-spec))))
   (define default-builders
     (cond [(info-value `default (ast-info raw-ast-spec)) => (λ (f) ((syntax-local-value f)))]
           [else (default-rkt-struct-builder)]))

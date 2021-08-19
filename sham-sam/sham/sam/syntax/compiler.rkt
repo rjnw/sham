@@ -42,6 +42,11 @@
      (define bind-operators (info-value 'bind-operators info '()))
 
      (match-define (cmplr:group gid gtyp gnodes ginfo) gspec)
+     (match-define (cmplr:type gfrom gto) gtyp)
+     (define from-group-ast-spec
+       (cond
+         [(find-group/node-spec gfrom from-ast-spec) => cdr]
+         [else (error 'sham/sam "couldn't locate ast group for compiling: ~a" gfrom)]))
      (match-define (cmplr:node bind bodys) nspec)
      (define (parse-bind bind-stx)
        (if (pat? bind-stx)
@@ -49,17 +54,14 @@
            (syntax-parse #`(#,bind-stx)
              [(b:any-pat) (attribute b.pat)])))
      (define (find-operator stxid)
-       (printf "fo: ~a\n" stxid)
        (find-first
         bind-operators
         (λ (bo)
           (define op-id (operator-identifier bo))
-          (printf "fop: ~a ~a ~a\n" op-id stxid
-                  (list (free-identifier=? op-id stxid)))
-          (free-identifier=? (operator-identifier bo) stxid))))
+          (free-identifier=? op-id stxid))))
 
      (struct stk [bvars pat] #:prefab)
-     (define (zf val pat path)
+     (define (do-pattern val pat path)
        (printf "zf: ~a ~a ~a\n" val pat '-)
        (match pat
          [(pat:var s) s]
@@ -69,27 +71,35 @@
           (match ps
             [(vector fst rst ...)
              (define (do-ast-node ast-nspec)
+               (pretty-print (pretty-node ast-nspec))
+               (match-define (ast:node nid ninfo nargs npat) ast-nspec)
                (match-define (stk ovars opat) val)
-               (define npat
+               (printf "rst: ~a, npat: ~a\n" rst npat)
+               (define node-parsed (parse-stx-with-pattern npat #`(#,@rst) nodat-dodat))
+               (printf "nparsed: ~a\n" node-parsed)
+               (define node-body-result
+                 (for/vector ([i (sub1 (vector-length ps))]
+                              [p (map parse-bind rst)])
+                   (define npath `(in-node ,pat ,i ,ast-nspec ,path))
+                   (do-pattern val p npath)))
+               (printf "do-ast-node: ast-spec: ~a\n\t body-result: ~a\n" ast-nspec node-body-result)
+               (define cpat
                  (cmplr:pat:node
                   fst
-                  (for/vector ([i (sub1 (vector-length ps))]
-                               [p (map parse-bind rst)])
-                    (define npath `(in-node ,pat ,i ,ast-nspec ,path))
-                    (zf val p npath))
+                  '()
                   nspec))
-               (stk ovars npat))
+               (stk ovars cpat))
              (define (do-operator op)
                (define npat (parse-pattern-syntax op path rst))
                (match-define (stk ovars opat) val)
                (stk (cons npat ovars) npat))
-             (cond [(find-group/node-spec fst from-ast-spec) => do-ast-node]
+             (cond [(find-node-spec fst from-group-ast-spec from-ast-spec) => do-ast-node]
                    [(find-operator fst) => do-operator]
                    [else (error 'sham/sam "unknown sequence in bind pattern ~a ~a" fst rst)])])]
          [(pat:alt ps) ps]
          [(pat:ooo p k) p]
          [(pat:app o r) r]))
-     (define fstk (zf (stk '() #f) (parse-bind bind) '()))
+     (define fstk (do-pattern (stk '() #f) (parse-bind bind) '()))
      (printf "new pattern: ~a\n" (stk-pat fstk))
      ;; (define-values (match-pattern bound-vars) (do-bind bind))
      ;; (define match-body (do-body bodys bound-vars))

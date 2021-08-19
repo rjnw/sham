@@ -18,7 +18,7 @@
     (match frmt
       [#f default-ast-format]
       [(? ast:format?) frmt]
-      [(? identifier?) (rec (syntax-local-value frmt #f))]
+      [(? identifier?)  (rec (syntax-local-value frmt #f))]
       [(list t? ts mc ms bs) #:when (boolean? (syntax->datum t?))
                              (ast:format (syntax->datum t?) ts (syntax->datum mc) ms bs)]
       [(list op args ...) (rec (apply (syntax-local-value op) args))]

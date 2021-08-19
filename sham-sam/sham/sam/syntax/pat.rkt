@@ -82,8 +82,12 @@
 
 (define (dat-equal? dat stx)
  (and (identifier? stx) (equal? (syntax->datum stx) dat)))
+(define (default-dodat dat val rst)
+  (cond [(dat-equal? dat val) (cons val rst)]
+        [else #f]))
+(define (nodat-dodat dat fst rst) (cons #f (cons fst rst)))
 
-(define (f-parse-stx-with-pattern val pat path (dat=? dat-equal?))
+(define ((f-parse-stx-with-pattern (dodat default-dodat)) val pat path)
   (match val
     [(err inf) (err `(in ,inf ,pat))]
     [(stk (cons crnt rst) os)
@@ -153,8 +157,11 @@
         (stk rst (cons `(var ,fst ,pat) os))]
 
        [(pat:dat val)
-        (cond [(dat=? val fst) (stk rst (cons `(dat ,fst ,pat) os))]
-              [else (err `(dat "datum-not-equal" ,pat ,val ,fst))])]
+        (cond
+          [(dodat val fst rst) => (λ (res) (stk (cdr res)
+                                                (cons `(dat ,(car res) ,pat) os)))]
+          ;; [(dat=? val fst) (stk rst (cons `(dat ,fst ,pat) os))]
+          [else (err `(dat "datum-not-equal" ,pat ,val ,fst))])]
 
        [(pat:seq ps)
         #:when (not (list? (syntax-e fst)))
@@ -185,15 +192,15 @@
                 [(err? cval) (rec (frec (stk (list fst) '()) i) (add1 i))]
                 [(zero? i) (rec (frec cval i) (add1 i))]
                 [else (error 'sham/sam "internal: pat:alt in parse-with-zipper ~a ~a" cval i)]))])]
-    [else (err `(any "no syntax for pattern" ,pat ,path))]))
+    [else (err `(any "no-syntax-for-pattern" ,pat ,path))]))
 
-(define (parse-stx-with-pattern pat stx)
+(define (parse-stx-with-pattern pat stx (dodat default-dodat))
   ;;; uses pattern-with-zipper function to recurse through the pattern
   ;;   our state has two parts
   ;;   input: current input list of syntax
   ;;   output tagged result containing parsed syntax
   ;;   output contains syntax in reverse order as a stack
-  (pat-zipper f-parse-stx-with-pattern (stk (list stx) '()) pat))
+  (pat-zipper (f-parse-stx-with-pattern dodat) (stk (list stx) '()) pat))
 
 ;; parses the syntax according to a given pattern and returns tagged syntax with corresponding patterns
 ;;  the sequences in result are in reverse order
