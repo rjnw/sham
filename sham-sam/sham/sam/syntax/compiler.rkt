@@ -1,6 +1,7 @@
 #lang racket
 
-(require syntax/parse)
+(require syntax/parse
+         racket/syntax)
 
 (require "pat.rkt"
          "kw-info.rkt"
@@ -9,7 +10,9 @@
          (submod "spec.rkt" compiler)
          (submod "class.rkt" compiler)
          (submod "class.rkt" pat)
-         (submod "generics.rkt" compiler))
+         (submod "generics.rkt" compiler)
+
+         (prefix-in rt: (for-template "../runtime/compiler.rkt")))
 
 (provide build-compiler-syntax)
 
@@ -18,25 +21,46 @@
   (unless (ast? spec-value) (error 'sham:sam "unknown ast specification ~a:~a" syn spec-value))
   spec-value)
 
+(struct cmplr-bind-variable [match-id compiled-id ast-type] #:prefab)
+
+(define (get-ast-type path)
+  #f)
+
+(struct auto-compile-pattern [stxid]
+  #:methods gen:cmplr-bind-operator
+  [(define (operator-identifier acp) (auto-compile-pattern-stxid acp))
+   (define (parse-pattern-syntax acp path body)
+     (match body
+       [(list var) (cmplr-bind-variable (generate-temporary var) var (get-ast-type path))]
+       [else (error 'sham/sam "error in auto compile pattern, can only have one identifier: ~a" body)]))])
+
 (struct basic-node-builder []
   #:methods gen:cmplr-node-builder
   [(define (build-cmplr-node bnb stxc spec gspec nspec)
      (match-define (cmplr header groups info) spec)
      (define from-ast-spec (info-1value 'from-ast-spec info))
-     (define bind-operators (info-value 'bind-operators info))
+     (define bind-operators (info-value 'bind-operators info '()))
 
      (match-define (cmplr:group gid gtyp gnodes ginfo) gspec)
      (match-define (cmplr:node bind bodys) nspec)
      (define (parse-bind bind-stx)
-       (syntax-parse #`(#,bind-stx)
-         [(b:any-pat) (attribute b.pat)]))
-     (define (do-operator opspec) 'TODO)
+       (if (pat? bind-stx)
+           bind-stx
+           (syntax-parse #`(#,bind-stx)
+             [(b:any-pat) (attribute b.pat)])))
      (define (find-operator stxid)
-       (find-first bind-operators (λ (bo) (bound-identifier=? (operator-identifier bo) stxid))))
+       (printf "fo: ~a\n" stxid)
+       (find-first
+        bind-operators
+        (λ (bo)
+          (define op-id (operator-identifier bo))
+          (printf "fop: ~a ~a ~a\n" op-id stxid
+                  (list (free-identifier=? op-id stxid)))
+          (free-identifier=? (operator-identifier bo) stxid))))
 
      (struct stk [bvars pat] #:prefab)
      (define (zf val pat path)
-       (printf "zf: ~a ~a ~a\n" val pat path)
+       (printf "zf: ~a ~a ~a\n" val pat '-)
        (match pat
          [(pat:var s) s]
          [(pat:dat d) d]
@@ -44,26 +68,28 @@
           (printf "seq: ~a\n" ps)
           (match ps
             [(vector fst rst ...)
-             (define (do-ast-node nspec)
+             (define (do-ast-node ast-nspec)
                (match-define (stk ovars opat) val)
                (define npat
-                 (cmplr:pat:node-construct
+                 (cmplr:pat:node
                   fst
-                  (map (λ (p) (pat-zipper zf val (parse-bind p)))
-                       rst)
+                  (for/vector ([i (sub1 (vector-length ps))]
+                               [p (map parse-bind rst)])
+                    (define npath `(in-node ,pat ,i ,ast-nspec ,path))
+                    (zf val p npath))
                   nspec))
                (stk ovars npat))
              (define (do-operator op)
-               (define npat (expand-syntax-pattern op fst rst))
+               (define npat (parse-pattern-syntax op path rst))
                (match-define (stk ovars opat) val)
-               (stk (cons (variables-bound-in-pattern op npat) ovars) npat))
+               (stk (cons npat ovars) npat))
              (cond [(find-group/node-spec fst from-ast-spec) => do-ast-node]
                    [(find-operator fst) => do-operator]
                    [else (error 'sham/sam "unknown sequence in bind pattern ~a ~a" fst rst)])])]
          [(pat:alt ps) ps]
          [(pat:ooo p k) p]
          [(pat:app o r) r]))
-     (define fstk (pat-zipper zf (stk '() #f) (parse-bind bind)))
+     (define fstk (zf (stk '() #f) (parse-bind bind) '()))
      (printf "new pattern: ~a\n" (stk-pat fstk))
      ;; (define-values (match-pattern bound-vars) (do-bind bind))
      ;; (define match-body (do-body bodys bound-vars))
@@ -89,7 +115,10 @@
      (define from-ast-spec (get-ast-spec cfrom))
      ;; (define to-ast-spec (get-ast-spec cto))
 
-     (cmplr header groups (add-info 'from-ast-spec from-ast-spec info)))])
+     (cmplr header groups
+            (add-info 'bind-operators (auto-compile-pattern #`rt:^)
+                      (add-info 'from-ast-spec from-ast-spec
+                                info))))])
 
 (define (build-compiler-syntax raw-cmplr-spec)
 

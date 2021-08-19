@@ -63,16 +63,16 @@
       [(pat:var s) (f val pat path)]
       [(pat:dat v) (f val pat path)]
       [(pat:alt ps)
-       (define (frec cval i)
-         (go `(in-alt ,pat ,i ,path) cval (list-ref ps i)))
+       (define (frec cval i (npath path) (nps ps))
+         (go `(in-alt ,pat ,i ,npath) cval (list-ref nps i)))
        (f val pat `(at-alt ,frec ,path))]
       [(pat:seq ps)
-       (define (frec cval i)
-         (go `(in-seq ,pat ,i ,path) cval (vector-ref ps i)))
+       (define (frec cval i (npath path) (nps ps))
+         (go `(in-seq ,pat ,i ,npath) cval (vector-ref nps i)))
        (f val pat `(at-seq ,frec ,path))]
       [(pat:ooo p k)
-       (define (frec cval nk)
-         (go `(in-ooo ,pat ,nk ,path) cval p))
+       (define (frec cval nk (npath path) (np p))
+         (go `(in-ooo ,pat ,nk ,npath) cval np))
        (f val pat `(at-ooo ,frec ,path))]))
   (go ipath val pat))
 

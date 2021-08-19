@@ -320,6 +320,5 @@
 
   (define-generics cmplr-bind-operator
     (operator-identifier cmplr-bind-operator)
-    (variables-bound-in-pattern cmplr-bind-operator pattern)
-    (expand-syntax-pattern cmplr-bind-operator fst-stx rst-stx))
+    (parse-pattern-syntax cmplr-bind-operator pat-path body-stx))
   )

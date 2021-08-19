@@ -1,9 +1,12 @@
 #lang racket
 (require (for-syntax syntax/parse))
-(require (for-syntax "syntax/compiler.rkt"
-                     (submod "syntax/class.rkt" compiler)))
+(require
+ "runtime/compiler.rkt"
+ (for-syntax "syntax/compiler.rkt"
+             (submod "syntax/class.rkt" compiler)))
 
-(provide (all-defined-out))
+(provide (all-from-out "runtime/compiler.rkt")
+         (all-defined-out))
 
 (define-syntax (define-compiler stx)
   (syntax-parse stx
