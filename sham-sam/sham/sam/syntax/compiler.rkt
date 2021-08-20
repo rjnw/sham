@@ -21,17 +21,16 @@
   (unless (ast? spec-value) (error 'sham:sam "unknown ast specification ~a:~a" syn spec-value))
   spec-value)
 
-(struct cmplr-bind-variable [match-id compiled-id ast-type] #:prefab)
-
-(define (get-ast-type path)
-  #f)
+(struct cmplr:pat:compiled-var pat:var [ast-type body-var])
+(struct cmplr:pat:ast-node pat:app [])
 
 (struct auto-compile-pattern [stxid]
   #:methods gen:cmplr-bind-operator
   [(define (operator-identifier acp) (auto-compile-pattern-stxid acp))
-   (define (parse-pattern-syntax acp path body)
+   (define (operator-parse-syntax acp body ast-type)
+     ;; (printf "parse-pattern-syntax: ~a ~a\n" ast-parse body)
      (match body
-       [(list var) (cmplr-bind-variable (generate-temporary var) var (get-ast-type path))]
+       [(list var) (cmplr:pat:compiled-var (generate-temporary var) ast-type var)]
        [else (error 'sham/sam "error in auto compile pattern, can only have one identifier: ~a" body)]))])
 
 (struct basic-node-builder []
@@ -60,50 +59,53 @@
           (define op-id (operator-identifier bo))
           (free-identifier=? op-id stxid))))
 
-     (struct stk [bvars pat] #:prefab)
-     (define (do-pattern val pat path)
-       (printf "zf: ~a ~a ~a\n" val pat '-)
-       (match pat
-         [(pat:var s) s]
-         [(pat:dat d) d]
+     ;; (struct pat-stk [bvars pat] #:prefab)
+     (define ((cmplr-pattern stx ast-type) op)
+       (printf "cmplr-pattern: ~a ~a ~a\n" stx ast-type op)
+       (let ([op-pat (operator-parse-syntax op stx ast-type)])
+         (if (pat:var? op-pat)
+             (values (list (cons op-pat op)) op-pat)
+             (values '() op-pat))))
+
+     (define ((ast-pattern rst) ast-node-spec)
+       (match-define (ast:node nid ninfo nargs npat) ast-node-spec)
+       (define-values (node-vars node-stx)
+         (let rec ([ast-parse (stx-path-for-pattern npat #`(#,@rst))])
+           (printf "ast-pattern/rec: ~a\n" ast-parse)
+           (match ast-parse
+             [`(seq (,subs ...) ,seq-pat)
+              (for/fold ([vars '()]
+                         [stx '()])
+                        ([sub subs])
+                (define-values (sub-vars sub-stx) (rec sub))
+                (values (append sub-vars vars)
+                        (if sub-stx (cons sub-stx stx) stx)))]
+             [`(var ,stx ,var-pat)
+              (match-define (ast:pat:single id check) var-pat)
+              (define node-arg (find-node-arg ast-node-spec id))
+              (printf "ast-pattern/node-arg: ~a\n" node-arg)
+              (gen-pattern stx (ast:node:arg-type node-arg))]
+             [`(dat #f ,_) (values '() #f)])))
+       (values node-vars (cmplr:pat:ast-node ast-node-spec node-stx)))
+
+     ;; -> (values bind-vars match-pat)
+     (define (gen-pattern stx maybe-ast-spec)
+       (printf "do-pattern: ~a ~a\n" stx maybe-ast-spec)
+       (match (parse-bind stx)
+         [(pat:var s) (values '() s)]
+         [(pat:dat d) (values '() d)]
          [(pat:seq ps)
-          (printf "seq: ~a\n" ps)
           (match ps
             [(vector fst rst ...)
-             (define (do-ast-node ast-nspec)
-               (pretty-print (pretty-node ast-nspec))
-               (match-define (ast:node nid ninfo nargs npat) ast-nspec)
-               (match-define (stk ovars opat) val)
-               (printf "rst: ~a, npat: ~a\n" rst npat)
-               (define node-parsed (parse-stx-with-pattern npat #`(#,@rst) nodat-dodat))
-               (printf "nparsed: ~a\n" node-parsed)
-               (define node-body-result
-                 (for/vector ([i (sub1 (vector-length ps))]
-                              [p (map parse-bind rst)])
-                   (define npath `(in-node ,pat ,i ,ast-nspec ,path))
-                   (do-pattern val p npath)))
-               (printf "do-ast-node: ast-spec: ~a\n\t body-result: ~a\n" ast-nspec node-body-result)
-               (define cpat
-                 (cmplr:pat:node
-                  fst
-                  '()
-                  nspec))
-               (stk ovars cpat))
-             (define (do-operator op)
-               (define npat (parse-pattern-syntax op path rst))
-               (match-define (stk ovars opat) val)
-               (stk (cons npat ovars) npat))
-             (cond [(find-node-spec fst from-group-ast-spec from-ast-spec) => do-ast-node]
-                   [(find-operator fst) => do-operator]
+             (cond [(find-node-spec fst from-group-ast-spec from-ast-spec) => (ast-pattern rst)]
+                   [(find-operator fst) => (cmplr-pattern rst maybe-ast-spec)]
                    [else (error 'sham/sam "unknown sequence in bind pattern ~a ~a" fst rst)])])]
-         [(pat:alt ps) ps]
-         [(pat:ooo p k) p]
-         [(pat:app o r) r]))
-     (define fstk (do-pattern (stk '() #f) (parse-bind bind) '()))
-     (printf "new pattern: ~a\n" (stk-pat fstk))
-     ;; (define-values (match-pattern bound-vars) (do-bind bind))
-     ;; (define match-body (do-body bodys bound-vars))
-     ;; #`[#,match-pattern #,match-body]
+         [(pat:alt ps) (error 'sham/sam/TODO "pat:alt")]
+         [(pat:ooo p k) (error 'sham/sam/TODO "pat:ooo")]
+         [(pat:app o r) (error 'sham/sam/TODO "pat:app")]))
+     (define-values (bound-vars match-pat) (gen-pattern bind from-group-ast-spec))
+     (printf "bound-vars: ~a, match-pat: ~a\n" bound-vars match-pat)
+     ;; #`[#,(->syntax match-pat) #,@(->syntax (map ->syntax bound-vars)) #,@bodys]
      stxc)])
 
 (struct basic-group-builder []

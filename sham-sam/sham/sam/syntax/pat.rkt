@@ -204,8 +204,8 @@
 
 ;; parses the syntax according to a given pattern and returns tagged syntax with corresponding patterns
 ;;  the sequences in result are in reverse order
-(define (stx-path-for-pattern pat stx)
-  (match (parse-stx-with-pattern pat stx)
+(define (stx-path-for-pattern pat stx (dodat nodat-dodat))
+  (match (parse-stx-with-pattern pat stx dodat)
     [(stk '() (list out)) out]
     [(stk inp out) (error 'sham:sam "leftover syntax after parsing ~a ~a" inp out)]
     [(err inf) (error 'sham:sam "error while parsing ~a" inf)]))
