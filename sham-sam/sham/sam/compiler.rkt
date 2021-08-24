@@ -13,8 +13,9 @@
     [(_ cmplr:compiler-spec)
      (define-values (cmplr-stx cmplr-spec) (build-compiler-syntax (attribute cmplr.spec)))
      ;; (match-define (cmplr header groups info) cmplr-spec)
+
      (define stx
        #`(begin
            ;; (define-syntax #,(cmplr:header-id header) #,(compiler-syntax-storage cmplr-spec))
            #,@cmplr-stx))
-     #`42]))
+     stx]))

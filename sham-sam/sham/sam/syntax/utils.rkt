@@ -3,6 +3,7 @@
 (require racket/syntax)
 (provide (all-defined-out))
 
+;; returns first element in list which satisfies f? o/w #f
 (define (find-first lst f?)
   (if (empty? lst)
       #f

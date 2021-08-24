@@ -324,5 +324,6 @@
 
   (define-generics cmplr-bind-operator
     (operator-identifier cmplr-bind-operator)
-    (operator-parse-syntax cmplr-bind-operator body-stx ast-type))
+    (operator-parse-syntax cmplr-bind-operator body-stx ast-type)
+    (operator-body-syntax cmplr-bind-operator bound-var cmplr-spec cmplr-group-spec cmplr-node-spec))
   )

@@ -101,7 +101,9 @@
 
   (define (find-node-group node-spec/id ast-spec)
     (define (contains-node ga) (group-contains-node? node-spec/id (cdr ga)))
-    (cdr (findf contains-node (ast-groups ast-spec))))
+    (cond
+      [(findf contains-node (ast-groups ast-spec)) => cdr]
+      [else #f]))
 
   (define (find-group/node-spec spec-id ast-spec)
     (define (f? ga)
