@@ -92,7 +92,7 @@
     [(err inf) (err `(in ,inf ,pat))]
     [(stk (cons crnt rst) os)
      #:when (ooo? crnt)
-     (stk rst (cons `(ooo ,crnt ,(ooo crnt) ,pat) os))]
+     (stk rst (cons `(___ ,crnt ,(ooo crnt) ,pat) os))]
 
     [(stk is os)
      #:when (pat:ooo? pat)
@@ -266,7 +266,8 @@
   (check-match (psp (alt (dat 'a) (dat 'b)) #'0)
                (err `(alt "no-alt-match" . ,inf)))
 
-  (check-match (psp p6 #'(a)) (stk '() `((seq ((ooo ((var ,osa ,opa)) ,opo)) ,op))))
+  (check-match (psp p6 #'(a)) (stk '() `((seq ((ooo ((var ,osa ,opa)) ,opo)) ,op)))
+               (and (equal? (syntax->datum osa) 'a)))
 
   (check-match (psp p7 #`(a λ))
                (stk '() `((seq ((dat ,osλ ,opλ)

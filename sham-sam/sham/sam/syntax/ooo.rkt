@@ -22,6 +22,11 @@
     [#f #f]
     [(list a b mn o mx) (cons (string->number mn) (string->number mx))]))
 
+(define (oook-syntax o)
+  (match-define (cons mn mx) o)
+  (define pre (if mn mn "."))
+  (datum->syntax #f (string->symbol (format "..~a" pre))))
+
 ;; (define-syntax-class single-pattern
 ;;   (pattern i:id #:attr result #`i)
 ;;   (pattern (m:multiple-pattern ...) #:attr result (attribute m.result)))
