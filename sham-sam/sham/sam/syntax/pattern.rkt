@@ -40,7 +40,7 @@
 (define (pattern-with-zipper f val pat)
   (define (go path val pat)
     (match pat
-      [(ast:pat:single chk id) (f val pat path)]
+      [(ast:pat:single id chk) (f val pat path)]
       [(ast:pat:datum d) (f val pat path)]
       [(ast:pat:multiple ps)
        (define (frec cval i)
@@ -71,7 +71,7 @@
   (define (f sc pat path)
     (match-define (stack is os) sc)
     (match pat
-      [(ast:pat:single chk id)
+      [(ast:pat:single id chk)
        ;; (printf "fs: ~a\n" is) (pretty-print (pretty-path path)) (printf "\tos:~a\n" os)
        (when (empty? is)
          (error 'sham/sam "couldn't parse pattern: ~a ~a\n" (pretty-pattern opat) stx))
@@ -152,7 +152,7 @@
 (define (expand-with-pattern pat stx)
   (define norm-stx
     (match pat
-      [(ast:pat:single c i)
+      [(ast:pat:single i c)
        (if (equal? (length (syntax-e stx)) 1)
            (car (syntax-e stx))
            (error 'sham/sam/internal "cannot match single pattern with a list syntax ~a ~a\n" pat stx))]
@@ -199,7 +199,7 @@
   (provide (all-defined-out))
   (match-define (list a b c d e f) (syntax->list (datum->syntax #f `(a b c d e f))))
   (define (mlt . ps) (ast:pat:multiple (list->vector ps)))
-  (define (sng sym) (ast:pat:single #f sym))
+  (define (sng sym) (ast:pat:single sym #f))
   (define (dat v) (ast:pat:datum v))
   (define (rpt p (mn #f) (mx #f)) (ast:pat:repeat p (cons mn mx)))
 

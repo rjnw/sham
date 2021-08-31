@@ -323,7 +323,11 @@
     (perform-pattern cmplr-pattern stx output-zipper))
 
   (define-generics cmplr-bind-operator
-    (operator-identifier cmplr-bind-operator)
-    (operator-parse-syntax cmplr-bind-operator body-stx ast-type)
-    (operator-body-syntax cmplr-bind-operator bound-var cmplr-spec cmplr-group-spec cmplr-node-spec))
+    (bind-operator-identifier cmplr-bind-operator)
+    (bind-operator-parse-syntax cmplr-bind-operator body-stx ast-type)
+    (bind-operator-gen-syntax cmplr-bind-operator bound-var state))
+
+  (define-generics cmplr-body-operator
+    (body-operator-identifier cmplr-body-operator)
+    (body-operator-gen-syntax cmplr-body-operator rst-stx frec state))
   )

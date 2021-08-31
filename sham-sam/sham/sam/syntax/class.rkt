@@ -60,7 +60,9 @@
   (define-syntax-class ast-node
     #:description "node production production"
     (pattern (var:id def:node-pattern info:keyword-info)
-             #:attr spec (ast:node #`var (attribute info.spec) #f (attribute def.spec))))
+             #:attr spec (ast:node #`var (attribute info.spec) #f (attribute def.spec)))
+    (pattern (var:id info:keyword-info)
+             #:attr spec (ast:node #`var (attribute info.spec) #f (ast:pat:datum #`var))))
 
   (define-syntax-class ast-group
     #:description "ast group specification"

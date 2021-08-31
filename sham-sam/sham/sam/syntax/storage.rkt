@@ -12,6 +12,7 @@
   #`(vector #,@gargs))
 
 (define (node-args-storage nargs pat)
+  ;; (printf "node-args-storage ~a\n\t ~a\n" (map pretty-arg nargs) (pretty-pattern pat))
   (define (fsingle i p)
     (get-fid
      (ast:basic-id
@@ -27,7 +28,7 @@
        #`(#,@(map flat-syn ss))]
       [(? syntax?) s]
       [#f (match pat
-            [(ast:pat:datum d) d])]))
+            [(ast:pat:datum d) #`(quote #,d)])]))
   (flat-syn (rec-pattern pat fsingle fdatum fmultiple frepeat)))
 
 (define ((generate-access path) val)
@@ -61,7 +62,7 @@
 
 (define (from-node-storage arg pat)
   (cond [(arg-path arg pat) => generate-access]
-        [else (error 'sham/sam/internal "could not find arg in pattern ~a ~a" arg pat)]))
+        [else (error 'sham/sam/internal "could not find arg in pattern ~a ~a" (pretty-arg arg) (pretty-pattern pat))]))
 
 (module+ test
   (require rackunit)
@@ -85,4 +86,5 @@
                 `(vector-ref (vector-ref f 1) 0))
 
   (check-equal? (syntax->datum (node-args-storage args plam))
-                `(vector (vector (map vector a b)) c)))
+                `(vector (vector (map vector a b)) c))
+  )

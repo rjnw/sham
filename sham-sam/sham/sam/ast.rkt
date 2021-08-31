@@ -4,6 +4,7 @@
  (for-syntax "syntax/ast.rkt"
              syntax/parse
              racket/match
+             racket/pretty
              (submod "syntax/class.rkt" ast)
              (submod "syntax/spec.rkt" ast))
  "runtime.rkt")
