@@ -77,7 +77,20 @@
   (define (group-nodes gs) (map cdr (ast:group-nodes gs)))
 
   (define (find-group-spec group-id ast-spec)
-    (assoc-default (->symbol group-id) (ast-groups ast-spec)))
+    (define idsym (->symbol group-id))
+    (define (is-group? grp)
+      (match-define (ast:group gid ginfo prnt args nds) (cdr grp))
+      (define aliases (info-1value 'alias ginfo))
+      ;; (printf "find-group: ~a\n" (list group-id gid aliases grp))
+      (or (equal? idsym (car grp))
+          (and (get-fid gid) (equal? idsym (->symbol (get-fid gid))))
+          (and (get-fid gid) (equal? idsym (->symbol (get-oid gid))))
+          (and aliases
+               (member idsym (map ->symbol aliases)))))
+    (define grp-pair (find-first (ast-groups ast-spec) is-group?))
+    (and grp-pair (cdr grp-pair))
+    ;; (assoc-default (->symbol group-id) (ast-groups ast-spec))
+    )
 
   (define (full-group-args gs as)
     (if gs
@@ -107,7 +120,8 @@
 
   (define (find-group/node-spec spec-id ast-spec)
     (define (f? ga)
-      (or (and (equal? (->symbol spec-id) (car ga)) (cdr ga))
+      (or (and (equal? (->symbol spec-id) (car ga))
+               (cdr ga))
           (find-node-spec spec-id (cdr ga) ast-spec)))
     (find-first (ast-groups ast-spec) f?))
   (define (group-parents group-id ast-spec)
@@ -135,6 +149,14 @@
     (define gprs (group-parents (get-oid gids) spec))
     (ast-format-id tid (reverse gprs) (get-oid nids) (or (format-info ninfo) (format-info ginfo) (format-info info))))
 
+  ;; (define (find-internal-type t spec)
+  ;;   (match-define (ast:type:internal depth path) t)
+  ;;   (match t
+  ;;     [(cons fst rst)
+  ;;      (define group-spec (find-group-spec fst spec))
+  ;;      (if group-spec
+  ;;          group-spec
+  ;;          (find-first ))]))
   (define (intrinsic-type? t) (member t '(string integer int bool boolean symbol)))
   (define (id&type raw-id (c #f) (depth #f) (maybe-type #f))
     (define (from-specified k typs)

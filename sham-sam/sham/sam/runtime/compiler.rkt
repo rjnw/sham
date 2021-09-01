@@ -8,3 +8,4 @@
 (struct compiler [func] #:property prop:procedure (struct-field-index func))
 
 (define-syntax-parameter ^ #f)
+(define-syntax-parameter with #f)

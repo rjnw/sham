@@ -22,7 +22,7 @@
    ;; [newtype (id_name (id_vars ...) t_body)]
    [def (id_name t decl.bind_body ...)]
    ;; [private (d_ds ...)]
-   [bind (id_name (vars_id ...) e_body)]
+   [bind (id_name (id_vars ...) e_body)]
    #:alias d)
 
   (expr

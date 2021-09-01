@@ -37,7 +37,13 @@
   [(define/generic to-syntax ->syntax)
    (define (->syntax pan)
      (match-define (cmplr:pat:ast-node op rands) pan)
-     #`(#,(get-fid (ast:basic-id op)) #,@(to-syntax rands)))])
+     (printf "ast-node: ~a\n" rands)
+     (define rands-stx
+       (match rands
+         [(list (cmplr:pat:seq ps))
+          (to-syntax (flatten ps))]
+         [else (to-syntax rands)]))
+     #`(#,(get-fid (ast:basic-id op)) #,@rands-stx))])
 
 
 (struct cmplr:pat:ooo pat:ooo []
@@ -52,7 +58,7 @@
   [(define/generic to-syntax ->syntax)
    (define (->syntax pse)
      (match-define (cmplr:pat:seq ps) pse)
-     #`(#,@(map to-syntax ps)))])
+     #`(#,@(map to-syntax (flatten ps))))])
 
 (define (compile-ast-type var ast-type cstate)
   (match-define (cmplr:state:node cspec gspec nspec args) cstate)
@@ -92,6 +98,15 @@
      (match-define (cmplr:pat:compiled-var match-stx ast-type bound-var) pat)
      (values #`(define #,bound-var #,(compile-ast-type match-stx ast-type state))
              state))])
+(struct let-body-pattern [stxid]
+  #:methods gen:cmplr-body-operator
+  [(define (body-operator-identifier lbp) (let-body-pattern-stxid lbp))
+   (define (body-operator-gen-syntax lbp rst-stx frec cstate)
+     (match-define (cmplr:state:node cspec gspec nspec args) cstate)
+     (match-define (cmplr header groups info) cspec)
+     (printf "let-body: ~a ~a\n" rst-stx args)
+     (values #`(let #,@rst-stx) cstate)
+  )])
 
 (struct basic-node-builder []
   #:methods gen:cmplr-node-builder
@@ -143,9 +158,9 @@
 
      (define ((ast-pattern rst) ast-node-spec)
        (match-define (ast:node nid ninfo nargs npat) ast-node-spec)
-       ;; (printf "ast-pattern:\n")
-       ;; (pretty-print (pretty-node ast-node-spec))
-       ;; (printf "~a\n\n" rst)
+       (printf "ast-pattern:\n")
+       (pretty-print (pretty-node ast-node-spec))
+       (printf "~a\n\n" rst)
 
        (define (from-ast-type ast-type)
          (match ast-type
@@ -162,7 +177,8 @@
 
            (match parse
              [`(seq ,subs ,(pat:seq (vector ps ...)))
-              (fold-seq rec subs)]
+              (define-values (vars stxs) (fold-seq rec subs))
+              (values vars (cmplr:pat:seq stxs))]
              [`(var ,stx ,var-pat)
               (match-define (ast:pat:single id check) var-pat)
               (define node-arg (find-node-arg ast-node-spec id))
@@ -201,7 +217,7 @@
        ;; f : val state -> (values result state)
        ;; fold over a list while keeping a state
        (define (fold/state f initial-state lst)
-         (for/fold ([res '()]
+         (for/foldr ([res '()]
                     [state initial-state])
                    ([val lst])
            (define-values (nval nstate) (f val state))
@@ -258,10 +274,12 @@
      (define from-ast-spec (get-ast-spec cfrom))
      ;; (define to-ast-spec (get-ast-spec cto))
 
+     (define extra-info
+       `((body-operators ,(let-body-pattern #`rt:with))
+         (bind-operators ,(auto-compile-pattern #`rt:^))
+         (from-ast-spec . ,from-ast-spec)))
      (cmplr header groups
-            (add-info 'bind-operators (auto-compile-pattern #`rt:^)
-                      (add-info 'from-ast-spec from-ast-spec
-                                info))))])
+            (append extra-info info)))])
 
 (define (build-compiler-syntax raw-cmplr-spec)
   ;TODO get from info + defaults

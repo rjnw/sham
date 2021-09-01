@@ -15,13 +15,17 @@
   #:format (#f - #f - -))
 
 (define-compiler (interpret-arith)
-  (math -> rkt)
+  (math -> syntax)
   (iexpr (expr -> any)
          [(and n (? number?)) n]
          [(neg (^ e)) (- e)]
          [(div (^ n) (^ d)) (/ n d)]
          [(add (^ es) ...) (apply + es)]
          [(mul (^ es) ...) (apply * es)]))
+
+;; (define-languge
+;;   #:ast math
+;;   #:compiler interpret-arith)
 
 (module+ test
   (require rackunit)
