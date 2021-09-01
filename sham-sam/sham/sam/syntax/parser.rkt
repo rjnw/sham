@@ -5,12 +5,12 @@
          (for-template racket/base))
 
 (require "spec.rkt"
-         (submod "private/spec.rkt" reader)
+         (submod "spec.rkt" ast)
          "pattern.rkt")
 
 (provide (all-defined-out))
 
-(define (build-parsers rspec)
+#;(define (build-parsers rspec)
   (match-define (reader ast-id info) rspec)
   (define-values (ast-spec _) (syntax-local-value/immediate ast-id))
   (match-define (ast rid ids groups ainfo) ast-spec)
