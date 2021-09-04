@@ -22,19 +22,19 @@
    ;; [newtype (id_name (id_vars ...) t_body)]
    [def (id_name t decl.bind_body ...)]
    ;; [private (d_ds ...)]
-   [bind (id_name (id_vars ...) e_body)]
+   [bind ((id_vars ...) e_body)]
+   [value e_val]
    #:alias d)
 
   (expr
-   [annot (e t)]
    [app (e_o
          ;; (e_t ...)
          e_rands ...)]
-   [if ((e_cond e_then) ... e_else)]
+   [ifcond ((e_chk e_then) ... e_else)]
    [var id]
    ;; [type-var id]
    ;; [qualified-var (id_from id_var)]
-   [where (e_body decl.bind_bs ...)]
+   [where (e_body (id_fname decl.bind_bs) ...)]
    #:alias e)
 
   #;(record expr
@@ -47,6 +47,7 @@
 
   (numeric expr
            [zero]
+           ;; [inf]
            ;; [polynomial ((integer_e integer_i) ...)] ;; polynomial expression e*x^i ...
            [int (~ integer val)])
 
@@ -54,7 +55,7 @@
             [basic (e_val ...)]
             ;; [enum ((~ (~optional e) step) e_from (~ (~optional e) to))] ;; missing to = infinity
             ;; sequence comprehension [e | var <- val, ... | ...]
-            ;; [comp (e_body ((id_var e_val) ...) ...)]
+            [comp (e_body ((id_var e_val) ...) ...)]
             )
 
   (type
