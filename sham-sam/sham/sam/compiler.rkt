@@ -19,3 +19,5 @@
            ;; (define-syntax #,(cmplr:header-id header) #,(compiler-syntax-storage cmplr-spec))
            #,@cmplr-stx))
      stx]))
+
+(define-syntax rkt-syntax (rkt-syntax-cmplr-target))

@@ -12,11 +12,21 @@
 
 (struct spec [] #:prefab)
 
+(define (lookup-spec syn)
+  (define-values (spec-value rt) (syntax-local-value/immediate syn #f))
+  (or (and (spec? spec-value) spec-value)
+      (and rt (lookup-spec rt))))
+
 (module* ast #f
   (provide (all-defined-out))
   (struct ast spec (rename-id id groups info)
     #:property prop:rename-transformer 1)
 
+  (define (lookup-ast-spec syn)
+    (define spec-value (lookup-spec syn))
+    (unless (ast? spec-value) (error 'sham:sam "unknown ast specification ~a:~a" syn spec-value))
+
+  spec-value)
   (struct ast:basic (id info) #:prefab)
   (struct ast:group ast:basic (parent args nodes) #:prefab)
   (struct ast:group:arg ast:basic (type) #:prefab)
@@ -295,5 +305,5 @@
   (struct cmplr:node [bind bodys] #:prefab)
   (struct cmplr:type [from to] #:prefab)
 
-  (struct cmplr:state:node [cspec gspec nspec args])
+  (struct cmplr:state:node [cspec gspec nspec args] #:prefab)
   )

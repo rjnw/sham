@@ -15,7 +15,7 @@
   #:format (#f - #f - -))
 
 (define-compiler (interpret-arith)
-  (math -> syntax)
+  (math -> rkt)
   (iexpr (expr -> any)
          [(and n (? number?)) n]
          [(neg (^ e)) (- e)]

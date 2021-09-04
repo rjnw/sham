@@ -7,7 +7,7 @@
 
 (require (prefix-in rt: (submod "runtime.rkt" ast))
          (submod "spec.rkt" ast)
-         "pat.rkt"
+         "pattern.rkt"
          "kw-info.rkt"
          "utils.rkt"
          (for-template (prefix-in rrt: "../runtime.rkt")))

@@ -5,25 +5,23 @@
          racket/generic
          (for-template racket))
 
-(require "pat.rkt"
-         "ooo.rkt"
-         "kw-info.rkt"
-         "utils.rkt"
-         "generics.rkt"
-         (submod "spec.rkt" ast)
-         (submod "spec.rkt" compiler)
-         (submod "class.rkt" compiler)
-         (submod "class.rkt" pat)
-         (submod "generics.rkt" compiler)
+(require
+ "pat.rkt"
+ "ooo.rkt"
+ "kw-info.rkt"
+ "utils.rkt"
+ "generics.rkt"
+ "spec.rkt"
+ (submod "spec.rkt" ast)
+ (submod "spec.rkt" compiler)
+ (submod "class.rkt" compiler)
+ (submod "class.rkt" pat)
+ (submod "generics.rkt" compiler)
 
-         (prefix-in rt: (for-template "../runtime/compiler.rkt")))
+ (prefix-in rt: (for-template "../runtime/compiler.rkt")))
 
-(provide build-compiler-syntax)
-
-(define (get-ast-spec syn)
-  (define-values (spec-value ff) (syntax-local-value/immediate syn))
-  (unless (ast? spec-value) (error 'sham:sam "unknown ast specification ~a:~a" syn spec-value))
-  spec-value)
+(provide build-compiler-syntax
+         rkt-syntax-cmplr-target)
 
 (struct cmplr:pat:compiled-var pat:var [ast-type body-var]
   #:methods gen:stx-construct
@@ -37,14 +35,13 @@
   [(define/generic to-syntax ->syntax)
    (define (->syntax pan)
      (match-define (cmplr:pat:ast-node op rands) pan)
-     (printf "ast-node: ~a\n" rands)
+     ;; (printf "ast-node: ~a\n" rands)
      (define rands-stx
        (match rands
          [(list (cmplr:pat:seq ps))
           (to-syntax (flatten ps))]
          [else (to-syntax rands)]))
      #`(#,(get-fid (ast:basic-id op)) #,@rands-stx))])
-
 
 (struct cmplr:pat:ooo pat:ooo []
   #:methods gen:stx-construct
@@ -98,13 +95,13 @@
      (match-define (cmplr:pat:compiled-var match-stx ast-type bound-var) pat)
      (values #`(define #,bound-var #,(compile-ast-type match-stx ast-type state))
              state))])
+
 (struct let-body-pattern [stxid]
   #:methods gen:cmplr-body-operator
   [(define (body-operator-identifier lbp) (let-body-pattern-stxid lbp))
    (define (body-operator-gen-syntax lbp rst-stx frec cstate)
      (match-define (cmplr:state:node cspec gspec nspec args) cstate)
      (match-define (cmplr header groups info) cspec)
-     (printf "let-body: ~a ~a\n" rst-stx args)
      (values #`(let #,@rst-stx) cstate)
   )])
 
@@ -117,13 +114,15 @@
      (match-define (cmplr:type gfrom gto) gtyp)
      (match-define (cmplr:node bind bodys) nspec)
 
-     (define from-ast-spec (info-1value 'from-ast-spec info))
-     (define bind-operators (info-value 'bind-operators info '()))
-     (define body-operators (info-value 'body-operators info '()))
+     (define from-spec (info-1value 'from-spec info))
+     (define to-spec (info-1value 'to-spec info))
+     (define all-operators (flatten (info-values 'operators info)))
+     (define bind-operators (filter cmplr-bind-operator? all-operators))
+     (define body-operators (filter cmplr-body-operator? all-operators))
 
      (define from-group-ast-spec
        (cond
-         [(find-group/node-spec gfrom from-ast-spec) => cdr]
+         [(find-group/node-spec gfrom from-spec) => cdr]
          [else (error 'sham/sam "couldn't locate ast group for compiling: ~a" gfrom)]))
 
      (define (find-operator stxid)
@@ -158,16 +157,16 @@
 
      (define ((ast-pattern rst) ast-node-spec)
        (match-define (ast:node nid ninfo nargs npat) ast-node-spec)
-       (printf "ast-pattern:\n")
-       (pretty-print (pretty-node ast-node-spec))
-       (printf "~a\n\n" rst)
+       ;; (printf "ast-pattern:\n")
+       ;; (pretty-print (pretty-node ast-node-spec))
+       ;; (printf "~a\n\n" rst)
 
        (define (from-ast-type ast-type)
          (match ast-type
            [(ast:type:internal depth (cons grp subs))
-            (define ast-group (find-group-spec grp from-ast-spec))
+            (define ast-group (find-group-spec grp from-spec))
             (if ast-group
-                (ast:type:internal depth (list ast-group from-ast-spec))
+                (ast:type:internal depth (list ast-group from-spec))
                 (error 'sham/sam "couldn't find ast type: ~a" grp))]
            [(ast:type depth) ast-type]))
        (define-values (node-vars node-stx)
@@ -197,7 +196,7 @@
          [(? symbol?) (values '() stx)]
          [(cons fst rst)
           (cond
-            [(find-node-spec fst from-group-ast-spec from-ast-spec) => (ast-pattern rst)]
+            [(find-node-spec fst from-group-ast-spec from-spec) => (ast-pattern rst)]
             [(find-operator fst) => (cmplr-pattern rst maybe-ast-spec)]
             [else
              ;; keep the pattern as is in fst but recur over rst
@@ -244,16 +243,19 @@
         ;; #,@bound-var-stx #,@bodys
         ])])
 
-(struct basic-group-builder []
+(struct basic-group-builder [body-builder]
   #:methods gen:cmplr-group-builder
   [(define (build-cmplr-group bgb stxc cspec gspec)
+     (match-define (basic-group-builder body-builder) bgb)
      (match-define (cmplr header groups info) cspec)
      (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
      (match-define (cmplr:group gid gtyp gnodes ginfo) gspec)
      (match-define (cmplr:type gfrom gto) gtyp)
-     #`(define (#,gid group-inp #,@(map car cmplr-args))
-         (match group-inp
-           #,@stxc)))])
+     (define group-input (generate-temporary 'group-input))
+     #`(define (#,gid #,group-inp #,@(map car cmplr-args))
+         #,(body-builder group-input stxc)
+         ;; (#,match-stx group-inp #,@stxc)
+         ))])
 
 (struct basic-top-builder []
   #:methods gen:cmplr-top-builder
@@ -265,44 +267,21 @@
          #,@stxc
          (#,(cmplr:group-id (car groups)) cmplr-inp #,@(map car cmplr-args))))])
 
-(struct ast-spec-info []
-  #:methods gen:cmplr-spec-builder
-  [(define (update-cmplr-spec asi curr-spec)
-     (match-define (cmplr header groups info) curr-spec)
-     (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
-     (match-define (cmplr:type cfrom cto) cmplr-type)
-     (define from-ast-spec (get-ast-spec cfrom))
-     ;; (define to-ast-spec (get-ast-spec cto))
-
-     (define extra-info
-       `((body-operators ,(let-body-pattern #`rt:with))
-         (bind-operators ,(auto-compile-pattern #`rt:^))
-         (from-ast-spec . ,from-ast-spec)))
-     (cmplr header groups
-            (append extra-info info)))])
-
 (define (build-compiler-syntax raw-cmplr-spec)
-  ;TODO get from info + defaults
-  (define builders (append (cmplr-info raw-cmplr-spec)
-                           (list (ast-spec-info)
-                                 (basic-node-builder)
-                                 (basic-group-builder)
-                                 (basic-top-builder))))
-  (define (foldr-builders f base) (foldr f base builders))
-
-  (define cmplr-spec (foldr-builders update-spec raw-cmplr-spec))
+  (define cmplr-spec (initial-spec-update raw-cmplr-spec))
 
   (match-define (cmplr header groups info) cmplr-spec)
   (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
   (match-define (cmplr:type cfrom cto) cmplr-type)
 
-  (define from-ast-spec (get-ast-spec cfrom))
+  ;; (printf "cmplr-info: ~a\n" info)
+  (define builders (flatten (info-values 'builders info)))
+  (define (foldr-builders f base) (foldr f base builders))
 
   (define (do-group group-spec)
     (match-define (cmplr:group gid gtype gnodes ginfo) group-spec)
     (define (do-node node-spec)
-      (foldr-builders (build-node cmplr-spec group-spec node-spec)
-                      empty))
+      (foldr-builders (build-node cmplr-spec group-spec node-spec) node-spec))
     (define node-stxs (map do-node gnodes))
     (foldr-builders (build-group cmplr-spec group-spec) node-stxs))
 
@@ -311,3 +290,64 @@
 
   (printf "cmplr-stx: \n") (pretty-print (syntax->datum cmplr-stx))
   (values (list cmplr-stx) cmplr-spec))
+
+(define (cmplr-spec-add-extra-info curr-spec extra-info)
+  (match-define (cmplr header groups info) curr-spec)
+  (cmplr header groups (append extra-info info)))
+
+(struct extra-info-spec-builder [info]
+  #:methods gen:cmplr-spec-builder
+  [(define (update-cmplr-spec eisb curr-spec)
+     (match-define (extra-info-spec-builder extra-info) eisb)
+     (cmplr-spec-add-extra-info curr-spec extra-info))])
+
+(struct add-type-specs []
+  #:methods gen:cmplr-spec-builder
+  [(define (update-cmplr-spec ats cspec)
+     (match-define (cmplr header groups info) cspec)
+     (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
+     (match-define (cmplr:type cfrom cto) cmplr-type)
+     (cmplr-spec-add-extra-info cspec
+                                `((from-spec . ,(lookup-spec cfrom))
+                                  (to-spec . ,(lookup-spec cto)))))])
+
+(define basic-builders
+  (list (basic-node-builder)
+        (basic-group-builder (λ (inp node-stxs)
+                               #`(match #,inp #,@node-stxs)))
+        (basic-top-builder)))
+
+(define default-info-spec-builder
+  (extra-info-spec-builder `((operators ,(let-body-pattern #`rt:with) ,(auto-compile-pattern #`rt:^))
+                             (builders . ,basic-builders))))
+
+(define default-updaters (list default-info-spec-builder (add-type-specs)))
+
+(define (initial-spec-update raw-cspec)
+  (define (run-builders spec)
+    (foldr update-spec spec (info-values 'builders (cmplr-info spec))))
+
+  (let* ([def-cspec (foldr update-spec raw-cspec default-updaters)]
+         [dinfo (cmplr-info def-cspec)]
+         [from-spec (info-value 'from-spec dinfo)]
+         [to-spec (info-value 'to-spec dinfo)]
+         [spec-cspec (update-spec to-spec (update-spec from-spec def-cspec))]
+         [builder-cspec (run-builders spec-cspec)])
+    builder-cspec))
+
+(struct syntax-node-builder []
+  #:methods gen:cmplr-node-builder
+  )
+(struct syntax-group-builder []
+  #:methods gen:cmplr-group-builder
+  [(define (build-cmplr-group sgb stxc cspec gspec)
+     )])
+(struct rkt-syntax-cmplr-target spec []
+  #:methods gen:cmplr-spec-builder
+  [(define (update-cmplr-spec sct curr-spec)
+     (printf "rkt-syntax-target\n")
+     (match-define (cmplr header groups info) curr-spec)
+     (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
+     (match-define (cmplr:type cfrom cto) cmplr-type)
+     (printf "curr-info: ~a\n" info)
+     curr-spec)])

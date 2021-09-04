@@ -30,6 +30,13 @@
   (match (info-value key lst dflt)
     [(list v) v]
     [v (or v dflt)]))
+(define (info-values key lst)
+  (match lst
+    [(cons (cons ik iv) rst)
+     (if (equal? ik key) (cons iv (info-values key rst)) (info-values key rst))]
+    [else '()]))
 (define (add-info key val inf) (cons (list key val) inf))
+(define (remove-info key inf)
+  (filter (λ (p) (not (equal? key (car p)))) inf))
 (define (default-metadata . specs)
   (ormap (curry info-1value 'default-metadata) specs))
