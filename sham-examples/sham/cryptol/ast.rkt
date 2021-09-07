@@ -23,7 +23,7 @@
    [def (id_name t decl.bind_body ...)]
    ;; [private (d_ds ...)]
    [bind ((id_vars ...) e_body)]
-   [value e_val]
+   [value (e_val)]
    #:alias d)
 
   (expr
@@ -31,7 +31,7 @@
          ;; (e_t ...)
          e_rands ...)]
    [ifcond ((e_chk e_then) ... e_else)]
-   [var id]
+   [var (id_name)]
    ;; [type-var id]
    ;; [qualified-var (id_from id_var)]
    [where (e_body (id_fname decl.bind_bs) ...)]

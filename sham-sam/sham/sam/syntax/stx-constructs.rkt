@@ -4,7 +4,7 @@
 (provide (all-defined-out))
 
 (define (stx-seq . stxs)
-  (define fs (flatten stxs))
+  (define fs (->syntax (flatten stxs)))
   #`(#,@fs))
 
 (struct stx:def [vars vals]
@@ -26,10 +26,18 @@
      (match-define (stx:local-def type defs body) sld)
      (stx-seq
       (to-syntax type)
-      (for/list [(def defs)]
-        ;; TODO check for values
-        (match def
-          [(stx:def vars vals) (stx-seq (to-syntax vars) (to-syntax vals))]
-          [(cons vars vals) (stx-seq (to-syntax vars) (to-syntax vals))]
-          [else (error 'sham/sam/stx "unknown definition for local def ~a" def)]))
+      (apply stx-seq
+             (for/list [(def defs)]
+               ;; TODO check for values
+               (match def
+                 [(stx:def vars vals) (stx-seq (to-syntax vars) (to-syntax vals))]
+                 [(cons vars vals) (stx-seq (to-syntax vars) (to-syntax vals))]
+                 [else (error 'sham/sam/stx "unknown definition for local def ~a" def)])))
       (to-syntax body)))])
+
+(struct stx:app [op rands]
+  #:methods gen:stx-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax sa)
+     (match-define (stx:app op rands) sa)
+     #`(#,op . #,(stx-seq (to-syntax rands))))])
