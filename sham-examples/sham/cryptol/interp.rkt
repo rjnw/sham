@@ -1,5 +1,7 @@
 #lang racket
 
+(require syntax/parse)
+
 (require "ast.rkt"
          sham/sam/compiler)
 

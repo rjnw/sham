@@ -11,6 +11,7 @@
  "kw-info.rkt"
  "utils.rkt"
  "generics.rkt"
+ "stx-constructs.rkt"
  "spec.rkt"
  (submod "spec.rkt" ast)
  (submod "spec.rkt" compiler)
@@ -49,6 +50,12 @@
    (define (->syntax poo)
      (match-define (cmplr:pat:ooo p k) poo)
      #`(#,(to-syntax p) #,(oook-syntax k)))])
+(struct cmplr:node:case pat:app []
+  #:methods gen:stx-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax cnc)
+     (match-define (cmplr:node:case op rands) cnc)
+     #`(#,(to-syntax op) #,@(to-syntax rands)))])
 
 (struct cmplr:pat:seq pat:seq []
   #:methods gen:stx-construct
@@ -58,16 +65,22 @@
      #`(#,@(map to-syntax (flatten ps))))])
 
 (define (compile-ast-type var ast-type cstate)
-  (match-define (cmplr:state:node cspec gspec nspec args) cstate)
+  ;; (printf "compile-ast-type: ~a ~a\n" var ast-type)
+  (match-define (cmplr:state:node cspec gspec nspec bvars args) cstate)
   (match-define (cmplr header groups info) cspec)
   (define extra-cargs (map cdr args))
   (define (perform-compile cmplr-group depth)
     (match-define (cmplr:group id gtype nodes ginfo) cmplr-group)
-    (match depth
-      [0 #`(#,id #,var #,@extra-cargs)]
-      [`((,mn . ,mx) . 0)
-       #`(map (curryr #,id #,@extra-cargs) #,var)]
-      [else (error 'sham/sam/TODO "compiler deeper ~a ~a" var depth)]))
+    (let rec ([depth depth]
+              [val var])
+      (match depth
+        [#f #`(#,id #,val #,@extra-cargs)]
+        [`((,mn . ,mx) . ,rst)
+         (define nval (generate-temporary var))
+         #`(map (λ (#,nval) #,(rec rst nval)) #,val)
+         ;; #`(map (curryr #,id #,@extra-cargs) #,val)
+         ]
+        [else (error 'sham/sam/TODO "compile deeper ~a ~a ~a" var depth id)])))
   (match ast-type
     [(ast:type:internal depth (list group top))
      (define group-fid (get-fid (ast:basic-id group)))
@@ -80,7 +93,9 @@
      (define ast-group (find-first groups is-group?))
      (unless ast-group
        (error 'sham/sam/cmplr "no compiler group for ~a" group-fid))
-     (perform-compile ast-group depth)]))
+     (perform-compile ast-group depth)]
+    [(ast:type:identifier depth)
+     #`(rt:identifier->syntax #,var #'#,var)]))
 
 (struct auto-compile-pattern [stxid]
   #:methods gen:cmplr-bind-operator
@@ -93,17 +108,21 @@
        [else (error 'sham/sam "error in auto compile pattern, can only have one identifier: ~a" body)]))
    (define (bind-operator-gen-syntax acp pat state)
      (match-define (cmplr:pat:compiled-var match-stx ast-type bound-var) pat)
-     (values #`(define #,bound-var #,(compile-ast-type match-stx ast-type state))
-             state))])
+     (values (stx:def bound-var (compile-ast-type match-stx ast-type state)) state))])
 
-(struct let-body-pattern [stxid]
+(struct bind-var-pattern [stxid binder]
   #:methods gen:cmplr-body-operator
-  [(define (body-operator-identifier lbp) (let-body-pattern-stxid lbp))
-   (define (body-operator-gen-syntax lbp rst-stx frec cstate)
-     (match-define (cmplr:state:node cspec gspec nspec args) cstate)
+  [(define (body-operator-identifier bvp) (bind-var-pattern-stxid bvp))
+   (define (body-operator-gen-syntax bvp rst-stx frec cstate)
+     (match-define (bind-var-pattern id binder) bvp)
+     (match-define (cmplr:state:node cspec gspec nspec bvars args) cstate)
      (match-define (cmplr header groups info) cspec)
-     (values #`(let #,@rst-stx) cstate)
-  )])
+     (syntax-parse rst-stx
+       [([vars vals] ... bodys ...)
+        (let*-values ([(vars-stx vars-state) (mapr/state frec cstate (attribute vars))]
+                      [(vals-stx vals-state) (mapr/state frec vars-state (attribute vals))]
+                      [(bodys-stx bodys-state) (mapr/state frec vals-state (attribute bodys))])
+          (values (binder (map stx:def vars-stx vals-stx) bodys-stx) bodys-state))]))])
 
 (struct basic-node-builder []
   #:methods gen:cmplr-node-builder
@@ -125,18 +144,16 @@
          [(find-group/node-spec gfrom from-spec) => cdr]
          [else (error 'sham/sam "couldn't locate ast group for compiling: ~a" gfrom)]))
 
-     (define (find-operator stxid)
-       (find-first
-        bind-operators
-        (λ (bo)
-          (define op-id (bind-operator-identifier bo))
-          (free-identifier=? op-id stxid))))
-     (define (find-body-operator stxid)
-       (find-first
-        body-operators
-        (λ (bo)
-          (define op-id (body-operator-identifier bo))
-          (free-identifier=? op-id stxid))))
+     (define ((find-operator operators get-identifier) stxid)
+       (and (identifier? stxid)
+            (find-first
+             operators
+             (λ (bo)
+               (define op-id (get-identifier bo))
+               (free-identifier=? op-id stxid)))))
+
+     (define find-bind-operator (find-operator bind-operators bind-operator-identifier))
+     (define find-body-operator (find-operator body-operators body-operator-identifier))
 
      ;; (stx pat -> (values (listof vars) stx)) (listof stx) -> (values (listof vars) (listof stx))
      ;; special fold over two lists with 2 values returning
@@ -181,7 +198,7 @@
              [`(var ,stx ,var-pat)
               (match-define (ast:pat:single id check) var-pat)
               (define node-arg (find-node-arg ast-node-spec id))
-              (match-pattern stx (from-ast-type (ast:node:arg-type node-arg)))]
+              (bind-pattern stx (from-ast-type (ast:node:arg-type node-arg)))]
              [`(ooo ,subs ,pat)
               ;; (printf "ooo: ~a\n" subs)
               (fold-seq rec subs)]
@@ -190,58 +207,49 @@
        (values node-vars (cmplr:pat:ast-node ast-node-spec (flatten node-stx))))
 
      ;; -> (values bind-vars match-pat)
-     (define (match-pattern stx maybe-ast-spec)
-       ;; (printf "match-pattern: ~a\n" stx)
+     (define (bind-pattern stx maybe-ast-spec)
+       ;; (printf "bind-pattern: ~a\n" stx)
        (match (syntax-e stx)
          [(? symbol?) (values '() stx)]
          [(cons fst rst)
           (cond
             [(find-node-spec fst from-group-ast-spec from-spec) => (ast-pattern rst)]
-            [(find-operator fst) => (cmplr-pattern rst maybe-ast-spec)]
+            [(find-bind-operator fst) => (cmplr-pattern rst maybe-ast-spec)]
             [else
              ;; keep the pattern as is in fst but recur over rst
-             (define-values (vars stxs) (fold-seq (curryr match-pattern maybe-ast-spec) rst))
+             (define-values (vars stxs) (fold-seq (curryr bind-pattern maybe-ast-spec) rst))
              (values vars #`(#,fst #,@(map ->syntax stxs)))]
             ;; [else (error 'sham/sam "unknown sequence in bind pattern ~a ~a" fst rst)]
             )]))
      ;; (printf "\n\nparsing-node: ~a\n" bind)
-     (define-values (bound-vars match-pat) (match-pattern bind from-group-ast-spec))
-     (define pat-stx (->syntax match-pat))
+     (define-values (bound-vars pat-stx) (bind-pattern bind from-group-ast-spec))
 
      ;; (define bound-var-stx (map (λ (bv) (operator-body-syntax (cdr bv) (car bv) cspec gspec nspec)) bound-vars))
      ;; #`[#,(->syntax match-pat) #,@(->syntax (map ->syntax bound-vars)) #,@bodys]
 
      (define (bvars&body bvars raw-body-stxs)
-       (define initial-cmplr-state (cmplr:state:node cspec gspec nspec (map (λ (a) (cons a a)) (map car cargs))))
-       ;; f : val state -> (values result state)
-       ;; fold over a list while keeping a state
-       (define (fold/state f initial-state lst)
-         (for/foldr ([res '()]
-                    [state initial-state])
-                   ([val lst])
-           (define-values (nval nstate) (f val state))
-           (values (cons nval res) nstate)))
+       (define initial-cmplr-state (cmplr:state:node cspec gspec nspec bvars (map (λ (a) (cons a a)) (map car cargs))))
 
        (define-values (bvar-stxs bvar-state)
-         (fold/state (λ (bv state) (bind-operator-gen-syntax (cdr bv) (car bv) state)) initial-cmplr-state bvars))
+         (mapr/state (λ (bv state) (bind-operator-gen-syntax (cdr bv) (car bv) state)) initial-cmplr-state bvars))
 
        (define (do-body body-stx body-state)
          (match (syntax-e body-stx)
            [(cons fst rst)
             (cond [(find-body-operator fst) => (λ (op) (body-operator-gen-syntax op rst do-body body-state))]
                   [else
-                   (define-values (rst-stxs nstate) (fold/state do-body body-state rst))
+                   (define-values (rst-stxs nstate) (mapr/state do-body body-state rst))
                    (values (datum->syntax body-stx (cons fst rst-stxs))
                            nstate)])]
            [else (values body-stx body-state)]))
 
-       (define-values (body-stxs body-state) (fold/state do-body bvar-state raw-body-stxs))
+       (define-values (body-stxs body-state) (mapr/state do-body bvar-state raw-body-stxs))
        (append bvar-stxs body-stxs))
 
-     (define body-stx (->syntax (bvars&body bound-vars bodys)))
-     #`[#,pat-stx #,@body-stx
-        ;; #,@bound-var-stx #,@bodys
-        ])])
+     (define body-stx (bvars&body bound-vars bodys))
+     (foldr cmplr-operator-node-syntax
+            (cmplr:node:case pat-stx body-stx)
+            (filter cmplr-node-operator? all-operators)))])
 
 (struct basic-group-builder [body-builder]
   #:methods gen:cmplr-group-builder
@@ -251,8 +259,8 @@
      (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
      (match-define (cmplr:group gid gtyp gnodes ginfo) gspec)
      (match-define (cmplr:type gfrom gto) gtyp)
-     (define group-input (generate-temporary 'group-input))
-     #`(define (#,gid #,group-inp #,@(map car cmplr-args))
+     (define group-input #`group-input)
+     #`(define (#,gid #,group-input #,@(map car cmplr-args))
          #,(body-builder group-input stxc)
          ;; (#,match-stx group-inp #,@stxc)
          ))])
@@ -314,13 +322,13 @@
 (define basic-builders
   (list (basic-node-builder)
         (basic-group-builder (λ (inp node-stxs)
-                               #`(match #,inp #,@node-stxs)))
+                               #`(match #,inp #,@(->syntax node-stxs))))
         (basic-top-builder)))
 
 (define default-info-spec-builder
-  (extra-info-spec-builder `((operators ,(let-body-pattern #`rt:with) ,(auto-compile-pattern #`rt:^))
+  (extra-info-spec-builder `((operators ,(bind-var-pattern #`rt:with (λ (args) #`(let #,@args)))
+                                        ,(auto-compile-pattern #`rt:^))
                              (builders . ,basic-builders))))
-
 (define default-updaters (list default-info-spec-builder (add-type-specs)))
 
 (define (initial-spec-update raw-cspec)
@@ -335,19 +343,31 @@
          [builder-cspec (run-builders spec-cspec)])
     builder-cspec))
 
-(struct syntax-node-builder []
-  #:methods gen:cmplr-node-builder
-  )
-(struct syntax-group-builder []
-  #:methods gen:cmplr-group-builder
-  [(define (build-cmplr-group sgb stxc cspec gspec)
-     )])
+;; (struct syntax-node-builder []
+;;   #:methods gen:cmplr-node-builder
+;;   )
+;; (struct syntax-group-builder []
+;;   #:methods gen:cmplr-group-builder
+;;   [(define (build-cmplr-group sgb stxc cspec gspec)
+;;      )])
+
+(struct stx-var-operator []
+  #:methods gen:cmplr-node-operator
+  [(define (cmplr-operator-node-syntax op stxs)
+     (printf "stx-var-operator: ~a \n" stxs)
+     stxs)])
+
 (struct rkt-syntax-cmplr-target spec []
   #:methods gen:cmplr-spec-builder
   [(define (update-cmplr-spec sct curr-spec)
-     (printf "rkt-syntax-target\n")
      (match-define (cmplr header groups info) curr-spec)
      (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
      (match-define (cmplr:type cfrom cto) cmplr-type)
-     (printf "curr-info: ~a\n" info)
-     curr-spec)])
+     (printf "rkst-syntax-cmplr-target&curr-info: ~a\n" info)
+     (define stx-ops (list (auto-compile-pattern #`rt:^)))
+     ;; (define new-info^
+     ;;   (combine-info
+     ;;    `((operators . ,stx-ops) (builders . ,syntax-builders))
+     ;;    (remove-info `(operators builders) info)))
+     (define new-info (insert-info 'operators (stx-var-operator) info))
+     (cmplr header groups new-info))])

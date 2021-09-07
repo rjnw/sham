@@ -9,3 +9,8 @@
 
 (define-syntax-parameter ^ #f)
 (define-syntax-parameter with #f)
+
+(define (identifier->syntax ident stx-ctxt)
+  (cond
+    [(symbol? ident) (datum->syntax stx-ctxt ident)]
+    [else (error 'sham/sam/TODO "compile new identifier")]))

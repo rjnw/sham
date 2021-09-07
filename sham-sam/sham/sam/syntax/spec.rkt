@@ -206,7 +206,7 @@
         (define (do-node ns)
           (match-define (ast:node nid ninfo^ #f pattern) ns)
           (define ninfo (dedup-assoc ninfo^))
-          (define (do-args pat (depth 0))
+          (define (do-args pat (depth #f))
             (match pat
               [(ast:pat:single s c)
                (define arg-info '())
@@ -305,5 +305,5 @@
   (struct cmplr:node [bind bodys] #:prefab)
   (struct cmplr:type [from to] #:prefab)
 
-  (struct cmplr:state:node [cspec gspec nspec args] #:prefab)
+  (struct cmplr:state:node [cspec gspec nspec bvars args] #:prefab)
   )

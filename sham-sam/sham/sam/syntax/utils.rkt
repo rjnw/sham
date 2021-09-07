@@ -23,6 +23,15 @@
 (define (maybe/c x/c) (or/c false/c x/c))
 (define (assoc/c key/c value/c) (listof (cons/c key/c value/c)))
 
+;; f : val state -> (values result state)
+;; maps over a list while keeping a state
+(define (mapr/state f initial-state lst)
+  (for/foldr ([res '()]
+              [state initial-state])
+    ([val lst])
+    (define-values (nval nstate) (f val state))
+    (values (cons nval res) nstate)))
+
 ;; syntax utils
 (define syntax->string (compose symbol->string syntax->datum))
 (define (string->syntax str (ctxt #f)) (datum->syntax ctxt (string->symbol str)))

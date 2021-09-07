@@ -322,6 +322,9 @@
     (expand-pattern cmplr-pattern stx input-zipper)
     (perform-pattern cmplr-pattern stx output-zipper))
 
+  (define-generics cmplr-node-operator
+    (cmplr-operator-node-syntax cmplr-node-operator stx))
+
   (define-generics cmplr-bind-operator
     (bind-operator-identifier cmplr-bind-operator)
     (bind-operator-parse-syntax cmplr-bind-operator body-stx ast-type)

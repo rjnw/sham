@@ -21,7 +21,6 @@
 (define (assoc-default key lst (dflt #f) (is-equal? equal?))
   (let ([v (assoc key lst is-equal?)])
     (if v (cdr v) dflt)))
-
 (define info/c (listof (cons/c symbol? (listof syntax?))))
 
 (define (info-value key lst (dflt #f))
@@ -37,6 +36,17 @@
     [else '()]))
 (define (add-info key val inf) (cons (list key val) inf))
 (define (remove-info key inf)
-  (filter (λ (p) (not (equal? key (car p)))) inf))
+  (if (list? key)
+      (foldr remove-info inf key)
+      (filter (λ (p) (not (equal? key (car p)))) inf)))
+(define (combine-info . infs)
+  (dedup-assoc (apply append infs)))
+
+(define (insert-info key val lst)
+  (cond [(empty? lst) (list key val)]
+        [(and (cons? lst) (equal? (caar lst) key))
+         `((,(caar lst) ,val ,@(cdar lst)) . ,(cdr lst))]
+        [else (cons (car lst) (insert-info key val (cdr lst)))]))
+
 (define (default-metadata . specs)
   (ormap (curry info-1value 'default-metadata) specs))
