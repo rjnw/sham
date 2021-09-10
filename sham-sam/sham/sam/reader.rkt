@@ -4,15 +4,15 @@
  (for-syntax
   racket/syntax
   syntax/parse
-  "syntax/spec.rkt"
-  "syntax/parser.rkt"))
+  (submod "syntax/spec.rkt" reader)
+  "syntax/reader.rkt"))
 
-;; (provide build-reader)
+ (provide build-reader)
 
-#;(define-syntax (build-reader stx)
+(define-syntax (build-reader stx)
   (syntax-parse stx
     [(_ reads:reader-spec)
-     (define parsers (build-parsers (attribute reads.spec)))
+     (define readers (build-readers (attribute reads.spec)))
      parsers
      ;; #'(void)
      ]))

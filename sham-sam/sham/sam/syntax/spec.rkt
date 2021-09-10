@@ -307,3 +307,7 @@
 
   (struct cmplr:state:node [cspec gspec nspec bvars args] #:prefab)
   )
+
+(module* reader #f
+  (provide (all-defined-out))
+  (struct reader spec [readf-ids ast-id info] #:prefab))

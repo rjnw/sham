@@ -3,27 +3,26 @@
 (require sham/sam/ast)
 (provide (all-defined-out))
 
-(define-ast cry
+(define-ast cry-ast
   (top
    [mod (id_name
          ;; (parameter_ps ...)
          decl_body ...)])
 
   #;(parameter
-   [type (id kind (~optional value))]
-   [value (id type (~optional value))]
-   [constraint (c)]
-   #:alias p)
+     [type (id kind (~optional value))]
+     [value (id type (~optional value))]
+     [constraint (c)]
+     #:alias p)
 
-  (decl
+  (def
+   [val (t bs:def.bind ...)]
    ;; [import (id_name id_qualifier (id_only ...) (id_hide ...) (parameter_ps ...))]
    ;; [mod-inst (id_name id_of (p_ps ...) (d_ds ...))]
    ;; [type (id_name (id_vars ...) t_body)]
    ;; [newtype (id_name (id_vars ...) t_body)]
-   [def (id_name t decl.bind_body ...)]
    ;; [private (d_ds ...)]
    [bind ((id_vars ...) e_body)]
-   [value (e_val)]
    #:alias d)
 
   (expr
@@ -38,10 +37,10 @@
    #:alias e)
 
   #;(record expr
-   [tuple (e ...)]
-   [literal ((id_field e_val) ...)]
-   [project (e (~ (~or id integer) field))]
-   [update (e (id_fields e_vals) ...)])
+            [tuple (e ...)]
+            [literal ((id_field e_val) ...)]
+            [project (e (~ (~or id integer) field))]
+            [update (e (id_fields e_vals) ...)])
 
   (bit expr [true] [false])
 

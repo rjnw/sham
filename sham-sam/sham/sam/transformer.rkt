@@ -8,7 +8,7 @@
 (provide (all-from-out "runtime/compiler.rkt")
          (all-defined-out))
 
-(define-syntax (define-compiler stx)
+(define-syntax (build-transformer stx)
   (syntax-parse stx
     [(_ cmplr:compiler-spec)
      (define-values (cmplr-stx cmplr-spec) (build-compiler-syntax (attribute cmplr.spec)))

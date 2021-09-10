@@ -73,7 +73,7 @@
     (pattern (~seq name:id groups:ast-group ... info:keyword-info)
              #:attr spec (ast #f #`name (attribute groups.spec) (attribute info.spec)))))
 
-#;(module* reader #f
+(module* reader #f
   (require (submod "spec.rkt" reader))
   (provide (all-defined-out))
   (define-syntax-class language-spec
@@ -81,8 +81,8 @@
     (pattern (lang:id (name:id var:id ...) ...)))
   (define-splicing-syntax-class reader-spec
     #:description "sham language reader specification"
-    (pattern (~seq ast:id info:keyword-info)
-             #:attr spec (reader #`ast (attribute info.spec)))))
+    (pattern (~seq (read-id read-syntax-id) ast:id info:keyword-info)
+             #:attr spec (reader (cons #`read-id #`read-syntax-id) #`ast (attribute info.spec)))))
 
 (module* compiler #f
   (require (submod "spec.rkt" compiler))
