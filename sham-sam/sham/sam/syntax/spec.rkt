@@ -305,7 +305,7 @@
   (struct cmplr:node [bind bodys] #:prefab)
   (struct cmplr:type [from to] #:prefab)
 
-  (struct cmplr:state:node [cspec gspec nspec bvars args] #:prefab)
+  (struct cmplr:state:node [cspec gspec nspec bvars] #:prefab)
   )
 
 (module* reader #f

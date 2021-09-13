@@ -20,4 +20,4 @@
            #,@cmplr-stx))
      stx]))
 
-(define-syntax rkt-syntax (rkt-syntax-cmplr-target))
+(define-syntax rkt-syntax (rkt-syntax-cmplr #f))

@@ -89,7 +89,7 @@
   (provide (all-defined-out))
 
   (define-syntax-class compiler-type
-    (pattern (from:id (~datum ->) to:id) #:attr spec (cmplr:type #'from #'to)))
+    (pattern (from:expr (~datum ->) to:expr) #:attr spec (cmplr:type #'from #'to)))
 
   (define-syntax-class compiler-group
     (pattern (name:id type:compiler-type (node-binding:expr node-body:expr ...) ... info:keyword-info)

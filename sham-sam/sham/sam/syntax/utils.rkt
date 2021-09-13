@@ -31,6 +31,12 @@
     ([val lst])
     (define-values (nval nstate) (f val state))
     (values (cons nval res) nstate)))
+(define (mapl/state f initial-state lst)
+  (cond [(empty? lst) (values lst initial-state)]
+        [(cons? lst) (define-values (v car-state) (f (car lst)))
+                     (define-values (rst cdr-state) (mapl/state f car-state (cdr lst)))
+                     (values (cons v rst) cdr-state)]
+        [else (error 'sham/sam/utils "unknown list to mapl/state ~a" lst)]))
 
 ;; syntax utils
 (define syntax->string (compose symbol->string syntax->datum))

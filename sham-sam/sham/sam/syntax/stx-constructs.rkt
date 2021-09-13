@@ -35,9 +35,24 @@
                  [else (error 'sham/sam/stx "unknown definition for local def ~a" def)])))
       (to-syntax body)))])
 
+(struct stx:lam [args body]
+  #:methods gen:stx-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax sl)
+     (match-define (stx:lam args body) sl)
+     #`(λ #,(to-syntax args) #,(to-syntax body)))])
+
 (struct stx:app [op rands]
   #:methods gen:stx-construct
   [(define/generic to-syntax ->syntax)
    (define (->syntax sa)
      (match-define (stx:app op rands) sa)
-     #`(#,op . #,(stx-seq (to-syntax rands))))])
+     #`(#,(to-syntax op) . #,(stx-seq rands)))])
+
+(struct stx:match [inp cases]
+  #:methods gen:stx-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax sm)
+     (match-define (stx:match inp cases) sm)
+     #`(match #,(to-syntax inp)
+         #,@(to-syntax (flatten cases))))])
