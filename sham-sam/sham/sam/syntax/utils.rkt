@@ -51,7 +51,8 @@
   (for/fold ([i (if (>= (length ids) 1) (car ids) #'||)])
             ([id (if (cons? ids) (cdr ids) '())])
     (format-id #f "~a~a~a" i sep id)))
-
+(define (->syntax-keyword s)
+  (string->keyword (symbol->string (->symbol s))))
 ;;; splits strings following type notation for ast specification
 (define (split-id-string str)
   (match str

@@ -1,10 +1,14 @@
 #lang racket
-(require racket/generic)
+(require racket/generic
+         (for-template racket racket/syntax))
+
 (require "generics.rkt")
 (provide (all-defined-out))
 
+(define to-syntax ->syntax)
+
 (define (stx-seq . stxs)
-  (define fs (->syntax (flatten stxs)))
+  (define fs (flatten (->syntax (flatten stxs))))
   #`(#,@fs))
 
 (struct stx:def [vars vals]
@@ -56,3 +60,17 @@
      (match-define (stx:match inp cases) sm)
      #`(match #,(to-syntax inp)
          #,@(to-syntax (flatten cases))))])
+
+(struct stx:qs [s]
+  #:methods gen:stx-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax qs)
+     (match-define (stx:qs s) qs)
+     #`(#,#'quasisyntax #,s))])
+
+(struct stx:uns [s]
+  #:methods gen:stx-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax qs)
+     (match-define (stx:uns s) qs)
+     #`(#,#'unsyntax #,s))])

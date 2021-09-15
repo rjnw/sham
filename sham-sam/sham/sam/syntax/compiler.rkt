@@ -4,7 +4,8 @@
          racket/syntax
          racket/generic
          (for-template racket
-                       racket/syntax))
+                       racket/syntax
+                       syntax/parse))
 
 (require
  "pat.rkt"
@@ -66,7 +67,8 @@
   [(define/generic to-syntax ->syntax)
    (define (->syntax poo)
      (match-define (cmplr:pat:ooo p k) poo)
-     (list (to-syntax p) (oook-syntax k)))])
+     (define ps (to-syntax p))
+     (list ps (oook-syntax k ps)))])
 
 (struct cmplr:node:case pat:app []
   #:methods gen:stx-construct
@@ -80,7 +82,7 @@
   [(define/generic to-syntax ->syntax)
    (define (->syntax pse)
      (match-define (cmplr:pat:seq ps) pse)
-     #`(#,@(map to-syntax (flatten ps))))])
+     (stx-seq ps))])
 
 (define (compile-ast-type var ast-type cstate)
   ;; (printf "compile-ast-type: ~a ~a\n" var ast-type)
@@ -398,21 +400,37 @@
 ;;   #:methods gen:cmplr-group-builder
 ;;   [(define (build-cmplr-group sgb stxc cspec gspec)
 ;;      )])
+(struct stx-cls-with-var [id depth]
+  #:methods gen:stx-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax sv)
+     (match-define (stx-cls-with-var id depth) sv)
+     (let rec ([d depth])
+       (match d
+         [#f (to-syntax id)]
+         [(cons (cons mn mx) rst)
+          #`(#,(rec rst) (... ...))])))])
+
+(struct stx-cls-attr-val [var id]
+  #:methods gen:stx-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax sca)
+     (match-define (stx-cls-attr-val var id) sca)
+     (define var-stx (to-syntax var))
+     (if id
+         #`(attribute #,(format-id var-stx "~a.~a" var-stx (to-syntax id)))
+         #`(attribute #,var)))])
 
 (struct stx-var-operator []
   #:methods gen:cmplr-node-operator
   [(define (cmplr-operator-node-syntax op stxs)
      (match-define (cmplr:node:case pat bodys) stxs)
      ;; (printf "stx-var-operator: ~a \n" stxs)
-     (define (with-syntax-pat var depth)
-       (match depth
-         [#f (->syntax var)]
-         [(cons (cons mn mx) rst)
-          #`(#,(with-syntax-pat var rst) (... ...))]) )
+
      (define (build-ws-def var val)
        (match-define (cmplr:pat:compiled-var var-stx from-stx ast-type) var)
        (define pat-stx
-         (with-syntax-pat var-stx
+         (stx-cls-with-var var-stx
            (match ast-type
              [(ast:type:internal depth _) depth]
              [else #f])))
@@ -424,8 +442,7 @@
          [(cmplr:pat:seq ps)
           (append-map get-pat-args ps)]
          [(cmplr:pat:var var gen)
-          (list (stx:def (with-syntax-pat var depth)
-                         gen))]
+          (list (stx:def (stx-cls-with-var var depth) gen))]
          [else (printf "build-normal-args: ~a\n" pat) '()]))
      (define (swap-normal-var-stx pat)
        (match pat
@@ -447,23 +464,49 @@
                           #'#`res-stx)))]
        [else (error 'sham/sam/cmplr "cannot match final node syntax ~a" bodys)]))])
 
+;; syntax-class directive ; #:with/#:when/#:attr ...
+(struct stx-cls-dir [kwrd vals]
+  #:methods gen:stx-construct
+  [(define/generic to-syntax ->syntax)
+   (define (->syntax scp)
+     (match-define (stx-cls-dir kwrd vals) scp)
+     (cons (to-syntax kwrd) (to-syntax vals)))])
+
+;; (struct stx-class-var-operator []
+;;   #:methods gen:cmplr-node-operator
+;;   [(define (cmplr-operator-node-syntax op stxs)
+;;      (match-define (cmplr:node:case pat bodys) stxs)
+;;      ;; TODO
+;;      (cmplr:node:stx-cls-pat pat bodys))])
+
 (struct cmplr:pat:stx:var cmplr:pat:compiled-var []
   #:methods gen:stx-construct
   [(define/generic to-syntax ->syntax)
    (define (->syntax sv)
      (match-define (cmplr:pat:stx:var id gen-id type) sv)
      #`(~var #,(to-syntax gen-id) #,(to-syntax type)))])
+
 (struct cmplr:pat:stx:lit pat:dat []
   #:methods gen:stx-construct
   [(define (->syntax sd)
      (match-define (cmplr:pat:stx:lit d) sd)
-     #`(~literal #,d))])
-(struct cmplr:pat:stx:seq cmplr:pat:seq [paren-shape]
+     #`(~datum #,d))])
+
+(struct cmplr:pat:stx pat:dat []
   #:methods gen:stx-construct
-  [(define/generic to-syntax ->syntax)
-   (define ->syntax to-syntax)])
+  [(define (->syntax st) (pat:dat-v st))])
+
+(struct cmplr:pat:stx:seq cmplr:pat:seq [paren-shape])
 (struct cmplr:pat:stx:vec cmplr:pat:stx:seq [])
-(struct cmplr:stx:stype [tstx depth args])
+(struct cmplr:stx:stype [tstx depth args]
+  #:methods gen:stx-construct
+  [(define (->syntax st)
+     (match-define (cmplr:stx:stype tstx depth args) st)
+     #`(#,tstx #,@(map stx-cls-arg args)))])
+
+(define (stx-cls-arg arg)
+  #`(#,(->syntax-keyword arg) #,arg))
+
 (define (syntax-node-pat-builder pat-spec node-state)
   (printf "\n\nsyntax-node-pat-builder:\n")
   (pretty-print (syntax->datum pat-spec))
@@ -493,28 +536,78 @@
          [(list _ id typ)
           (define gen-id (generate-temporary id))
           (define bvar (cmplr:stx:stype typ depth (map car cargs)))
-          (define svar (cmplr:pat:stx:var id gen-id typ))
+          (define svar (cmplr:pat:stx:var id gen-id bvar))
           (values (list svar) svar)]
-         [else (values '() v)])]
+         [else (match (syntax->string stx)
+                 [(regexp #rx"^~(.*)$" (list _ actual))
+                  (values '() (cmplr:pat:stx stx))]
+                 [else (error 'sham/sam/cmplr "TODO stx:var ~a" stx)])])]
       [(pat:dat d) (values '() (cmplr:pat:stx:lit d))]
       [(pat:ooo p k)
        (define-values (pvars pstx) (do-pattern p (cons k depth)))
        (values pvars (cmplr:pat:ooo pstx k))]
       [else (error 'sham/sam/cmplr "TODO")]))
-  (define-values (bvars pat-stx) (do-pattern pat-spec 0))
+  (define-values (bvars pat-stx) (do-pattern pat-spec #f))
   (printf "vars&stx: ~a \n\t~a\n" bvars pat-stx)
   (values pat-stx (cmplr:state:node cspec gspec nspec bvars)))
 
+(define result-attr #`sres)
+
 (define (syntax-node-body-builder body-spec node-state)
-  body-spec)
-(define (syntax-group-definer gid args body)
-  (printf "syntax-group-definer: ~a\n" body)
-  (error 'stop)
-  body)
+  (match-define (list dirs ... stx-result) body-spec)
+  (match-define (cmplr:state:node cspec gspec nspec bvars) node-state)
+  (match-define (cmplr header groups info) cspec)
+  (printf "syntax-node-body-builder\n")
+  (printf "bvars: ~a\n" bvars)
+  (define bvar-with-dirs
+    (for/list ([bvar bvars])
+      (match bvar
+        [(cmplr:pat:stx:var id gen-id (cmplr:stx:stype typ-stx depth cargs))
+         (define with-val
+           (cond [(member (->symbol typ-stx) (map ->symbol (map cmplr:group-id groups)))
+                 (stx-cls-attr-val gen-id result-attr)]
+                 [else (stx-cls-attr-val gen-id #f)]))
+         (stx-cls-dir #`#:with (list (stx-cls-with-var id depth) with-val))]
+
+        [else (error 'sham/sam/cmplr "unknown bound var for syntax class: ~a" bvar)])))
+  (define result-attr-dir (stx-cls-dir #`#:attr (list result-attr (stx:qs stx-result))))
+  `(,@bvar-with-dirs ,result-attr-dir))
+
+(struct syntax-class-group-builder [result-attr-stx]
+  #:methods gen:cmplr-group-builder
+  [(define (build-cmplr-group scgb stxc cspec gspec)
+     (match-define (cmplr header groups info) cspec)
+     (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
+     (match-define (cmplr:group gid gtyp gnodes ginfo) gspec)
+     (printf "syntax-group-builder: ~a\n" stxc)
+     (printf "\t ginfo: ~a\n" ginfo)
+     (define sc-args (map (compose stx-cls-arg car) cmplr-args))
+     (define sc-bodys
+       (for/list ([c stxc])
+         (match-define (cmplr:node:case pat bodys) c)
+         #`(pattern #,(->syntax pat) #,@(stx-seq bodys))))
+     (define definer (if (info-value 'splicing ginfo) #`define-splicing-syntax-class #`define-syntax-class))
+     (printf "done-with-syntax-group-builder\n")
+     #`(#,definer (#,gid #,@sc-args) #,@sc-bodys))])
+
+(struct syntax-class-top-builder [result-attr]
+  #:methods gen:cmplr-top-builder
+  [(define (build-cmplr-top sctb stxc cspec)
+     (match-define (syntax-class-top-builder result-attr-stx) sctb)
+     (match-define (cmplr header groups info) cspec)
+     (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
+     (match-define (cmplr:type cfrom cto) cmplr-type)
+     (define cinp #'cinp)
+     #`(define (#,cmplr-id cmplr-inp #,@(map list (map car cmplr-args) (map cdr cmplr-args)))
+         #,@stxc
+         (syntax-parse cmplr-inp
+           [(~var #,cinp #,(cmplr:group-id (car groups)))
+            (attribute #,(format-id cinp "~a.~a" cinp result-attr-stx))])))])
+
 (define syntax-builders
   (list (basic-node-builder syntax-node-pat-builder syntax-node-body-builder)
-        (basic-group-builder syntax-group-definer (λ (ginp stxc) stxc))
-        (basic-top-builder)))
+        (syntax-class-group-builder result-attr)
+        (syntax-class-top-builder result-attr)))
 
 (struct rkt-syntax-cmplr spec [of]
   #:property prop:procedure (λ (_ of)
@@ -526,11 +619,11 @@
      (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
      (match-define (cmplr:type cfrom cto) cmplr-type)
      (printf "rkst-syntax-cmplr-target&curr-info: ~a\n" info)
-     (define stx-ops (list (auto-compile-pattern #`rt:^)))
+     (define stx-ops (list (stx-var-operator)))
 
      (define new-info
        (combine-info
-        `((operators . ,stx-ops)
+        `(;; (operators . ,stx-ops)
           (builders . ,syntax-builders))
         (remove-info `(operators builders) info)))
      ;; (define new-info (insert-info 'operators (stx-var-operator) info))
