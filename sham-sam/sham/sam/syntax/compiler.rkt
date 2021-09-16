@@ -509,8 +509,16 @@
   #:methods gen:stx-construct
   [(define (->syntax st) (pat:dat-v st))])
 
-(struct cmplr:pat:stx:seq cmplr:pat:seq [paren-shape])
-(struct cmplr:pat:stx:vec cmplr:pat:stx:seq [])
+(struct cmplr:pat:stx:seq cmplr:pat:seq [paren-shape]
+  #:methods gen:stx-construct
+  [(define (->syntax sv)
+     (match-define (cmplr:pat:stx:seq ps shape) sv)
+     #`(#,@(stx-seq ps)))])
+(struct cmplr:pat:stx:vec cmplr:pat:stx:seq []
+  #:methods gen:stx-construct
+  [(define (->syntax sv)
+     (match-define (cmplr:pat:stx:vec ps shape) sv)
+     #`#(#,@(stx-seq ps)))])
 (struct cmplr:stx:stype [tstx depth args]
   #:methods gen:stx-construct
   [(define (->syntax st)
