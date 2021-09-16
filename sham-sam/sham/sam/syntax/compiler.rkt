@@ -504,7 +504,7 @@
   #:methods gen:stx-construct
   [(define (->syntax so)
      (match-define (cmplr:pat:stx:op op rands) so)
-     #`(#,op #,@(to-syntax rands)))])
+     #`(#,op #,@(stx-seq rands)))])
 (struct cmplr:pat:stx pat:dat []
   #:methods gen:stx-construct
   [(define (->syntax st) (pat:dat-v st))])

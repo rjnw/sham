@@ -2,12 +2,12 @@
 ;;  https://github.com/GaloisInc/cryptol-specs/blob/master/Primitive/Keyless/Hash/SHA1.cry
 
 (def
-  [sha1 : {n} [<= (width (* 8 n)) 64] => [n [8]] -> [160]]
+  [sha1 : {n} (<= (width (* 8 n)) 64) => [n [8]] -> [160]]
   [sha1 msg = (sha1^ pmsg)
         [pmsg = (pad (join msg))]])
 
 (def
-  [sha1^ : ({chunks} (fin chunks) => [chunks [512]] -> [160])]
+  [sha1^ : {chunks} (fin chunks) => [chunks [512]] -> [160]]
   [sha1^ pmsg = (join (! Hs 0))
          [Hs = (<>
                 [[#x67452301 #xefcdab89 #x98badcfe #x10325476 #xc3d2e1f0]]
@@ -44,7 +44,7 @@
          [#xca62c1d6 | t <- [60 .. 79]]]])
 
 (def
-  [block : (#([5 [32]] [16 [32]]) -> [5 [32]])]
+  [block : #([5 [32]] [16 [32]]) -> [5 [32]]]
   [block #([H0 H1 H2 H3 H4] M) = [(+ H0 (@ As 80))
                                   (+ H1 (@ Bs 80))
                                   (+ H2 (@ Cs 80))

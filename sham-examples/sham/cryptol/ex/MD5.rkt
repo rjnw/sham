@@ -1,34 +1,34 @@
 #lang sham/cryptol
 ;;  https://github.com/GaloisInc/cryptol-specs/blob/master/Primitive/Keyless/Hash/MD5.cry
 
-(def [ntohl : ([32] -> [32])]
+(def [ntohl : [32] -> [32]]
   [ntohl w = (join (reverse (groupBy {8} w)))])
 
-(def [htonl : ([32] -> [32])]
+(def [htonl : [32] -> [32]]
   [htonl w = (join (reverse (groupBy {8} w)))])
 
-(def [htonll : ([64] -> [64])]
+(def [htonll : [64] -> [64]]
   [htonll w = (join (reverse (groupBy {8} w)))])
 
-(def [map : ({n a b} (a -> b) -> [n a] -> [n b])]
+(def [map : {n a b} (a -> b) -> [n a] -> [n b]]
   [map f xs = [(f x) | x <- xs]])
 
-(def [foldl : ({n a b} (fin n) => a -> (a -> b -> a) -> [n b] -> a)]
+(def [foldl : {n a b} (fin n) => a -> (a -> b -> a) -> [n b] -> a]
   [foldl seed f xs = (! res 0)
          [res = (<> [seed] [(f a x) | a <- res | x <- xs])]])
 
-(def [md5_ref : ([16 [8]] -> [16 [8]])]
+(def [md5_ref : [16 [8]] -> [16 [8]]]
   [md5_ref msg = (map reverse (groupBy {8} (md5 (join (map reverse msg)))))])
 
 (type [MD5State = #([32] [32] [32] [32])])
 
-(def [md5 : ({a} (64 >= width a) => [a] -> [128])]
+(def [md5 : {a} (64 >= width a) => [a] -> [128]]
   [md5 msg = (md5output finalState)
        [type p = (%^ (+ a 65) 512)]
        [type b = (/^ (+ a 65) 512)]
        [finalState : MD5State]
        [finalState = (foldl initialMD5State processBlock blocks)]
-       [blocks : [b 512]]
+       [blocks : [b [512]]]
        [blocks = (groupBy {512} (pad {a p} msg))]
 
        [add : MD5State -> MD5State -> MD5State]
@@ -54,7 +54,7 @@
 (def [pad : {a p} (fin p) (>= 64 width a) => [a] -> [(+ 65 a p)]]
   [pad msg = (<> msg [True] zero (htonll sz))
        [sz : [64]]
-       [sz = length msg]])
+       [sz = (length msg)]])
 
 (def [computeRounds : #([16 [32]] MD5State) -> [65 MD5State]]
   [computeRounds msg st = (@ (<> msg st) 64)])

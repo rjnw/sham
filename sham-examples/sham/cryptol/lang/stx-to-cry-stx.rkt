@@ -8,10 +8,12 @@
                  (rkt-syntax -> (rkt-syntax cry-ast))
                  (top (stx -> stx)
                       [('def t:def ds:def ...) (def:val t ds ...)]
-                      [('test name:id ('== a:cexpr b:cexpr)) (def:test name a b)])
+                      [('test name:id ('== a:cexpr b:cexpr)) (def:test name a b)]
+                      [('type [name:id '= t:stype])
+                       (def:type name t)])
                  (def (stx -> stx)
                    [['type name:id '= ts:stype] (def:ttype name ts)]
-                   [[name:id ': ts:stype] (def:vtype name ts)]
+                   [[name:id ': ~! ts:stype] (def:vtype name ts)]
                    [[name:id ps:pat ... '= ~! b:cexpr ws:def ...] (def:bind name (ps ...) (expr:where b ws ...))])
                  (pat (stx -> stx)
                       [(~and (~not '=) name:id) (pat:var name)]
@@ -39,12 +41,14 @@
                        [#(t:type ...) (type:tuple t ...)]
                        [[dm:dim t:type] (type:sequence dm t)]
                        [[dm:dim] (type:sequence dm type:bit)]
-                       ['integer (type:integer)])
+                       [n:id (type:var n)]
+                       ['integer (type:integer)]
+                       [(st:stype) st])
 
                  (stype (stx -> stx)
-                        [(~seq {pvars:id ...} (~and cs:expr (~not '=>)) '=> ts:stype)
-                         (type:poly (pvars ...) (type:constraints cs) ts)]
-                        [(~seq ffrom:type '-> tto:stype) (type:func ffrom tto)]
+                        [(~seq {pvars:id ...} ~! ts:stype) (type:poly (pvars ...) ts)]
+                        [(~seq (~and (~not '=>) cs:expr) ... '=> ~! ts:stype) (type:constraint (cs ...) ts)]
+                        [(~seq ffrom:type '-> ~! tto:stype) (type:func ffrom tto)]
                         [(t:stype) t]
                         [t:type t]
                         #:splicing)
