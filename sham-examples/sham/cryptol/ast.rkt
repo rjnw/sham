@@ -16,24 +16,32 @@
      #:alias p)
 
   (def
-   [val (t bs:def.bind ...)]
-   ;; [import (id_name id_qualifier (id_only ...) (id_hide ...) (parameter_ps ...))]
-   ;; [mod-inst (id_name id_of (p_ps ...) (d_ds ...))]
-   ;; [type (id_name (id_vars ...) t_body)]
-   ;; [newtype (id_name (id_vars ...) t_body)]
-   ;; [private (d_ds ...)]
-   [bind ((id_vars ...) e_body)]
-   #:alias d)
+    [val (t bs:def.bind ...)]
+    [type (id_name t_val)]
+    [typeof (id_name t_val)]
+    ;; [import (id_name id_qualifier (id_only ...) (id_hide ...) (parameter_ps ...))]
+    ;; [mod-inst (id_name id_of (p_ps ...) (d_ds ...))]
+    ;; [private (d_ds ...)]
+    [bind ((pat_ps ...) e_body)]
+    #:alias d)
+
+  (pat
+   [var (id_name)]
+   [tuple (pat_ps ...)]
+   [sequence (pat_ps ...)])
 
   (expr
    [app (e_o
-         ;; (e_t ...)
+         (e_t ...)
          e_rands ...)]
-   [ifcond ((e_chk e_then) ... e_else)]
+   [cond ((e_chk e_then) ... e_else)]
    [var (id_name)]
-   ;; [type-var id]
-   ;; [qualified-var (id_from id_var)]
-   [where (e_body (id_fname decl.bind_bs) ...)]
+   [tvar (id_name)]
+   [annot (t e)]
+   [where (e_body d_defs ...)]
+   [error (msg)]
+   [lit (integer_v)]
+   [char (char_c)]
    #:alias e)
 
   #;(record expr
@@ -52,27 +60,28 @@
 
   (sequence expr
             [basic (e_val ...)]
-            ;; [enum ((~ (~optional e) step) e_from (~ (~optional e) to))] ;; missing to = infinity
-            ;; sequence comprehension [e | var <- val, ... | ...]
-            [comp (e_body ((id_var e_val) ...) ...)]
+            [enum (e_from e_step e_to)]
+            ;; sequence comprehension [expr | pat <- expr, ... | ...]
+            [comp (e_body ((pat_ps e_vs) ...) ...)]
             )
 
   (type
    [bit]                                ;; true & false
    [integer]                            ;; unbounded integers
    [sequence (dim t)]                   ;; collection of `dim` homogeneous elements
+   [tuple (t ...)]
+   [var (id_name)]
+   [poly ((id_vars ...) t)]
+   [constraint ((cs ...) t)]
    ;; [record ((id t) ...)]
-   ;; [tuple (t ...)]
-   ;; [named id]
-   ;; {vars, ...} (cop cvars ...) ... => body
-   ;; [poly ([id_vars ...] [(id_cop id_cvars ...) ...] t_body)]
-   [func (t_from '-> t_to)]
+   [func (t_from t_to)]
    #:alias t)
 
   (dim                                  ;; dimension for sequences: integer, infinity or a poly variable
    [int integer_v]
    ;; [inf]
-   ;; [var id]
+   [app (id_rator dim_rands ...)]
+   [var (id_name)]
    ))
 
 
