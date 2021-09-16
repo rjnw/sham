@@ -215,7 +215,9 @@
   (define group-stxs (map do-group groups))
   (define cmplr-stx (foldr-builders (build-top cmplr-spec) group-stxs))
 
+  (pretty-print-columns 160)
   (printf "cmplr-stx: \n") (pretty-print (syntax->datum cmplr-stx))
+
   (values (list cmplr-stx) cmplr-spec))
 
 (define (cmplr-spec-add-extra-info curr-spec extra-info)
@@ -485,13 +487,24 @@
    (define (->syntax sv)
      (match-define (cmplr:pat:stx:var id gen-id type) sv)
      #`(~var #,(to-syntax gen-id) #,(to-syntax type)))])
-
+(struct cmplr:pat:stx:fail [cnd msg]
+  #:methods gen:stx-construct
+  [(define (->syntax sf)
+     (match-define (cmplr:pat:stx:fail cnd msg) sf)
+     #`(~fail #,@(to-syntax cnd) #,(to-syntax msg)))])
+(struct cmplr:pat:stx:and pat:seq []
+  #:methods gen:stx-construct
+  [(define (->syntax sa) (match-define (cmplr:pat:stx:and ps) sa) #`(~and #,@(to-syntax ps)))])
 (struct cmplr:pat:stx:lit pat:dat []
   #:methods gen:stx-construct
   [(define (->syntax sd)
      (match-define (cmplr:pat:stx:lit d) sd)
      #`(~datum #,d))])
-
+(struct cmplr:pat:stx:op pat:app []
+  #:methods gen:stx-construct
+  [(define (->syntax so)
+     (match-define (cmplr:pat:stx:op op rands) so)
+     #`(#,op #,@(to-syntax rands)))])
 (struct cmplr:pat:stx pat:dat []
   #:methods gen:stx-construct
   [(define (->syntax st) (pat:dat-v st))])
@@ -517,26 +530,39 @@
 
   ;; -> (values (listof bound-vars) stx)
   (define (do-pattern v depth)
+    (define (stx-parse-op s)
+      (match (syntax->string s)
+        [(regexp #rx"^~(.*)$" (list _ actual)) actual]
+        [else #f]))
     (define (parse-pattern stx)
+      (define (do-list pats pat-type (force-paren #t))
+        (define paren-shape (syntax-property stx 'paren-shape))
+        (define-values (bvars pstxs) (fold-with-vars (curryr do-pattern depth) (reverse pats)))
+        (define lpat (pat-type pstxs paren-shape))
+        (define stx-id (generate-temporary #'lst))
+        (define and-type #`expr)
+        (define stx-var (cmplr:pat:stx:var stx-id stx-id and-type))
+        ;; TODO only do if string-paren in info
+        (define paren-fail
+          (cmplr:pat:stx:fail (stx-cls-dir #'#:unless (list #`(equal? (syntax-property #'#,stx-id 'paren-shape) #,paren-shape))) #'#f))
+        (define and-pat (cmplr:pat:stx:and (list stx-var paren-fail lpat)))
+        (values bvars (if force-paren and-pat lpat)))
       (syntax-parse stx
         [s:syn-pat (do-pattern (attribute s.pat) depth)]
         [d:dat-pat (do-pattern (attribute d.pat) depth)]
-        [(p:maybe-ooo-pat ...)
-         (define-values (bvars pstx) (fold-with-vars (curryr do-pattern depth) (reverse (attribute p.pat))))
-         (printf "paren-shape: ~a\n" (syntax-property stx 'paren-shape))
-         (values bvars (cmplr:pat:stx:seq pstx (syntax-property stx 'paren-shape)))]
-        [#(p:maybe-ooo-pat ...)
-         (define-values (bvars pstx) (fold-with-vars (curryr do-pattern depth) (attribute p.pat)))
-         (printf "paren-shape: ~a\n" (syntax-property stx 'paren-shape))
-         (values bvars (cmplr:pat:stx:vec pstx (syntax-property stx 'paren-shape)))]))
+        [(sp:id p:maybe-ooo-pat ...)
+         #:when (stx-parse-op #`sp)
+         (do-list (attribute p.pat) (λ (ps shap) (cmplr:pat:stx:op #`sp ps)) #f)]
+        [(p:maybe-ooo-pat ...) (do-list (attribute p.pat) cmplr:pat:stx:seq)]
+        [#(p:maybe-ooo-pat ...) (do-list (attribute p.pat) cmplr:pat:stx:vec)]))
     (match v
       [(? syntax?) (parse-pattern v)]
       [(pat:var stx)
        (match (split-identifier stx)
          [(list _ id typ)
           (define gen-id (generate-temporary id))
-          (define bvar (cmplr:stx:stype typ depth (map car cargs)))
-          (define svar (cmplr:pat:stx:var id gen-id bvar))
+          (define var-type (cmplr:stx:stype typ depth (map car cargs)))
+          (define svar (cmplr:pat:stx:var id gen-id var-type))
           (values (list svar) svar)]
          [else (match (syntax->string stx)
                  [(regexp #rx"^~(.*)$" (list _ actual))
