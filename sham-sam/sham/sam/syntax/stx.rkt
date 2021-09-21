@@ -7,14 +7,20 @@
 
 (define to-syntax ->syntax)
 
-(define (stx-seq . stxs)
+;; converts a list of stx into an actual list syntax
+(define (seq->syntax . stxs)
   (define fs (flatten (->syntax (flatten stxs))))
   #`(#,@fs))
 
+(define (stx-seq . stxs) (stx:seq (flatten stxs)))
+
+(struct stx:seq [stxs]
+  #:methods gen:stx
+  [(define (->syntax ss) (seq->syntax (stx:seq-stxs ss)))])
+
 (struct stx:def [vars vals]
-  #:methods gen:stx-construct
-  [(define/generic to-syntax ->syntax)
-   (define (->syntax ds)
+  #:methods gen:stx
+  [(define (->syntax ds)
      (match-define (stx:def vars vals) ds)
      (cond
        [(list? vars)
@@ -24,53 +30,46 @@
        [else (error 'sham/sam/stx "unknown vars and vals in define: ~a ~a" vars vals)]))])
 
 (struct stx:local-def [type defs body]
-  #:methods gen:stx-construct
-  [(define/generic to-syntax ->syntax)
-   (define (->syntax sld)
+  #:methods gen:stx
+  [(define (->syntax sld)
      (match-define (stx:local-def type defs body) sld)
-     (stx-seq
+     (seq->syntax
       (to-syntax type)
-      (apply stx-seq
+      (apply seq->syntax
              (for/list [(def defs)]
                ;; TODO check for values
                (match def
-                 [(stx:def vars vals) (stx-seq (to-syntax vars) (to-syntax vals))]
-                 [(cons vars vals) (stx-seq (to-syntax vars) (to-syntax vals))]
+                 [(stx:def vars vals) (seq->syntax (to-syntax vars) (to-syntax vals))]
+                 [(cons vars vals) (seq->syntax (to-syntax vars) (to-syntax vals))]
                  [else (error 'sham/sam/stx "unknown definition for local def ~a" def)])))
       (to-syntax body)))])
 
 (struct stx:lam [args body]
-  #:methods gen:stx-construct
-  [(define/generic to-syntax ->syntax)
-   (define (->syntax sl)
+  #:methods gen:stx
+  [(define (->syntax sl)
      (match-define (stx:lam args body) sl)
      #`(λ #,(to-syntax args) #,(to-syntax body)))])
 
 (struct stx:app [op rands]
-  #:methods gen:stx-construct
-  [(define/generic to-syntax ->syntax)
-   (define (->syntax sa)
+  #:methods gen:stx
+  [(define (->syntax sa)
      (match-define (stx:app op rands) sa)
-     #`(#,(to-syntax op) . #,(stx-seq rands)))])
+     #`(#,(to-syntax op) . #,(seq->syntax rands)))])
 
 (struct stx:match [inp cases]
-  #:methods gen:stx-construct
-  [(define/generic to-syntax ->syntax)
-   (define (->syntax sm)
+  #:methods gen:stx
+  [(define (->syntax sm)
      (match-define (stx:match inp cases) sm)
-     #`(match #,(to-syntax inp)
-         #,@(to-syntax (flatten cases))))])
+     #`(match #,(to-syntax inp) #,@(map seq->syntax cases)))])
 
 (struct stx:qs [s]
-  #:methods gen:stx-construct
-  [(define/generic to-syntax ->syntax)
-   (define (->syntax qs)
+  #:methods gen:stx
+  [(define (->syntax qs)
      (match-define (stx:qs s) qs)
      #`(#,#'quasisyntax #,s))])
 
 (struct stx:uns [s]
-  #:methods gen:stx-construct
-  [(define/generic to-syntax ->syntax)
-   (define (->syntax qs)
+  #:methods gen:stx
+  [(define (->syntax qs)
      (match-define (stx:uns s) qs)
      #`(#,#'unsyntax #,s))])

@@ -42,6 +42,11 @@
 (define (combine-info . infs)
   (dedup-assoc (apply append infs)))
 
+;; applies `f` on the assoc pair matching `key` in `lst`
+(define (update-info key f lst)
+  (for/list ([v lst])
+    (if (equal? (car v) key) (cons (car v) (f (cdr v))) v)))
+
 (define (insert-info key val lst)
   (cond [(empty? lst) (list key val)]
         [(and (cons? lst) (equal? (caar lst) key))

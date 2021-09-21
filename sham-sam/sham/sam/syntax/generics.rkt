@@ -3,11 +3,12 @@
 
 (provide (all-defined-out))
 
-(define-generics stx-construct
-  (->syntax stx-construct)
+;; wrapper for racket syntax values in structs
+;;  unlike syntax (listof stx) is used similar to an H-pattern where it is spliced into enclosing stx's.
+(define-generics stx
+  (->syntax stx)
   #:defaults
-  ([syntax?
-    (define (->syntax c) c)]
+  ([syntax? (define (->syntax c) c)]
    [list?
     (define/generic to-syntax ->syntax)
     (define (->syntax c)
@@ -86,7 +87,7 @@
 
   ;; wrapper around make-struct-type arguments
   (struct ast:struct:rkt [name maybe-parent fields options]
-    #:methods gen:stx-construct
+    #:methods gen:stx
     [(define/generic to-syntax ->syntax)
      (define (->syntax asr)
        (match-define (ast:struct:rkt name maybe-parent fields options) asr)
@@ -167,7 +168,7 @@
      (cons (ast-struct-rkt (get-struct-id nids) (get-struct-id gids) `() (reflection-name #``#,(get-fid nids))) ncs)))
 
   (struct rkt-struct-node-functions [fids spec gspec nspec]
-    #:methods gen:stx-construct
+    #:methods gen:stx
     ((define/generic to-syntax ->syntax)
      (define (->syntax rsnf)
        (match-define (rkt-struct-node-functions fids spec gspec nspec) rsnf)
@@ -288,49 +289,57 @@
 (module* compiler racket
   (require racket/generic)
   (provide (all-defined-out))
-  (define-generics cmplr-spec-builder
-    (update-cmplr-spec cmplr-spec-builder cmplr-spec))
-  (define-generics cmplr-group-builder
-    (build-cmplr-group cmplr-group-builder group-constructs cmplr-spec cmplr-group-spec))
+
+  (define-generics cmplr-node-pat-builder
+    ;; -> (cons pat-stx node-state)
+    (build-node-pattern-stx cmplr-node-pat-builder pat-stx&node-state))
+  (define (build-node-pattern builder v)
+    (if (cmplr-node-pat-builder? builder) (build-node-pattern-stx builder v) v))
+
+  (define-generics cmplr-node-body-builder
+    ;; -> (cons body-stx node-state)
+    (build-node-body-stx cmplr-node-body-builder body-stx&node-state))
+  (define (build-node-body builder v)
+    (if (cmplr-node-body-builder? builder) (build-node-body-stx builder v) v))
+
+  ;; node builder only takes spec state as variables and directives should already be in stx
   (define-generics cmplr-node-builder
-    (build-cmplr-node cmplr-node-builder node-construct cmplr-spec cmplr-group-spec cmplr-node-spec))
+    (build-node-stx cmplr-node-builder node-stx node-spec-state))
+  (define ((build-node state) builder v)
+    (if (cmplr-node-builder? builder) (build-node-stx builder v state) v))
+
+  (define-generics cmplr-spec-updater
+    (update-cmplr-spec cmplr-spec-updater cmplr-spec))
+  (define (update-spec updater spec)
+    (if (cmplr-spec-updater? updater) (update-cmplr-spec updater spec) spec))
+
+  (define-generics cmplr-group-builder
+    (build-group-stx cmplr-group-builder group-constructs cmplr-spec cmplr-group-spec))
   (define-generics cmplr-top-builder
     (build-cmplr-top cmplr-top-builder top-construct cmplr-spec))
-  (define (update-spec builder spec)
-    (if (cmplr-spec-builder? builder) (update-cmplr-spec builder spec) spec))
   (define ((build-group cmplr-spec group-spec) builder group-construct)
     (if (cmplr-group-builder? builder)
-        (build-cmplr-group builder group-construct cmplr-spec group-spec)
+        (build-group-stx builder group-construct cmplr-spec group-spec)
         group-construct))
-  (define ((build-node cmplr-spec group-spec node-spec) builder node-construct)
-    (if (cmplr-node-builder? builder)
-        (build-cmplr-node builder node-construct cmplr-spec group-spec node-spec)
-        node-construct))
   (define ((build-top cmplr-spec) builder top-construct)
     (if (cmplr-top-builder? builder)
         (build-cmplr-top builder top-construct cmplr-spec)
         top-construct))
 
-  (define-generics cmplr-node-pattern
-    (node-operation-id cmplr-node-pattern)
-    (parse-node-binding cmplr-node-pattern stx path cmplr-spec group-spec node-spec))
-  (define-generics cmplr-bind-pattern
-    (bound-variables cmplr-bind-pattern)
-    (match-syntax cmplr-bind-pattern))
+  ;; stored in cmplr info for 'node-pat-operators 'node-body-operators
+  ;;  we have some default identifiers for #%var #%app for general operators for every variable and application syntaxes
+  (define-generics cmplr-operator
+    (operator-identifies? cmplr-operator stx state)
+    ;; where changes depending on the placement of operator in node pattern or body
+    ;;   as we know the types in pattern it will contain type and path
+    ;;   for body it contains state
+    ;;  frec: stx state -> (values new-stx state)
+    (operator-parse-syntax cmplr-operator body-stx state frec))
 
-  (define-generics cmplr-pattern
-    (expand-pattern cmplr-pattern stx input-zipper)
-    (perform-pattern cmplr-pattern stx output-zipper))
+  (define-generics cmplr-node-directive)
 
-  (define-generics cmplr-node-operator
-    (cmplr-operator-node-syntax cmplr-node-operator stx))
+  ;; (define-generics cmplr-body-operator
+  ;;   (body-operator-identifier cmplr-body-operator)
+  ;;   (body-operator-gen-syntax cmplr-body-operator rst-stx frec state))
 
-  (define-generics cmplr-bind-operator
-    (bind-operator-identifier cmplr-bind-operator)
-    (bind-operator-parse-syntax cmplr-bind-operator body-stx ast-type)
-    (bind-operator-gen-syntax cmplr-bind-operator bound-var state))
-
-  (define-generics cmplr-body-operator
-    (body-operator-identifier cmplr-body-operator)
-    (body-operator-gen-syntax cmplr-body-operator rst-stx frec state))
   )

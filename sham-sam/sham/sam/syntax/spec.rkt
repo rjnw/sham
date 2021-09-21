@@ -301,11 +301,13 @@
   (provide (all-defined-out))
   (struct cmplr spec [header groups info] #:prefab)
   (struct cmplr:header [id args type] #:prefab)
+  (struct cmplr:header:type [from to] #:prefab)
   (struct cmplr:group [id type nodes info] #:prefab)
-  (struct cmplr:node [bind bodys] #:prefab)
-  (struct cmplr:type [from to] #:prefab)
+  (struct cmplr:node [pat bodys] #:prefab)
 
-  (struct cmplr:state:node [cspec gspec nspec bvars] #:prefab)
+  (struct cmplr:spec-state:node [cspec gspec nspec] #:prefab)
+  (struct cmplr:state:node [spec bvars&dirs path] #:prefab)
+
   )
 
 (module* reader #f

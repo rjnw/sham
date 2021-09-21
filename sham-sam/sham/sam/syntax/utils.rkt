@@ -38,6 +38,20 @@
                      (values (cons v rst) cdr-state)]
         [else (error 'sham/sam/utils "unknown list to mapl/state ~a" lst)]))
 
+;; f : val curr state -> (values new-val new-state)
+(define (foldl/state f val initial-state lst)
+  (for/fold ([res val]
+             [state initial-state])
+            ([v lst])
+    (f v res state)))
+
+;; f : val curr state -> (values new-val new-state)
+(define (foldr/state f val initial-state lst)
+  (for/foldr ([res val]
+              [state initial-state])
+    ([v lst])
+    (f v res state)))
+
 ;; syntax utils
 (define syntax->string (compose symbol->string syntax->datum))
 (define (string->syntax str (ctxt #f)) (datum->syntax ctxt (string->symbol str)))
