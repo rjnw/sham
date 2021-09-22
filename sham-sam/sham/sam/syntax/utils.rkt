@@ -31,21 +31,22 @@
     ([val lst])
     (define-values (nval nstate) (f val state))
     (values (cons nval res) nstate)))
-(define (mapl/state f initial-state lst)
-  (cond [(empty? lst) (values lst initial-state)]
-        [(cons? lst) (define-values (v car-state) (f (car lst)))
+
+(define (mapl/state f state lst)
+  (cond [(empty? lst) (values lst state)]
+        [(cons? lst) (define-values (v car-state) (f (car lst) state))
                      (define-values (rst cdr-state) (mapl/state f car-state (cdr lst)))
                      (values (cons v rst) cdr-state)]
         [else (error 'sham/sam/utils "unknown list to mapl/state ~a" lst)]))
 
-;; f : val curr state -> (values new-val new-state)
+;; f : lst-elem curr-result state -> (values new-result new-state)
 (define (foldl/state f val initial-state lst)
   (for/fold ([res val]
              [state initial-state])
             ([v lst])
     (f v res state)))
 
-;; f : val curr state -> (values new-val new-state)
+;; f : lst-elem curr-result state -> (values new-result new-state)
 (define (foldr/state f val initial-state lst)
   (for/foldr ([res val]
               [state initial-state])

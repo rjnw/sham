@@ -7,26 +7,29 @@
          "utils.rkt"
          "pat.rkt"
          "pat-stx.rkt"
+         "state.rkt"
          "basic.rkt")
-
+(provide (all-defined-out))
 ;; a normal syntax variable in pattern, corresponds to syntax-parse variables with : for specifying types
 ;;  binds the syntax with a generated id and creates a syntax variable directive as the value
 ;;  is bound in syntax space or with syntax attribute if local type
 (struct stx-var-pat-operator []
   #:methods gen:cmplr-operator
-  [(define (operator-identifies? op stx state) (identifier? stx))
-   (define (operator-parse-syntax op stx state frec)
+  [(define (operator-parse-syntax op val state frec)
      (match-define (cmplr:state:node spec vdirs path) state)
+     (printf "stx-var: ~a ~a\n" val state)
      ;; (match-define (cmplr:spec-state:node cspec gspec nspec) spec)
-     (match (split-identifier stx)
-       [(list _ id typ)
-        (define gen-id (generate-temporary id))
-        (define var-type (cmplr:stx:stype typ state))
-        (define svar (cmplr:pat:stx:var gen-id id var-type))
-        (define sdir (cmplr:dir:stx:var svar))
-        (values svar (cmplr:state:node spec (cons sdir vdirs) path))]
-       [(list #f id) (values (cmplr:pat:stx:var id id #f) state)]
-       [else (error 'sham/sam/TODO)])
+     (if (and (syntax? val) (identifier? val))
+         (match (split-identifier val)
+           [(list _ id typ)
+            (define gen-id (generate-temporary id))
+            (define var-type (cmplr:stx:stype typ state))
+            (define svar (cmplr:pat:stx:var gen-id id var-type))
+            (define sdir (cmplr:dir:stx:var svar))
+            (values svar (cmplr:state:node spec (cons sdir vdirs) path))]
+           [(list #f id) (values (cmplr:pat:stx:var id id (cmplr:stx:stype #`unknown state)) state)]
+           [else (error 'sham/sam/TODO)])
+         (values val state))
 
      ;; (define (build-ws-def var val)
      ;;   (match-define (cmplr:pat:compiled-var var-stx from-stx ast-type) var)
@@ -68,33 +71,34 @@
 
 (struct stx-quote-pat-operator []
   #:methods gen:cmplr-operator
-  [(define (operator-identifies? sqo stx state)
-     (syntax-parse stx
-       [((~literal quote) i:id) #t]
-       [else #f]))
-   (define (operator-parse-syntax sqo stx state frec)
-     (error 'TODO))])
+  [(define (operator-parse-syntax sqo val state frec)
+     (printf "stx-quote: ~a ~a\n" val state)
+     (define dat-val
+       (syntax-parse val
+         [((~datum quote) i:id) #`i]
+         [else #f]))
+     (if dat-val (values (cmplr:pat:stx:dat dat-val) state) (values val state)))])
 
 (struct stx-~-pat-operator []
   #:methods gen:cmplr-operator
-  [(define (operator-identifies? op stx state)
-     (match (syntax-e stx)
-       [(cons (regexp #rx"^~(.*)$" (list _ actual)) rst) #t]
-       [else #f]))
-   (define (operator-parse-syntax op stx state frec)
+  [(define (operator-parse-syntax op stx state frec)
+     (printf "stx-special: ~a ~a\n" stx state)
      (define (fmap stx state) (error 'todo "do special for ooo"))
-     (syntax-parse stx
-       [(op:id ps:maybe-ooo-pat ...)
-        (define-values (values arg-stxs args-state) (mapl/state frec (attribute ps.pat) state))
-        (values (cmplr:pat:stx:op #`op arg-stxs) args-state)]))])
+     (define-values (special-op rst)
+       (match (syntax-e stx)
+         [(cons (and fst (regexp #rx"^~(.*)$" (list _ actual))) rst) (values fst rst)]
+         [else (values #f stx)]))
+     (if special-op
+         (let-values ([(arg-stxs args-state) (frec rst state)])
+           (values (cmplr:pat:stx:op #`op (stx:forced-seq arg-stxs)) args-state))
+         (values stx state)))])
 
-(struct stx-ooo-seq-pat-operator [identifier pat-type]
+(struct stx-ooo-seq-pat-operator [identifies? pat-type parser]
   #:methods gen:cmplr-operator
-  [(define (operator-identifies? op stx state)
-     ((stx-ooo-seq-pat-operator-identifier op) stx state))
-   (define (operator-parse-syntax op stx state frec)
-     (match-define (stx-ooo-seq-pat-operator _ pat-type) op)
-     (define (do-list-stx pat-subs)
+  [(define (operator-parse-syntax op stx state frec)
+     (match-define (stx-ooo-seq-pat-operator identifies? pat-type parser) op)
+     (printf "stx-ooo:~a: ~a ~a\n" pat-type stx state)
+     (define (do-list-stx pat-subs state)
        (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) bvids path) state)
 
        (define strict-parens? (info-value 'strict-parens (cmplr-info cspec)))
@@ -105,6 +109,7 @@
            [(? syntax?) (frec v state)]
            [(pat:ooo p k)
             ;; TODO update path in state
+            (define new-state (add-ooo-stx-path state k))
             (define-values (pstx state^) (frec p state))
             (values (cmplr:pat:ooo pstx k) state^)]
            [else (error 'sham/sam/TODO)]))
@@ -120,31 +125,44 @@
        (define paren-fail
          (cmplr:pat:stx:op
           #`~fail
-          (stx-cls-dir #'#:unless (list #`(equal? (syntax-property #'#,stx-id 'paren-shape) #,paren-shape))) #'#f))
+          (list (stx-cls-dir #'#:unless (list #`(equal? (syntax-property #'#,stx-id 'paren-shape) #,paren-shape)))
+                #'#f)))
        (define and-pat (cmplr:pat:stx:op #`~and (list stx-var paren-fail lst-pat)))
-       (values (if strict-parens? and-pat lst-pat) pstate))
-     (syntax-parse stx
-       [(s:maybe-ooo-pat ...)
-        (do-list-stx (attribute s.pat))]))])
+       (values (if (and paren-shape strict-parens?) and-pat lst-pat) pstate))
+
+
+     (if (identifies? stx state)
+         (call-with-values (thunk (parser stx state)) do-list-stx)
+         (values stx state)))])
 
 (define (stx-seq-pat-operator)
+  (define (lst-parser stx state)
+    (values (syntax-parse stx [(s:maybe-ooo-pat ...) (attribute s.pat)]) state))
   (stx-ooo-seq-pat-operator (λ (stx state) (and (syntax? stx) (list? (syntax-e stx))))
-                            cmplr:pat:stx:seq))
+                            cmplr:pat:stx:seq
+                            lst-parser))
 (define (stx-vec-pat-operator)
+  (define (vec-parser stx state)
+    (values (syntax-parse stx
+              [#(s:maybe-ooo-pat ...) (attribute s.pat)])
+            state))
   (stx-ooo-seq-pat-operator (λ (stx state) (and (syntax? stx) (vector? (syntax-e stx))))
-                            cmplr:pat:stx:vec))
+                            cmplr:pat:stx:vec
+                            vec-parser))
 
-(define (syntax-node-pat-builder ctype pat-stx&node-state)
-  (match-define (cmplr-stx-type-source maybe-ast) ctype)
-  (match-define (cons pat-stx state) pat-stx&node-state)
-  (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) '() path) state)
-  (match-define (cmplr (cmplr:header cid cargs (cons cfrom cto)) groups info) cspec)
+(define (syntax-node-pat-builder ctype pat-stx node-state)
+  (match-define (cmplr-stx-source maybe-ast) ctype)
+  (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) '() path) node-state)
+  (match-define (cmplr (cmplr:header cid cargs (cmplr:header:type cfrom cto)) groups info) cspec)
 
-  (printf "\n\nsyntax-node-pat-builder:\n")
+  (printf "\nsyntax-node-pat-builder:\n")
   (pretty-print (syntax->datum pat-stx))
 
-  (basic-pat-rec pat-stx state (append (info-value 'node-pat-operators info)
-                                       (info-value 'node-operators info)))
+  (define-values (pat-res state-res) (basic-pat-rec pat-stx node-state (info-value ik-node-pat-ops info)))
+  (printf "syntax-node-pat-builder:result= \n~a \n~a\n" pat-res state-res)
+  (pretty-print (syntax->datum (->syntax pat-res)))
+  (values pat-res state-res)
+
   ;; (define operators (info-value info node-pat-operators))
 
   ;; ;; returns value of ~op syntax operators ~seq, ~optional
@@ -206,7 +224,7 @@
 
 ;; (define result-attr #`sres)
 
-(define (syntax-node-body-builder body-spec node-state)
+(define (syntax-node-body-builder ctype body-stx state)
   (error 'sham/sam/TODO)
   ;; (match-define (list dirs ... stx-result) body-spec)
   ;; (match-define (cmplr:state:node cspec gspec nspec bvars) node-state)
@@ -264,7 +282,7 @@
 ;;         (syntax-class-group-builder result-attr)
 ;;         (syntax-class-top-builder result-attr)))
 
-(struct cmplr-stx-type [maybe-of-ast]
+(struct cmplr-stx-type cmplr:type [maybe-of-ast]
   #:property prop:procedure (λ (_ of)
                               (match (syntax-e of)
                                 [(list ss) (cmplr-stx-type (get-cmplr-type ss))]))
@@ -274,32 +292,51 @@
      (match-define (cmplr header groups info) curr-spec)
      (match-define (cmplr:header cmplr-id cmplr-args (cmplr:header:type src tgt)) header)
 
-     (printf "rkst-syntax-cmplr-target&curr-info: ~a\n" info)
+     (printf "cmplr-stx-type: src? ~a\n" (eqv? cst src))
+     (printf "\tinfo: ~a\n" info)
      (define actual-builder
-       (if (eqv? cst src)
-           (cmplr-stx-source maybe-of-ast)
-           (cmplr-stx-target maybe-of-ast)))
+       (if (eqv? cst src) (cmplr-stx-source maybe-of-ast) (cmplr-stx-target maybe-of-ast)))
 
-     (define stx-ops (list (stx-~-pat-operator)
-                           (stx-var-pat-operator)
-                           (stx-quote-pat-operator)
-                           (stx-vec-pat-operator)
-                           (stx-seq-pat-operator)))
 
      (define new-info
-       (update-info 'builders (λ (bs) (append bs (list actual-builder))) info)
+       (update-info ik-spec-bs (λ (bs) (append bs (list actual-builder))) info)
        ;; (combine-info
        ;;  `(;; (operators . ,stx-ops)
        ;;    (builders . ,syntax-builders))
        ;;  (remove-info `(operators builders) info))
        )
+
+     (printf "\tnew-info: ~a\n" new-info)
      ;; (define new-info (insert-info 'operators (stx-var-operator) info))
      (cmplr header groups new-info))])
 
-(struct cmplr-stx-source cmplr-stx-type []
+(struct cmplr-stx-source [maybe-ast-spec]
+  #:methods gen:cmplr-spec-updater
+  [(define (update-cmplr-spec css curr-spec)
+     (match-define (cmplr-stx-source maybe-ast-spec) css)
+     (match-define (cmplr header groups info) curr-spec)
+     (printf "cmplr-stx-source:\n")
+     (define stx-ops
+       (list
+        (stx-seq-pat-operator)
+        (stx-vec-pat-operator)
+        (stx-quote-pat-operator)
+        (stx-var-pat-operator)
+        (stx-~-pat-operator)))
+
+     ;; (define with-ast-op
+     ;;   (if maybe-ast-spec (cons (stx-ast-pat-operator maybe-ast-spec) stx-ops) stx-ops))
+     (define new-info
+       (update-info ik-node-pat-bs
+                    (λ (bs) (append bs (list css)))
+                    (update-info ik-node-pat-ops (λ (bs) (append bs stx-ops)) info)))
+     (printf "\tnew-info:~a\n" new-info)
+     (cmplr header groups new-info))]
   #:methods gen:cmplr-node-pat-builder
   [(define build-node-pattern-stx syntax-node-pat-builder)])
 
-(struct cmplr-stx-target cmplr-stx-type []
+(struct cmplr-stx-target [maybe-ast-spec]
+  #:methods gen:cmplr-spec-updater
+  [(define (update-cmplr-spec cst curr-spec) curr-spec)]
   #:methods gen:cmplr-node-body-builder
   [(define build-node-body-stx syntax-node-body-builder)])

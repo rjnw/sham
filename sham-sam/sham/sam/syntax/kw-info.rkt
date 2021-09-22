@@ -14,9 +14,9 @@
 ;;; keyword info is stored in (list (cons keyword values) ...)
 ;;  combine duplicate key value pair into one pair
 ;;  ... (a . v0) ... (a . v1) ... => ... (a v0 v1) ...
-(define (dedup-assoc i)
-  (define (combine ls) (cons (caar ls) (map cdr ls)))
-  (map combine (group-by car i)))
+(define (combine ls) (cons (caar ls) (map cdr ls)))
+(define (dedup-assoc i (cmb combine))
+  (map cmb (group-by car i)))
 
 (define (assoc-default key lst (dflt #f) (is-equal? equal?))
   (let ([v (assoc key lst is-equal?)])
@@ -42,16 +42,26 @@
 (define (combine-info . infs)
   (dedup-assoc (apply append infs)))
 
-;; applies `f` on the assoc pair matching `key` in `lst`
-(define (update-info key f lst)
-  (for/list ([v lst])
-    (if (equal? (car v) key) (cons (car v) (f (cdr v))) v)))
+;; applies `f` on the first assoc pair matching `key` in `lst`
+;;   if not found call f with dflt
+(define (update-info key f lst (dflt '()))
+  (match lst
+    ['() (list (cons key (f dflt)))]
+    [(cons (cons ik iv) rst)
+     #:when (equal? ik key)
+     (cons (cons ik (f iv)) rst)]
+    [(cons c rst) (cons c (update-info key f rst dflt))]))
 
 (define (insert-info key val lst)
   (cond [(empty? lst) (list key val)]
         [(and (cons? lst) (equal? (caar lst) key))
          `((,(caar lst) ,val ,@(cdar lst)) . ,(cdr lst))]
         [else (cons (car lst) (insert-info key val (cdr lst)))]))
+
+(define (pretty-print-info lst)
+  (for ([v lst])
+    (match v
+      [(cons k v) (printf "\t~a: ~a\n" k v)])))
 
 (define (default-metadata . specs)
   (ormap (curry info-1value 'default-metadata) specs))

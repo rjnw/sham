@@ -62,8 +62,7 @@
             [basic (e_val ...)]
             [enum (e_from e_step e_to)]
             ;; sequence comprehension [expr | pat <- expr, ... | ...]
-            [comp (e_body ((pat_ps e_vs) ...) ...)]
-            )
+            [comp (e_body ((pat_ps e_vs) ...) ...)])
 
   (type
    [bit]                                ;; true & false
@@ -77,30 +76,9 @@
    [func (t_from t_to)]
    #:alias t)
 
-  (dim                                  ;; dimension for sequences: integer, infinity or a poly variable
+  ;; dimension for sequences: integer, infinity or a poly variable
+  (dim
    [int integer_v]
    ;; [inf]
    [app (id_rator dim_rands ...)]
-   [var (id_name)]
-   ))
-
-
-;; (module+ test
-;;   (define cry-foldl
-;;     (cry:decl:def foldl (cry:type:poly [n a b] [(fin n)]
-;;                                        (a -> ((a -> (b -> a)) -> ((sequence n b) -> a))))
-;;                   (cry:decl:bind foldl [seed f xs]
-;;                                  (cry:expr:where (cry:expr:app (cry:expr:app ! () res) cry:expr:zero)
-;;                                                  (cry:decl:bind res []
-;;                                                                 (cry:expr:app
-;;                                                                  (cry:expr:app #() (cry:expr:sequence:basic seed))
-;;                                                                  ()
-;;                                                                  (cry:expr:sequence:comp
-;;                                                                   (cry:expr:app (cry:expr:app f () a) () x)
-;;                                                                   [a res]
-;;                                                                   [x xs])))))))
-;;   (define cry-fold-pretty
-;;     ($cry (def foldl ({n a b} [(fin n)] (a -> (a -> (b -> a)) -> (seq n b) -> a))
-;;             (foldl (seed f xs)
-;;                    (where (! res zero)
-;;                           [res (# seed [(f a x) | a <- res | x <- xs])]))))))
+   [var (id_name)]))

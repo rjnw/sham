@@ -4,13 +4,8 @@
 (provide (all-defined-out))
 
 (define (basic-pat-rec stx state ops)
-  (define (operators-for s) (filter ops (λ (op) (operator-identifies? op s))))
   (let rec ([stx stx] [state state])
-    (define (do-operator op v state)
-      (if (operator-identifies? op v)
-          (operator-parse-syntax op v state)
-          (values v state)))
-    (foldl/state do-operator stx state ops)))
+    (foldr/state (curryr operator-parse-syntax rec) stx state ops)))
 
 ;; builds a cmplr:node:case stx object by using pat-builder and body-builder values
 ;;  also runs the genral node-syntax-operator at the end on the built case with cmplr:node:state

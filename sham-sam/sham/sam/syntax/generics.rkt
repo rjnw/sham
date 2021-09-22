@@ -291,22 +291,22 @@
   (provide (all-defined-out))
 
   (define-generics cmplr-node-pat-builder
-    ;; -> (cons pat-stx node-state)
-    (build-node-pattern-stx cmplr-node-pat-builder pat-stx&node-state))
-  (define (build-node-pattern builder v)
-    (if (cmplr-node-pat-builder? builder) (build-node-pattern-stx builder v) v))
+    ;; -> (values pat-stx node-state)
+    (build-node-pattern-stx cmplr-node-pat-builder pat-stx node-state))
+  ;; (define (build-node-pattern builder v state)
+  ;;   (if (cmplr-node-pat-builder? builder) (build-node-pattern-stx builder v state) ( v)))
 
   (define-generics cmplr-node-body-builder
-    ;; -> (cons body-stx node-state)
-    (build-node-body-stx cmplr-node-body-builder body-stx&node-state))
-  (define (build-node-body builder v)
-    (if (cmplr-node-body-builder? builder) (build-node-body-stx builder v) v))
+    ;; -> (values body-stx node-state)
+    (build-node-body-stx cmplr-node-body-builder body-stx node-state))
+  ;; (define (build-node-body builder v)
+  ;;   (if (cmplr-node-body-builder? builder) (build-node-body-stx builder v) v))
 
   ;; node builder only takes spec state as variables and directives should already be in stx
   (define-generics cmplr-node-builder
     (build-node-stx cmplr-node-builder node-stx node-spec-state))
-  (define ((build-node state) builder v)
-    (if (cmplr-node-builder? builder) (build-node-stx builder v state) v))
+  ;; (define ((build-node state) builder v)
+  ;;   (if (cmplr-node-builder? builder) (build-node-stx builder v state) v))
 
   (define-generics cmplr-spec-updater
     (update-cmplr-spec cmplr-spec-updater cmplr-spec))
@@ -329,12 +329,11 @@
   ;; stored in cmplr info for 'node-pat-operators 'node-body-operators
   ;;  we have some default identifiers for #%var #%app for general operators for every variable and application syntaxes
   (define-generics cmplr-operator
-    (operator-identifies? cmplr-operator stx state)
     ;; where changes depending on the placement of operator in node pattern or body
     ;;   as we know the types in pattern it will contain type and path
     ;;   for body it contains state
     ;;  frec: stx state -> (values new-stx state)
-    (operator-parse-syntax cmplr-operator body-stx state frec))
+    (operator-parse-syntax cmplr-operator body-val state frec))
 
   (define-generics cmplr-node-directive)
 

@@ -4,8 +4,8 @@
 
 (provide (all-defined-out))
 
-(define compiler-procedure (lambda (c . args) ((compiler-func c) c args)))
-(struct compiler [func] #:property prop:procedure (struct-field-index func))
+(define transform-procedure (lambda (c . args) ((transform-func c) c args)))
+(struct transform [func] #:property prop:procedure (struct-field-index func))
 
 (define-syntax-parameter ^ #f)
 (define-syntax-parameter with #f)

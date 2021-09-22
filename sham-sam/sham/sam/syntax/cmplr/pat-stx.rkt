@@ -15,28 +15,23 @@
   #:methods gen:stx
   [(define (->syntax st)
      (match-define (cmplr:stx:stype tstx state) st)
-     (error 'TODO)
-     ;; #`(#,tstx #,@(map stx-cls-arg args))
-     )])
-(struct cmplr:dir:stx:var [stype]
-  #:methods gen:stx
-  [(define (->syntax d) (error 'TODO))])
+     (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) vars path) state)
+     (match-define (cmplr (cmplr:header cid cargs type) groups info) cspec)
+     ;; (printf "TODO:cmplr:stx:stype\n")
+     ;; tstx
+     #`(#,tstx #,@(map stx-cls-arg cargs)))])
 
-;; (struct cmplr:pat:stx:lit pat:dat []
-;;   #:methods gen:stx
-;;   [(define (->syntax sd)
-;;      (match-define (cmplr:pat:stx:lit d) sd)
-;;      #`(~datum #,d))])
+(struct cmplr:pat:stx:dat pat:dat []
+  #:methods gen:stx
+  [(define (->syntax sd)
+     (match-define (cmplr:pat:stx:dat d) sd)
+     #`(~datum #,d))])
 
 (struct cmplr:pat:stx:op pat:app []
   #:methods gen:stx
   [(define (->syntax so)
      (match-define (cmplr:pat:stx:op op rands) so)
      #`(#,op #,@(seq->syntax rands)))])
-
-;; (struct cmplr:pat:stx pat:dat []
-;;   #:methods gen:stx
-;;   [(define (->syntax st) (pat:dat-v st))])
 
 (struct cmplr:pat:stx:seq cmplr:pat:seq [paren-shape]
   #:methods gen:stx
@@ -48,9 +43,13 @@
   #:methods gen:stx
   [(define (->syntax sv)
      (match-define (cmplr:pat:stx:vec ps shape) sv)
-     #`#(#,@(stx-seq ps)))])
+     #`#(#,@(seq->syntax ps)))])
 
 
+
+(struct cmplr:dir:stx:var [stype]
+  #:methods gen:stx
+  [(define (->syntax d) (error 'TODO))])
 
 ;; (struct stx-cls-attr-val [var id]
 ;;   #:methods gen:stx

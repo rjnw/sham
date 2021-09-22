@@ -18,6 +18,10 @@
   #:methods gen:stx
   [(define (->syntax ss) (seq->syntax (stx:seq-stxs ss)))])
 
+(struct stx:forced-seq [stx]
+  #:methods gen:stx
+  [(define (->syntax fs) (syntax-e (to-syntax (stx:forced-seq-stx fs))))])
+
 (struct stx:def [vars vals]
   #:methods gen:stx
   [(define (->syntax ds)

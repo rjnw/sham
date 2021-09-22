@@ -305,9 +305,9 @@
   (struct cmplr:group [id type nodes info] #:prefab)
   (struct cmplr:node [pat bodys] #:prefab)
 
-  (struct cmplr:spec-state:node [cspec gspec nspec] #:prefab)
+  (struct cmplr:spec-state:node [cspec gspec nspec])
   (struct cmplr:state:node [spec bvars&dirs path] #:prefab)
-
+  (struct cmplr:type spec [])
   )
 
 (module* reader #f
