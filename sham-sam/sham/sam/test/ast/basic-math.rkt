@@ -7,13 +7,14 @@
 
 (provide (all-defined-out))
 
-(define-ast math
-  (expr
-   [neg ('- e:expr)]
-   [div ('/ n:expr d:expr)]
-   [add ('+ e:expr ...)]
-   [sub ('- e1:expr e2:expr ...)]
-   [mul ('* e:expr ...)])
+(define-ast math-ast
+  (val
+   [neg ('- e:val)]
+   [div ('/ n:val d:val)]
+   [add ('+ e:val ...)]
+   [sub ('- e1:val e2:val ...)]
+   [mul ('* e:val ...)]
+   [num n:integer])
   #:with struct-helpers sexp-printer
   #:format (#f - #f - -))
 
@@ -22,7 +23,7 @@
     (require racket/pretty
              racket)
     (require sham/sam/syntax/runtime)
-    (define-values (mcv _) (syntax-local-value/immediate #`math))
+    (define-values (mcv _) (syntax-local-value/immediate #`math-ast))
     ;; (pretty-print mcv)
     ;; (pretty-print (pretty-spec mcv))
     )
@@ -32,6 +33,7 @@
 
   (require rackunit)
   (define mdiv1 (make-div 4 2))
+
   (check-equal? (div-n mdiv1) 4)
   (check-equal?
    (match (make-neg (make-neg 2))

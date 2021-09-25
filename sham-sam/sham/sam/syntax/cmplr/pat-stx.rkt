@@ -1,25 +1,20 @@
 #lang racket
-(require racket/generic)
+
+(require racket/syntax
+         (for-template racket syntax/parse))
+
 (require "reqs.rkt"
          "pat.rkt")
+
 (provide (all-defined-out))
 
 (struct cmplr:pat:stx:var cmplr:pat:tvar []
   #:methods gen:stx
-  [(define/generic to-syntax ->syntax)
-   (define (->syntax sv)
-     (match-define (cmplr:pat:stx:var id gen-id type) sv)
-     #`(~var #,(to-syntax gen-id) #,(to-syntax type)))])
-
-(struct cmplr:stx:stype [tstx state]
-  #:methods gen:stx
-  [(define (->syntax st)
-     (match-define (cmplr:stx:stype tstx state) st)
-     (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) vars path) state)
-     (match-define (cmplr (cmplr:header cid cargs type) groups info) cspec)
-     ;; (printf "TODO:cmplr:stx:stype\n")
-     ;; tstx
-     #`(#,tstx #,@(map stx-cls-arg cargs)))])
+  [(define (->syntax sv)
+     (match-define (cmplr:pat:stx:var id orig-id type) sv)
+     (if type
+         #`(~var #,(to-syntax id) #,(to-syntax type))
+         (to-syntax id)))])
 
 (struct cmplr:pat:stx:dat pat:dat []
   #:methods gen:stx
@@ -45,47 +40,73 @@
      (match-define (cmplr:pat:stx:vec ps shape) sv)
      #`#(#,@(seq->syntax ps)))])
 
+(struct cmplr:dir [])
+(struct cmplr:dir:bind cmplr:dir [var val])
+(struct cmplr:dir:bind:val cmplr:dir:bind [])
+(struct cmplr:dir:bind:stx cmplr:dir:bind [])
 
+(define (combine-general-dirs dirs body)
 
-(struct cmplr:dir:stx:var [stype]
-  #:methods gen:stx
-  [(define (->syntax d) (error 'TODO))])
+  ;; (unless (empty? other-dirs)
+  ;;   (error 'sham/sam/transform "non syntax pattern directives found when generating group syntax: ~a" other-dirs))
+  (define (do-dir dir body)
+    (match dir
+      [(cmplr:dir:bind var-stx val-stx)
+       #`(let ([#,(to-syntax var-stx) #,(to-syntax val-stx)]) #,(to-syntax body))]))
+  (foldr do-dir body dirs))
 
-;; (struct stx-cls-attr-val [var id]
-;;   #:methods gen:stx
-;;   [(define/generic to-syntax ->syntax)
-;;    (define (->syntax sca)
-;;      (match-define (stx-cls-attr-val var id) sca)
-;;      (define var-stx (to-syntax var))
-;;      (if id
-;;          #`(attribute #,(format-id var-stx "~a.~a" var-stx (to-syntax id)))
-;;          #`(attribute #,var)))])
-
-;; (struct stx-cls-with-var [id depth]
-;;   #:methods gen:stx
-;;   [(define/generic to-syntax ->syntax)
-;;    (define (->syntax sv)
-;;      (match-define (stx-cls-with-var id depth) sv)
-;;      (let rec ([d depth])
-;;        (match d
-;;          [#f (to-syntax id)]
-;;          [(cons (cons mn mx) rst)
-;;           #`(#,(rec rst) (... ...))])))])
-
+(struct cmplr:dir:stx [])
 ;; syntax-class directive ; #:with/#:when/#:attr ...
-(struct stx-cls-dir [kwrd vals]
+(struct cmplr:dir:stx:kwrd [kwrd vals]
   #:methods gen:stx
   [(define (->syntax scp)
-     (match-define (stx-cls-dir kwrd vals) scp)
+     (match-define (cmplr:dir:stx:kwrd kwrd vals) scp)
      (cons (to-syntax kwrd) (to-syntax vals)))])
 
-;; (struct stx-class-var-operator []
-;;   #:methods gen:cmplr-node-operator
-;;   [(define (cmplr-operator-node-syntax op stxs)
-;;      (match-define (cmplr:node:case pat bodys) stxs)
-;;      ;; TODO
-;;      (cmplr:node:stx-cls-pat pat bodys))])
+(struct cmplr:dir:stx:with cmplr:dir:stx [pat-stx val-stx]
+  #:methods gen:stx
+  [(define (->syntax pw)
+     (match-define (cmplr:dir:stx:with pat-stx val-stx) pw)
+     (list #'#:with (to-syntax pat-stx) (to-syntax val-stx)))])
 
+(struct cmplr:dir:stx:attr [attr-stx val]
+  #:methods gen:stx
+  [(define (->syntax pa)
+     (match-define (cmplr:dir:stx:attr attr-stx val-stx) pa)
+     (list #'#:attr (to-syntax attr-stx) (to-syntax val-stx)))])
 
-(define (stx-cls-arg arg)
-  #`(#,(->syntax-keyword arg) #,arg))
+(struct cmplr:stx:class:pat [pat dirs]
+  #:methods gen:stx
+  [(define (->syntax cp)
+     (match-define (cmplr:stx:class:pat pat dirs) cp)
+     (seq->syntax #'pattern pat dirs))])
+
+(struct cmplr:stx:class [id parts splicing?]
+  #:methods gen:stx
+  [(define (->syntax sc)
+     (match-define (cmplr:stx:class id parts splicing?) sc)
+     (define definer (if splicing? #`define-splicing-syntax-class #`define-syntax-class))
+     #`(#,definer #,(to-syntax id) #,@(map to-syntax parts)))])
+
+(struct stx-cls-attr-val [var id]
+  #:methods gen:stx
+  [(define (->syntax sca)
+     (match-define (stx-cls-attr-val var attr) sca)
+     (define var-stx (to-syntax var))
+     (define attr-stx (and attr (to-syntax attr)))
+     (if attr-stx
+         #`(attribute #,(format-id var-stx "~a.~a" var-stx attr-stx))
+         #`(attribute #,var)))])
+
+(struct stx-cls-with-var [id depth]
+  #:methods gen:stx
+  [(define (->syntax sv)
+     (match-define (stx-cls-with-var id depth) sv)
+     (let rec ([d depth])
+       (match d
+         [#f (to-syntax id)]
+         [(cons (cons mn mx) rst)
+          #`(#,(rec rst) (... ...))])))])
+
+(define (internal-class-args-stx args)
+  (append-map (λ (arg) (list (->syntax-keyword arg) arg)) args))

@@ -1,6 +1,7 @@
 #lang racket
 
-(require "utils.rkt")
+(require "utils.rkt"
+         (for-template racket))
 
 (provide (all-defined-out))
 
@@ -23,9 +24,11 @@
     [(list a b mn o mx) (cons (string->number mn) (string->number mx))]))
 
 (define (oook-syntax o (ctxt #f))
-  (match-define (cons mn mx) o)
-  (define pre (if mn mn "."))
-  (datum->syntax ctxt (string->symbol (format "..~a" pre))))
+  (match o
+    [(cons #f #f) #`(... ...)]
+    [(cons mn mx)
+     (define pre (if mn mn "."))
+     (datum->syntax ctxt (string->symbol (format "..~a" pre)))]))
 
 ;; (define-syntax-class single-pattern
 ;;   (pattern i:id #:attr result #`i)

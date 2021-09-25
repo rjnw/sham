@@ -14,8 +14,8 @@
 ;;; keyword info is stored in (list (cons keyword values) ...)
 ;;  combine duplicate key value pair into one pair
 ;;  ... (a . v0) ... (a . v1) ... => ... (a v0 v1) ...
-(define (combine ls) (cons (caar ls) (map cdr ls)))
-(define (dedup-assoc i (cmb combine))
+(define ((combine (with identity)) ls) (cons (caar ls) (with (map cdr ls))))
+(define (dedup-assoc i (cmb (combine)))
   (map cmb (group-by car i)))
 
 (define (assoc-default key lst (dflt #f) (is-equal? equal?))
@@ -39,8 +39,9 @@
   (if (list? key)
       (foldr remove-info inf key)
       (filter (λ (p) (not (equal? key (car p)))) inf)))
-(define (combine-info . infs)
-  (dedup-assoc (apply append infs)))
+
+(define (combine-info #:with (with (combine flatten)) . infs)
+  (dedup-assoc (apply append infs) with))
 
 ;; applies `f` on the first assoc pair matching `key` in `lst`
 ;;   if not found call f with dflt
@@ -65,3 +66,18 @@
 
 (define (default-metadata . specs)
   (ormap (curry info-1value 'default-metadata) specs))
+
+(define-syntax (kw-info stx)
+  (define (do-val v)
+    (syntax-case v ()
+      [(vs ...) #`(list vs ...)]
+      [i #`i]))
+  (syntax-case stx ()
+    [(_ (key . val) ...)
+     (with-syntax ([(aval ...) (map do-val (syntax-e #`(val ...)))])
+       #`(list (cons key aval) ...))]))
+
+(module+ test
+  (require rackunit)
+  (define i1 `((a . 1) (b . 2) (c 1 2 3)))
+  (define i2 `((a . 11) (a . 12) (b 21 22))))

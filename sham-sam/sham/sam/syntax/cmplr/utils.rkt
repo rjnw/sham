@@ -1,6 +1,7 @@
 #lang racket
 
-(require "../spec.rkt")
+(require "../spec.rkt"
+         (submod "../spec.rkt" compiler))
 
 (provide (all-defined-out))
 
@@ -10,6 +11,9 @@
     [(cons op args)
      #:when (identifier? op)
      ((lookup-spec op) args)]))
+
+(define (cmplr-args-id cspec)
+  (map car (cmplr:header-args (cmplr-header cspec))))
 
 ;; (define ((find-operators operators get-identifier) stxid)
 ;;   (define (is-op? bo) (free-identifier=? (operator-identifier bo) stxid))

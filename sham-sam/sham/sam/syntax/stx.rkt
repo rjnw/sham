@@ -22,6 +22,9 @@
   #:methods gen:stx
   [(define (->syntax fs) (syntax-e (to-syntax (stx:forced-seq-stx fs))))])
 
+(define (stx-define-values vars vals)
+  #`(define-values #,(to-syntax vars) #,(to-syntax vals)))
+
 (struct stx:def [vars vals]
   #:methods gen:stx
   [(define (->syntax ds)

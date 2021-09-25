@@ -26,10 +26,10 @@
     (define spec-value (lookup-spec syn))
     (unless (ast? spec-value) (error 'sham:sam "unknown ast specification ~a:~a" syn spec-value))
 
-  spec-value)
+    spec-value)
   (struct ast:basic (id info) #:prefab)
   (struct ast:group ast:basic (parent args nodes) #:prefab)
-  (struct ast:group:arg ast:basic (type) #:prefab)
+  (struct ast:group:arg ast:basic (type) #:prefab) ;; TODO deprecate type, instead calculate when needed using pattern
   (struct ast:node ast:basic (args pattern) #:prefab)
   (struct ast:node:arg ast:basic (type) #:prefab)
 
@@ -110,11 +110,20 @@
                 (ast:group-args gs))
         '()))
 
-  (define (find-node-spec node-id group-spec/id ast-spec)
+  (define (matches-node-spec? node-id node-spec (check-alias? #t))
+    (match-define (ast:node ids info args pat) node-spec)
+    (and node-spec
+         (or (equal? (->symbol (get-oid ids)) (->symbol node-id))
+             (and (identifier? node-id) (free-identifier=? node-id (get-fid ids)))
+             (member (->symbol node-id) (map ->symbol (or (info-value 'alias info) '()))))))
+
+  (define (find-node-spec node-id group-spec/id ast-spec (check-alias? #t))
     (match group-spec/id
       [(? (or/c syntax? symbol?))
-       (find-node-spec node-id (find-group-spec group-spec/id ast-spec) ast-spec)]
-      [(ast:group gid ginfo prnt args nds) (assoc-default (->symbol node-id) nds)]))
+       (find-node-spec node-id (find-group-spec group-spec/id ast-spec) ast-spec check-alias?)]
+      [(ast:group gid ginfo prnt args nds)
+       (find-first (map cdr nds) (λ (n) (matches-node-spec? node-id n check-alias?)))]
+      [#f (find-first (map cdr (ast-groups ast-spec)) (λ (g) (find-node-spec node-id g ast-spec check-alias?)))]))
 
   (define (group-contains-node? node-spec/id group-spec)
     (define (eqn? n)
@@ -167,7 +176,7 @@
   ;;      (if group-spec
   ;;          group-spec
   ;;          (find-first ))]))
-  (define (intrinsic-type? t) (member t '(string integer int bool boolean symbol)))
+  (define (intrinsic-type? t) (member t `(str string integer int bool boolean sym symbol)))
   (define (id&type raw-id (c #f) (depth #f) (maybe-type #f))
     (define (from-specified k typs)
       (match* (k typs)
@@ -303,7 +312,7 @@
   (struct cmplr:header [id args type] #:prefab)
   (struct cmplr:header:type [from to] #:prefab)
   (struct cmplr:group [id type nodes info] #:prefab)
-  (struct cmplr:node [pat bodys] #:prefab)
+  (struct cmplr:node [pat dirs body] #:prefab)
 
   (struct cmplr:spec-state:node [cspec gspec nspec])
   (struct cmplr:state:node [spec bvars&dirs path] #:prefab)

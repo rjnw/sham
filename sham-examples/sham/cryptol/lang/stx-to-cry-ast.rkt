@@ -63,4 +63,4 @@
       [i:integer i]
       [(rator:id rands:dim ...) (app rator (rands ...))]
       [n:id (var n)])
- #:strict-parens)
+  #:strict-parens)

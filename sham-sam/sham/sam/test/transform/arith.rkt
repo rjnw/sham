@@ -1,6 +1,6 @@
 #lang racket
 
-(require sham/sam/compiler
+(require sham/sam/transform
          sham/sam/rkt)
 (require "../ast/arith.rkt")
 
@@ -14,10 +14,10 @@
   #:with struct-helpers sexp-printer
   #:format (#f - #f - -))
 
-(define-compiler (interpret-arith)
+(define-transform (interpret-arith)
   (math -> rkt)
-  (iexpr (expr -> any)
-         [(and n (? number?)) n]
+  (iexpr (val -> any)
+         [num n]
          [(neg (^ e)) (- e)]
          [(div (^ n) (^ d)) (/ n d)]
          [(add (^ es) ...) (apply + es)]

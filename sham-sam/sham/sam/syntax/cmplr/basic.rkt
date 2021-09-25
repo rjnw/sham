@@ -3,7 +3,7 @@
 
 (provide (all-defined-out))
 
-(define (basic-pat-rec stx state ops)
+(define (basic-stx-rec stx state ops)
   (let rec ([stx stx] [state state])
     (foldr/state (curryr operator-parse-syntax rec) stx state ops)))
 

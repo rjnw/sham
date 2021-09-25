@@ -10,6 +10,12 @@
       (or (and (f? (car lst)) (car lst))
           (find-first (cdr lst) f?))))
 
+;; returns the result of first element with f not returning #f
+(define (locate-first lst f)
+  (and (not (empty? lst))
+       (or (f (car lst))
+           (locate-first (cdr lst) f))))
+
 ;; counts `c?` items in a sequence until `stop?`
 ;;  both c? and stop? take value and index
 (define (count-until seq c? stop?)

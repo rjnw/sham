@@ -92,10 +92,15 @@
     (pattern (from:expr (~datum ->) to:expr) #:attr spec (cmplr:header:type #'from #'to)))
 
   (define-syntax-class compiler-group
-    (pattern (name:id type:compiler-type (node-binding:expr node-body:expr ...) ... info:keyword-info)
+    (pattern (name:id type:compiler-type
+                      (node-binding:expr node-body:expr node-dirs:keyword-info ...) ...
+                      info:keyword-info)
              #:attr spec (cmplr:group #`name
                                       (attribute type.spec)
-                                      (map cmplr:node (attribute node-binding) (attribute node-body))
+                                      (map cmplr:node
+                                           (attribute node-binding)
+                                           (attribute node-dirs.spec)
+                                           (attribute node-body))
                                       (attribute info.spec))))
 
   (define-splicing-syntax-class compiler-header

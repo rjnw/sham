@@ -305,8 +305,6 @@
   ;; node builder only takes spec state as variables and directives should already be in stx
   (define-generics cmplr-node-builder
     (build-node-stx cmplr-node-builder node-stx node-spec-state))
-  ;; (define ((build-node state) builder v)
-  ;;   (if (cmplr-node-builder? builder) (build-node-stx builder v state) v))
 
   (define-generics cmplr-spec-updater
     (update-cmplr-spec cmplr-spec-updater cmplr-spec))

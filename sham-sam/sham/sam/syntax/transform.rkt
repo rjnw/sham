@@ -44,28 +44,25 @@
     (match-define (cmplr:group gid gtype gnodes ginfo) group-spec)
     (define (do-node node-spec)
       (printf "do-node: ~a\n" node-spec)
-      (match-define (cmplr:node pat body) node-spec)
+      (match-define (cmplr:node pat dirs body) node-spec)
       (match-let*-values
           ([(node-spec-state) (cmplr:spec-state:node cmplr-spec group-spec node-spec)]
-           [(initial-node-state) (cmplr:state:node node-spec-state '() #f)]
+           [(initial-node-state) (cmplr:state:node node-spec-state dirs #f)]
            [(pat-stx pat-node-state)
             (foldr/state build-node-pattern-stx pat initial-node-state (builders ik-node-pat-bs))]
            [(body-stx body-node-state)
             (foldr/state build-node-body-stx body pat-node-state (builders ik-node-body-bs))]
            [((cmplr:state:node _ vars&dirs path)) body-node-state]
-           [(full-node-stx) (append (list pat-stx) vars&dirs body-stx)])
-        (printf "running general builders\n")
-        (define-values (node-stx node-state)
-          (foldr/state build-node-stx full-node-stx body-node-state (builders ik-node-bs)))
-        node-stx))
+           [(full-node-stx) (cmplr:node pat-stx vars&dirs body-stx)])
+        (foldr (curryr build-node-stx node-spec-state) full-node-stx (builders ik-node-bs))))
 
     (foldr-builders ik-group-bs (build-group cmplr-spec group-spec) (map do-node gnodes)))
 
   (define cmplr-stx (foldr-builders ik-top-bs (build-top cmplr-spec) (map do-group groups)))
 
   (pretty-print-columns 160)
-  (printf "cmplr-stx: \n") (pretty-print (syntax->datum cmplr-stx))
-  (error 'STOP)
+  (printf "cmplr-stx: \n") (pretty-print (map syntax->datum cmplr-stx))
+  ;; (error 'STOP)
 
   (values cmplr-stx cmplr-spec))
 
@@ -82,7 +79,9 @@
                [(cmplr:header cid cargs (cmplr:header:type cfrom-stx cto-stx)) raw-header]
                [from-type (build-cmplr-type (get-cmplr-type cfrom-stx))]
                [to-type (build-cmplr-type (get-cmplr-type cto-stx))]
-               [with-type-cspec (cmplr (cmplr:header cid cargs (cmplr:header:type from-type to-type)) groups raw-info)]
+               [with-type-cspec (cmplr (cmplr:header cid cargs (cmplr:header:type from-type to-type))
+                                       groups
+                                       raw-info)]
                [from-cspec (update-spec from-type with-type-cspec)]
                [to-cspec (update-spec to-type from-cspec)]
                [builder-cspec (run-builders to-cspec)])

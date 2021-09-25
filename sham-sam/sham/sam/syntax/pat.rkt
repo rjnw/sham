@@ -92,7 +92,7 @@
     [(err inf) (err `(in ,inf ,pat))]
     [(stk (cons crnt rst) os)
      #:when (ooo? crnt)
-     (stk rst (cons `(___ ,crnt ,(ooo crnt) ,pat) os))]
+     (stk rst (cons `(.. ,crnt ,pat) os))]
 
     [(stk is os)
      #:when (pat:ooo? pat)
@@ -225,6 +225,28 @@
         [else #f]))
     (pat-zipper f #f pat)))
 
+(define (stx-with-pat->match-pattern stx pat)
+  (define norm-stx
+    (match pat
+      [(pat:var s)
+       (if (equal? (length (syntax-e stx)) 1)
+           (car (syntax-e stx))
+           (error 'sham/sam/internal "cannot match single pattern with a list syntax ~a ~a\n" pat stx))]
+      [else stx]))
+  (define (rec ps)
+    (printf "rec: ~a\n" ps)
+    (match ps
+      [`(seq ,args ,pat) #`(vector #,@(flatten (map rec (reverse args))))]
+      [`(rpt ,args ,pat) #`(list #,@(flatten (map rec (reverse args))))]
+      [`(var ,arg ,pat) #`#,arg]
+      [`(ooo ,args ,pat) (map rec (reverse args))]
+      [`(dat ,s ,pat) #`'#,s]
+      [`(.. ,s ,pat) #`#,s]
+      [else (error 'sham/sam/internal "could not match parsed syntax ~a in pattern ~a\n" ps pat)]))
+  (match (parse-stx-with-pattern pat norm-stx)
+    [(stk '() (list parsed)) (rec parsed)]
+    [err (error 'sham/sam/pat "cannot parse ~a with ~a, err: ~a" stx pat err)]))
+
 (module+ test
   (require rackunit)
   (provide (all-defined-out))
@@ -283,4 +305,8 @@
                                       (alt ((var ,osa ,opa)) 1 ,opa2))
                                      ,opo))
                                ,ops))))
+  (define lpat (seq (seq (rpt pa)) pb))
+  (stx-with-pat->match-pattern #`((a b c) f) lpat)
+  (stx-with-pat->match-pattern #`((a b c (... ...)) f) lpat)
+
   )

@@ -1,10 +1,24 @@
 #lang racket
-
+(require (for-template racket))
 (require "reqs.rkt"
          "utils.rkt"
-         "state.rkt")
+         "state.rkt"
+         "basic.rkt"
+         "syntax.rkt"
+         "pat-stx.rkt")
 
 (provide (all-defined-out))
+
+(define (ast-match-pattern stx ast-spec maybe-group-spec)
+  (define node-spec
+    (match (syntax-e stx)
+      [(cons fst rst) (find-node-spec fst maybe-group-spec ast-spec)]
+      [id (find-node-spec stx maybe-group-spec ast-spec)]))
+  (define (parse-as-node node-spec stx)
+    (match-define (ast:node ids info args pat) node-spec)
+    (stx-with-pat->match-pattern stx pat))
+  (and node-spec (parse-as-node node-spec stx)))
+
 (struct ast-pat-node-operator [ast-spec]
   #:methods gen:cmplr-operator
   [(define (operator-parse-syntax op stx state frec)
@@ -21,6 +35,12 @@
      (if ast-type
          (error 'TODO)
          (values stx state)))])
+
+(struct ast-body-node-operator [ast-spec]
+  #:methods gen:cmplr-operator
+  [(define (operator-parse-syntax op stx state frec)
+
+     (values stx state))])
 
 (define (compile-ast-type var ast-type cstate)
   (printf "compile-ast-type: ~a ~a\n" var ast-type)
@@ -181,8 +201,12 @@
   ;; (values pat-stx (cmplr:state:node cspec gspec nspec pat-vars))
   )
 
-(define (ast-node-body-builder ctype body-stx state)
-  (values body-stx state)
+(define (ast-node-body-builder ctype body-stx node-state)
+  (match-define (cmplr-ast-target ast-spec) ctype)
+  (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) dirs path) node-state)
+  (match-define (cmplr (cmplr:header cid cargs (cmplr:header:type cfrom cto)) groups info) cspec)
+  (basic-stx-rec body-stx node-state (info-value ik-node-body-ops info))
+
   ;; (match-define (cmplr:state:node cspec gspec nspec bvars) node-state)
   ;; (match-define (cmplr header groups info) cspec)
   ;; (match-define (cmplr:header cid cargs ctyp) header)
@@ -213,6 +237,14 @@
   ;;   (append bvar-stxs body-stxs))
   ;; (bvars&body bvars body-spec)
   )
+(define (update-stx-with-dirs dirs body-stx)
+  (define with-dirs (filter cmplr:dir:stx:with? dirs))
+  (define other-dirs (filter-not cmplr:dir:stx:with? dirs))
+  (define (from-with d)
+    (match-define (cmplr:dir:stx:with (stx-cls-with-var id depth) val-stx) d)
+    (stx:def id val-stx))
+  (define with-defs (map from-with with-dirs))
+  (values other-dirs (stx:local-def #'let with-defs body-stx)))
 
 (struct cmplr-ast-type cmplr:type [of]
   #:methods gen:cmplr-spec-updater
@@ -220,16 +252,13 @@
      (match-define (cmplr-ast-type of-ast) cat)
      (match-define (cmplr header groups info) curr-spec)
      (match-define (cmplr:header cmplr-id cmplr-args (cmplr:header:type src tgt)) header)
-     (printf "cmplr-ast-type: src? ~a\n" (eqv? cat src))
-     (printf "\tinfo: ~a\n" info)
-
      (define actual-builder
        (if (eqv? cat src)
            (cmplr-ast-source of-ast)
            (cmplr-ast-target of-ast)))
      (define new-info
        (update-info ik-spec-bs (λ (bs) (append bs (list actual-builder))) info))
-     (printf "\tnew-info: ~a\n" new-info)
+     ;; (printf "\tnew-info: ~a\n" new-info)
      (cmplr header groups new-info))])
 
 (struct cmplr-ast-source [ast-spec]
@@ -237,6 +266,7 @@
   [(define (update-cmplr-spec cas curr-spec)
      (match-define (cmplr header groups info) curr-spec)
      (printf "cmplr-ast-source:\n")
+     (error 'sham/sam/TODO)
      (define pat-ops (list))
      (define new-info (update-info ik-node-pat-ops (λ (bs) (append bs pat-ops)) info))
      (cmplr header groups new-info))]
@@ -246,7 +276,27 @@
 (struct cmplr-ast-target [ast-spec]
   #:methods gen:cmplr-spec-updater
   [(define (update-cmplr-spec cat curr-spec)
-     (printf "cmplr-ast-target:\n")
-     curr-spec)]
+     (match-define (cmplr-ast-target ast-spec) cat)
+     (match-define (cmplr header groups info) curr-spec)
+     ;; (printf "cmplr-ast-target:\n")
+     (define ast-ops
+       (list
+        (ast-body-node-operator ast-spec)))
+     (define this-info
+       (kw-info (ik-node-body-bs cat)
+                (ik-node-bs (cmplr-ast-node-builder))
+                (ik-node-body-ops . ast-ops)))
+     (define new-info (combine-info info this-info))
+     (cmplr header groups new-info))]
   #:methods gen:cmplr-node-body-builder
-  [(define build-node-pattern-stx ast-node-pat-builder)])
+  [(define build-node-body-stx ast-node-body-builder)])
+
+(struct cmplr-ast-node-builder []
+  #:methods gen:cmplr-node-builder
+  [(define (build-node-stx canb node node-spec-state)
+     (printf "cmplr-ast-node-builder: ~a\n" node)
+     (match-define (cmplr:node pat-stx dirs body-stx) node)
+     (match-define (cmplr:spec-state:node cspec gspec nspec) node-spec-state)
+     (match-define (cmplr (cmplr:header id args (cmplr:header:type cfrom cto)) groups info) cspec)
+     (define-values (new-dirs new-body-stx) (update-stx-with-dirs dirs body-stx))
+     (cmplr:node pat-stx new-dirs new-body-stx))])
