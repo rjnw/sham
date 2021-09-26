@@ -237,15 +237,31 @@
     (printf "rec: ~a\n" ps)
     (match ps
       [`(seq ,args ,pat) #`(vector #,@(flatten (map rec (reverse args))))]
-      [`(rpt ,args ,pat) #`(list #,@(flatten (map rec (reverse args))))]
+      [`(ooo ,args ,pat) #`(list #,@(flatten (map rec (reverse args))))]
       [`(var ,arg ,pat) #`#,arg]
-      [`(ooo ,args ,pat) (map rec (reverse args))]
       [`(dat ,s ,pat) #`'#,s]
       [`(.. ,s ,pat) #`#,s]
       [else (error 'sham/sam/internal "could not match parsed syntax ~a in pattern ~a\n" ps pat)]))
   (match (parse-stx-with-pattern pat norm-stx)
     [(stk '() (list parsed)) (rec parsed)]
     [err (error 'sham/sam/pat "cannot parse ~a with ~a, err: ~a" stx pat err)]))
+
+;; (parse-stx-with-pattern (seq (var a) (seq (rpt (var b))) (dat 'λ)) #`(va (vb1 vb2 (... ...) vbx) λ))
+;; ((seq
+;;     ((dat #<syntax:pat.rkt/test:24:97 λ> #s((pat:dat pat 0) λ))
+;;      (seq
+;;       ((ooo
+;;         ((var #<syntax:pat.rkt/test:24:92 vbx> #s((pat:var pat 0) #<syntax b>))
+;;          (.. #<syntax:pat.rkt/test:24:87 ...> #s((pat:var pat 0) #<syntax b>))
+;;          (var #<syntax:pat.rkt/test:24:78 vb2> #s((pat:var pat 0) #<syntax b>))
+;;          (var #<syntax:pat.rkt/test:24:74 vb1> #s((pat:var pat 0) #<syntax b>)))
+;;         #s((pat:ooo pat 0) #s((pat:var pat 0) #<syntax b>) (#f . #f))))
+;;       #s((pat:seq pat 0) #(#s((pat:ooo pat 0) #s((pat:var pat 0) #<syntax b>) (#f . #f)))))
+;;      (var #<syntax:pat.rkt/test:24:70 va> #s((pat:var pat 0) #<syntax a>)))
+;;     #s((pat:seq pat 0)
+;;        #(#s((pat:var pat 0) #<syntax a>)
+;;          #s((pat:seq pat 0) #(#s((pat:ooo pat 0) #s((pat:var pat 0) #<syntax b>) (#f . #f))))
+;;          #s((pat:dat pat 0) λ)))))
 
 (module+ test
   (require rackunit)
@@ -307,6 +323,4 @@
                                ,ops))))
   (define lpat (seq (seq (rpt pa)) pb))
   (stx-with-pat->match-pattern #`((a b c) f) lpat)
-  (stx-with-pat->match-pattern #`((a b c (... ...)) f) lpat)
-
-  )
+  (stx-with-pat->match-pattern #`((a b c (... ...)) f) lpat))

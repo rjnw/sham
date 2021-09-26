@@ -40,13 +40,9 @@
      (match-define (cmplr:pat:stx:vec ps shape) sv)
      #`#(#,@(seq->syntax ps)))])
 
-(struct cmplr:dir [])
-(struct cmplr:dir:bind cmplr:dir [var val])
-(struct cmplr:dir:bind:val cmplr:dir:bind [])
-(struct cmplr:dir:bind:stx cmplr:dir:bind [])
+;; (struct cmplr:dir:bind:stx cmplr:dir:bind [])
 
 (define (combine-general-dirs dirs body)
-
   ;; (unless (empty? other-dirs)
   ;;   (error 'sham/sam/transform "non syntax pattern directives found when generating group syntax: ~a" other-dirs))
   (define (do-dir dir body)

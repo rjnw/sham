@@ -20,12 +20,12 @@
   ;;    (to-syntax stxid))]
   )
 
-(struct cmplr:pat:ast pat:app []
+(struct cmplr:pat:ast:node [arg-stxs ast-node-spec]
   #:methods gen:stx
   [(define (->syntax pan)
-     (match-define (cmplr:pat:ast op rands) pan)
+     (match-define (cmplr:pat:ast:node op rands) pan)
      (printf "ast-node: ~a\n" rands)
-     (error 'stop)
+     (error 'sham/sam/TODO "cmplr:pat:ast:node")
      (define rands-stx
        (match rands
          [(list (cmplr:pat:seq ps))
@@ -45,3 +45,7 @@
   [(define (->syntax pse)
      (match-define (cmplr:pat:seq ps) pse)
      (seq->syntax ps))])
+
+(struct cmplr:dir [])
+(struct cmplr:dir:bind cmplr:dir [var val])
+(struct cmplr:dir:bind:val cmplr:dir:bind [])

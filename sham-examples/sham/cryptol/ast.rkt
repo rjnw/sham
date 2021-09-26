@@ -42,6 +42,7 @@
    [error (msg)]
    [lit (integer_v)]
    [char (char_c)]
+   [zero ()]
    #:alias e)
 
   #;(record expr
@@ -52,11 +53,11 @@
 
   (bit expr [true] [false])
 
-  (numeric expr
-           [zero]
-           ;; [inf]
-           ;; [polynomial ((integer_e integer_i) ...)] ;; polynomial expression e*x^i ...
-           [int (~ integer val)])
+  ;; (numeric expr
+  ;;          [zero]
+  ;;          ;; [inf]
+  ;;          ;; [polynomial ((integer_e integer_i) ...)] ;; polynomial expression e*x^i ...
+  ;;          [int (~ integer val)])
 
   (sequence expr
             [basic (e_val ...)]

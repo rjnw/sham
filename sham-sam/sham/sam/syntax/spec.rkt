@@ -98,9 +98,8 @@
           (and aliases
                (member idsym (map ->symbol aliases)))))
     (define grp-pair (find-first (ast-groups ast-spec) is-group?))
-    (and grp-pair (cdr grp-pair))
     ;; (assoc-default (->symbol group-id) (ast-groups ast-spec))
-    )
+    (and grp-pair (cdr grp-pair)))
 
   (define (full-group-args gs as)
     (if gs
@@ -123,7 +122,7 @@
        (find-node-spec node-id (find-group-spec group-spec/id ast-spec) ast-spec check-alias?)]
       [(ast:group gid ginfo prnt args nds)
        (find-first (map cdr nds) (λ (n) (matches-node-spec? node-id n check-alias?)))]
-      [#f (find-first (map cdr (ast-groups ast-spec)) (λ (g) (find-node-spec node-id g ast-spec check-alias?)))]))
+      [#f (locate-first (map cdr (ast-groups ast-spec)) (λ (g) (find-node-spec node-id g ast-spec check-alias?)))]))
 
   (define (group-contains-node? node-spec/id group-spec)
     (define (eqn? n)

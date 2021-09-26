@@ -137,14 +137,7 @@
   (match-define (cmplr-stx-source maybe-ast) ctype)
   (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) '() path) node-state)
   (match-define (cmplr (cmplr:header cid cargs (cmplr:header:type cfrom cto)) groups info) cspec)
-
-  (printf "\nsyntax-node-pat-builder:\n")
-  (pretty-print (syntax->datum pat-stx))
-
-  (define-values (pat-res state-res) (basic-stx-rec pat-stx node-state (info-value ik-node-pat-ops info)))
-  (printf "syntax-node-pat-builder:result= \n~a \n~a\n" pat-res state-res)
-  (pretty-print (syntax->datum (->syntax pat-res)))
-  (values pat-res state-res))
+  (basic-stx-rec pat-stx node-state (info-value ik-node-pat-ops info)))
 
 (define (syntax-node-body-builder ctype body-stx state)
   (error 'sham/sam/TODO)

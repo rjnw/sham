@@ -2,7 +2,7 @@
 
 (require sham/sam/transform
          sham/sam/rkt)
-(require "../ast/arith.rkt")
+(require "../ast/basic-math.rkt")
 
 #;(define-ast math
   (expr
@@ -15,17 +15,14 @@
   #:format (#f - #f - -))
 
 (define-transform (interpret-arith)
-  (math -> rkt)
+  (math-ast -> rkt)
   (iexpr (val -> any)
-         [num n]
+         ;; [num num]
          [(neg (^ e)) (- e)]
-         [(div (^ n) (^ d)) (/ n d)]
-         [(add (^ es) ...) (apply + es)]
-         [(mul (^ es) ...) (apply * es)]))
-
-;; (define-languge
-;;   #:ast math
-;;   #:compiler interpret-arith)
+         ;; [(div (^ n) (^ d)) (/ n d)]
+         ;; [(add (^ es) ...) (apply + es)]
+         ;; [(mul (^ es) ...) (apply * es)]
+         ))
 
 (module+ test
   (require rackunit)
