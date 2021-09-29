@@ -14,22 +14,11 @@
 
 (provide (all-defined-out))
 
-;; (define (ast-match-pattern stx ast-spec maybe-group-spec)
-;;   (define node-spec
-;;     (match (syntax-e stx)
-;;       [(cons fst rst) (find-node-spec fst maybe-group-spec ast-spec)]
-;;       [id (find-node-spec stx maybe-group-spec ast-spec)]))
-;;   (define (parse-as-node node-spec stx)
-;;     (match-define (ast:node ids info args pat) node-spec)
-;;     (stx-with-pat->match-pattern stx pat))
-;;   (and node-spec (parse-as-node node-spec stx)))
-
-
-
 (struct ast-pat-node-operator [ast-spec]
   #:methods gen:cmplr-operator
   [(define (operator-parse-syntax op stx state frec)
      (match-define (ast-pat-node-operator ast-spec) op)
+     (printf "ast-pat-node-operator:\n ~a\n ~a\n" stx state)
      (match-define (cmplr:state:node spec-state dirs path) state)
      (match-define (cmplr:spec-state:node cspec gspec nspec) spec-state)
      (match-define (cmplr:group gid (cmplr:header:type gfrom gto) nodes info) gspec)
@@ -43,8 +32,10 @@
 
        (define (parse-seq-node-stx node-stx)
          (match-define (ast:node ids info args node-pat) ast-node-spec)
-         (match-define initial-parse (stx-path-for-pattern node-pat node-rst-stx))
-         (define (recur-pattern-parse parse)
+         (match-define initial-parse (stx-path-for-pattern node-pat (datum->syntax #f node-rst-stx)))
+         (define initial-depth (if (ast-path? path) (ast-path-depth path) #f))
+         (printf "parse-seq-node-stx:initial-parse: \n~a\n" initial-parse)
+         (define (recur-pattern-parse parse depth) ;; TODO keep track of ooo depth
            (match parse
              [`(seq ,args ,(pat:seq arg-pats))
               (for/fold ([arg-stxs '()]
@@ -52,24 +43,30 @@
                          #:result (values (cmplr:pat:seq arg-stxs) arg-dirs))
                         ([arg args]
                          [p arg-pats])
-                (define-values (arg-stx arg-dir) (recur-pattern-parse arg p))
+                (define-values (arg-stx arg-dir) (recur-pattern-parse arg depth))
                 (values (cons arg-stx arg-stxs) (append arg-dir arg-dirs)))]
              [`(var ,arg ,pat)
-              (define-values (arg-stx arg-state) (frec arg (cmplr:state:node spec-state dirs pat)))
+              (define-values (arg-stx arg-state) (frec arg (cmplr:state:node spec-state dirs (ast-path pat depth))))
               (match-define (cmplr:state:node _ arg-dirs p) arg-state)
               (values arg-stx arg-dirs)]
-             [`(ooo ,args ,pat)
+             [`(ooo ,args ,(pat:ooo p k))
               (for/fold ([arg-stxs '()]
-                         [arg-dirs '()])
+                         [arg-dirs '()]
+                         [ooo-depth depth]
+                         #:result (values arg-stxs arg-dirs))
                         ([arg args])
-                (define-values (arg-stx arg-dir) (recur-pattern-parse arg pat))
-                (values (cons arg-stx arg-stxs) (append arg-dir arg-dirs)))]
-             [`(dat ,s ,pat) (values #`'#,s '())]
+                (define-values (arg-stx arg-dir) (recur-pattern-parse arg ooo-depth))
+                (define new-depth
+                  (match arg
+                    [`(.. ,s ,p) (cons k depth)]
+                    [else depth]))
+                (values (cons arg-stx arg-stxs) (append arg-dirs arg-dir) new-depth))]
+             [`(dat ,s ,pat) (values #f '())]
              [`(.. ,s ,pat) (values #`(... ...) '())]
              [else (error 'sham/sam/cmplr "unknown parse in pattern ~a ~a\n" parse pat)]))
-         (define-values (arg-stxs arg-dirs) (recur-pattern-parse initial-parse))
+         (define-values (arg-stxs arg-dirs) (recur-pattern-parse initial-parse initial-depth))
          (values (cmplr:pat:ast:node arg-stxs ast-node-spec)
-                 (cmplr:state:node spec-state (append dirs arg-dirs) #f)))
+                 (cmplr:state:node spec-state (append dirs arg-dirs) (ast-path #f #f))))
 
        (define (parse-var-node-stx)
          (values (cmplr:pat:ast:node #f ast-node-spec) state))
@@ -93,206 +90,80 @@
          [else (values stx state)]))
      (if (syntax? stx) (try-ast stx) (values stx state)))])
 
-(define (compile-ast-type var ast-type cstate)
-  (printf "compile-ast-type: ~a ~a\n" var ast-type)
+(define (compile-ast-type var pat depth ast-spec cstate)
+  (printf "compile-ast-type: ~a ~a\n" var pat)
   (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) dirs path) cstate)
   (match-define (cmplr header groups info) cspec)
   (match-define (cmplr:header cid cargs ctyp) header)
-  (error 'sham/sam/TODO "compile-ast-type ~a ~a" var ast-type)
+  (define (compile-group-at-depth cmplr-group depth)
+    (match-define (cmplr:group id gtype nodes ginfo) cmplr-group)
+    (let rec ([depth depth]
+              [val var])
+      (match depth
+        [#f #`(#,id #,val #,@(map car cargs))]
+        [`((,mn . ,mx) . ,rst)
+         (define nval (generate-temporary var))
+         #`(map (λ (#,nval) #,(rec rst nval)) #,val)]
+        [else (error 'sham/sam/TODO "compile deeper ~a ~a ~a" var depth id)])))
+  (define (compile-spec-type depth spec)
+    (match spec
+      [(ast:group gids info parent args nodes)
+       (define group-fid (get-fid gids))
+       (define group-oid (get-oid gids))
+       (define (is-group? g)
+         (match-define (cmplr:group id gtype nodes ginfo) g)
+         (match-define (cmplr:header:type from to) gtype)
+         (or (equal? (->symbol from) (->symbol group-fid))
+             (equal? (->symbol from) (->symbol group-oid)) ))
+       (define cmplr-group (find-first groups is-group?))
+       (unless cmplr-group
+         (error 'sham/sam/cmplr "no compiler group for ~a" group-fid))
+       (compile-group-at-depth cmplr-group depth)]
+      [else (error 'sham/sam/cmplr "not a group ast spec for compiling ~a ~a" var spec)]))
+  (match (get-ast-type pat depth ast-spec)
+    [(ast:type:internal depth spec) (compile-spec-type depth spec)]
+    [(ast:type:intrinsic depth t) (error 'sham/sam/TODO "intrinsic ast type ~a ~a" var ast-spec)]
+    [(ast:type:identifier depth) #`(rt:identifier->syntax #,var #'#,var)]
+    [else (error 'sham/sam/TODO "compile-ast-type ~a ~a" var ast-spec)]))
 
-  ;; (define (perform-compile cmplr-group depth)
-  ;;   (match-define (cmplr:group id gtype nodes ginfo) cmplr-group)
-  ;;   (let rec ([depth depth]
-  ;;             [val var])
-  ;;     (match depth
-  ;;       [#f #`(#,id #,val #,@extra-cargs)]
-  ;;       [`((,mn . ,mx) . ,rst)
-  ;;        (define nval (generate-temporary var))
-  ;;        #`(map (λ (#,nval) #,(rec rst nval)) #,val)
-  ;;        ;; #`(map (curryr #,id #,@extra-cargs) #,val)
-  ;;        ]
-  ;;       [else (error 'sham/sam/TODO "compile deeper ~a ~a ~a" var depth id)])))
-  ;; (match ast-type
-  ;;   [(ast:type:internal depth (list group top))
-  ;;    (define group-fid (get-fid (ast:basic-id group)))
-  ;;    (define group-oid (get-oid (ast:basic-id group)))
-  ;;    (define (is-group? g)
-  ;;      (match-define (cmplr:group id gtype nodes ginfo) g)
-  ;;      (match-define (cmplr:type from to) gtype)
-  ;;      (or (equal? (->symbol from) (->symbol group-fid))
-  ;;          (equal? (->symbol from) (->symbol group-oid)) ))
-  ;;    (define ast-group (find-first groups is-group?))
-  ;;    (unless ast-group
-  ;;      (error 'sham/sam/cmplr "no compiler group for ~a" group-fid))
-  ;;    (perform-compile ast-group depth)]
-  ;;   [(ast:type:identifier depth)
-  ;;    #`(rt:identifier->syntax #,var #'#,var)])
-  )
-
-(struct ast-pat-compile-var-operator [op-stxid]
+(struct ast-pat-compile-var-operator [op-stxid ast-spec]
   #:methods gen:cmplr-operator
   [(define (operator-parse-syntax op stx state frec)
-     (match-define (ast-pat-compile-var-operator op-stxid) op)
-     (printf "ast-pat-compile-var-operator: ~a ~a\n" stx state)
+     (match-define (ast-pat-compile-var-operator op-stxid ast-spec) op)
+     (printf "ast-pat-compile-var-operator:\n ~a\n ~a\n" stx state)
      (define (do-pat ss)
        (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) dirs path) state)
        (match ss
          [(list op res-id args ...)
           #:when (free-identifier=? op op-stxid)
           (define gen-id (format-id res-id "v-~a" res-id))
-          (define var-pat (cmplr:pat:tvar gen-id res-id path))
-          (define compile-dir (cmplr:dir:bind gen-id (compile-ast-type res-id path state)))
+          (match-define (ast-path pat depth) path)
+          (define var-pat (cmplr:pat:tvar gen-id res-id pat))
+          (define compile-dir (cmplr:dir:bind res-id (compile-ast-type gen-id pat depth ast-spec state)))
           (values var-pat (append-dir-in-state compile-dir state))]
          [else (values stx state)]))
      (if (syntax? stx) (do-pat (syntax-e stx)) (values stx state)))])
 
-(struct ast-pat-normal-var-operator [stxid binder]
-  #:methods gen:cmplr-operator
-  [(define (operator-parse-syntax op stx state frec)
-     (printf "ast-pat-normal-var-operator: ~a ~a\n" stx state)
-     ;; (body-operator-gen-syntax bvp rst-stx frec cstate)
-     ;; (match-define (bind-var-pattern id binder) bvp)
-     ;; (match-define (cmplr:state:node cspec gspec nspec bvars) cstate)
-     ;; (match-define (cmplr header groups info) cspec)
-     ;; (syntax-parse rst-stx
-     ;;   [([vars vals] ... bodys ...)
-     ;;    (let*-values ([(vars-stx vars-state) (mapr/state frec cstate (attribute vars))]
-     ;;                  [(vals-stx vals-state) (mapr/state frec vars-state (attribute vals))]
-     ;;                  [(bodys-stx bodys-state) (mapr/state frec vals-state (attribute bodys))])
-     ;;      (values (binder (map stx:def vars-stx vals-stx) bodys-stx) bodys-state))])
-     )])
-
 (struct ast-default-rec-operator []
   #:methods gen:cmplr-operator
   [(define (operator-parse-syntax op stx state frec)
-     (match (syntax-e stx)
-       [(list ss ...) (mapl/state frec state ss)]
-       [i (values stx state)]))])
+     (if (syntax? stx)
+         (match (syntax-e stx)
+           [(list ss ...) (mapl/state frec state ss)]
+           [i (values stx state)])
+         (values stx state)))])
 
 (define (ast-node-pat-builder ctype pat-stx node-state)
   (match-define (cmplr-ast-source ast-spec) ctype)
   (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) '() path) node-state)
   (match-define (cmplr (cmplr:header cid cargs (cmplr:header:type cfrom cto)) groups info) cspec)
-  (basic-stx-rec pat-stx node-state (info-value ik-node-pat-ops info))
-
-  ;; (match-define (cmplr:state:node cspec gspec nspec bvars) node-state)
-  ;; (match-define (cmplr header groups info) cspec)
-  ;; (match-define (cmplr:header cid cargs ctyp) header)
-  ;; (match-define (cmplr:type from-spec to-spec) ctyp)
-  ;; (match-define (cmplr:group gid gtyp gnodes ginfo) gspec)
-  ;; (match-define (cmplr:type gfrom gto) gtyp)
-  ;; (match-define (cmplr:node pats bodys) nspec)
-
-  ;; (define all-operators (flatten (info-values 'operators info)))
-  ;; (define bind-operators (filter cmplr-bind-operator? all-operators))
-  ;; (define find-bind-operator (find-operator bind-operators bind-operator-identifier))
-
-  ;; (define ((cmplr-pattern stx ast-type) op)
-  ;;   (let ([op-pat (bind-operator-parse-syntax op stx ast-type)])
-  ;;     (if (pat:var? op-pat)
-  ;;         (values (list (cons op-pat op)) op-pat)
-  ;;         (values '() op-pat))))
-
-  ;; -> (values (listof bound-vars) stx)
-  ;; (define ((ast-pattern rst) ast-node-spec)
-  ;;   (match-define (ast:node nid ninfo nargs npat) ast-node-spec)
-  ;;   ;; (printf "ast-pattern:\n")
-  ;;   ;; (pretty-print (pretty-node ast-node-spec))
-  ;;   ;; (printf "~a\n\n" rst)
-
-  ;;   (define (from-ast-type ast-type)
-  ;;     (match ast-type
-  ;;       [(ast:type:internal depth (cons grp subs))
-  ;;        (define ast-group (find-group-spec grp from-spec))
-  ;;        (if ast-group
-  ;;            (ast:type:internal depth (list ast-group from-spec))
-  ;;            (error 'sham/sam "couldn't find ast type: ~a" grp))]
-  ;;       [(ast:type depth) ast-type]))
-  ;;   (define-values (node-vars node-stx)
-  ;;     (let rec ([parse (stx-path-for-pattern npat #`(#,@rst))])
-  ;;       ;; (printf "rec: ~a\n" parse)
-  ;;       ;; (stx-path-for-pattern npat #`(#,@rst))
-
-  ;;       (match parse
-  ;;         [`(seq ,subs ,(pat:seq (vector ps ...)))
-  ;;          (define-values (vars stxs) (fold-with-vars rec subs))
-  ;;          (values vars (cmplr:pat:seq stxs))]
-  ;;         [`(var ,stx ,var-pat)
-  ;;          (match-define (ast:pat:single id check) var-pat)
-  ;;          (define node-arg (find-node-arg ast-node-spec id))
-  ;;          (do-pattern stx (from-ast-type (ast:node:arg-type node-arg)))]
-  ;;         [`(ooo ,subs ,pat)
-  ;;          ;; (printf "ooo: ~a\n" subs)
-  ;;          (fold-with-vars rec subs)]
-  ;;         [`(___ ,s ,nx ,pat) (values '() s)]
-  ;;         [`(dat #f ,_) (values '() #f)])))
-  ;;   (values node-vars (cmplr:pat:ast-node ast-node-spec (flatten node-stx))))
-
-  ;; -> (values bind-vars match-pat)
-  ;; (define (do-pattern stx maybe-ast-spec)
-  ;;   ;; (printf "bind-pattern: ~a\n" stx)
-  ;;   (match (syntax-e stx)
-  ;;     [(? symbol?) (cond
-  ;;                    [(find-bind-operator #'#%var) => (cmplr-pattern stx maybe-ast-spec)]
-  ;;                    [else (values '() (cmplr:pat:var stx (generate-temporary stx)))])]
-  ;;     [(cons fst rst)
-  ;;      (cond
-  ;;        [(find-node-spec fst from-group-ast-spec from-spec) => (ast-pattern rst)]
-  ;;        [(or (find-bind-operator fst) (find-bind-operator #'#%app)) => (cmplr-pattern stx maybe-ast-spec)]
-  ;;        ;; [(find-bind-operator #'#%app) => (cmplr-pattern stx maybe-ast-spec)]
-  ;;        [else
-  ;;         ;; keep the pattern as is in fst but recur over rst
-  ;;         (define-values (vars stxs) (fold-with-vars (curryr do-pattern maybe-ast-spec) rst))
-  ;;         (values vars (stx:app fst stxs))]
-  ;;        ;; [else (error 'sham/sam "unknown sequence in bind pattern ~a ~a" fst rst)]
-  ;;        )]))
-
-  ;; (define from-group-ast-spec
-  ;;   (cond
-  ;;     [(find-group/node-spec gfrom from-spec) => cdr]
-  ;;     [else (error 'sham/sam "couldn't locate ast group for compiling: ~a" gfrom)]))
-
-  ;; (printf "\n\nparsing-node: ~a\n" bind)
-  ;; (define-values (pat-vars pat-stx) (do-pattern pat-spec from-group-ast-spec))
-  ;; (values pat-stx (cmplr:state:node cspec gspec nspec pat-vars))
-  )
+  (basic-stx-rec pat-stx node-state (info-value ik-node-pat-ops info)))
 
 (define (ast-node-body-builder ctype body-stx node-state)
   (match-define (cmplr-ast-target ast-spec) ctype)
-  (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) dirs path) node-state)
+  (match-define (cmplr:state:node (and spec-state (cmplr:spec-state:node cspec gspec nspec)) dirs path) node-state)
   (match-define (cmplr (cmplr:header cid cargs (cmplr:header:type cfrom cto)) groups info) cspec)
-  (basic-stx-rec body-stx node-state (info-value ik-node-body-ops info))
-
-  ;; (match-define (cmplr:state:node cspec gspec nspec bvars) node-state)
-  ;; (match-define (cmplr header groups info) cspec)
-  ;; (match-define (cmplr:header cid cargs ctyp) header)
-  ;; (match-define (cmplr:group gid gtyp gnodes ginfo) gspec)
-  ;; (match-define (cmplr:type from-spec to-spec) gtyp)
-  ;; (match-define (cmplr:node pats bodys) nspec)
-
-  ;; (define all-operators (flatten (info-values 'operators info)))
-  ;; (define body-operators (filter cmplr-body-operator? all-operators))
-  ;; (define find-body-operator (find-operator body-operators body-operator-identifier))
-
-  ;; (define (bvars&body bvars raw-body-stxs)
-  ;;   (define-values (bvar-stxs bvar-state)
-  ;;     (mapr/state (λ (bv state) (bind-operator-gen-syntax (cdr bv) (car bv) state)) node-state bvars))
-
-  ;;   (define (do-body body-stx body-state)
-  ;;     (match (syntax-e body-stx)
-  ;;       [(cons fst rst)
-  ;;        (cond [(or (find-body-operator fst) (find-body-operator #'#%app))
-  ;;               => (λ (op) (body-operator-gen-syntax op body-stx do-body body-state))]
-  ;;              [else
-  ;;               (define-values (rst-stxs nstate) (mapr/state do-body body-state rst))
-  ;;               (values (datum->syntax body-stx (cons fst rst-stxs))
-  ;;                       nstate)])]
-  ;;       [else (values body-stx body-state)]))
-
-  ;;   (define-values (body-stxs body-state) (mapr/state do-body bvar-state raw-body-stxs))
-  ;;   (append bvar-stxs body-stxs))
-  ;; (bvars&body bvars body-spec)
-  )
+  (basic-stx-rec body-stx (cmplr:state:node spec-state dirs (ast-path #f #f)) (info-value ik-node-body-ops info '())))
 
 (define (update-stx-with-dirs dirs body-stx)
   (define with-dirs (filter cmplr:dir:stx:with? dirs))
@@ -315,7 +186,6 @@
            (cmplr-ast-target of-ast)))
      (define new-info
        (update-info ik-spec-bs (λ (bs) (append bs (list actual-builder))) info))
-     ;; (printf "\tnew-info: ~a\n" new-info)
      (cmplr header groups new-info))])
 
 (struct cmplr-ast-source [ast-spec]
@@ -327,10 +197,12 @@
      (define pat-ops
        (list (ast-default-rec-operator)
              (ast-pat-node-operator ast-spec)
-             (ast-pat-compile-var-operator #`rt:^)))
+             (ast-pat-compile-var-operator #`rt:^ ast-spec)))
      (define this-info
        (kw-info (ik-node-pat-bs cas)
-                (ik-node-pat-ops . pat-ops)))
+                (ik-node-pat-ops . pat-ops)
+                (ik-group-bs (cmplr-ast-group-builder))
+                (ik-top-bs (cmplr-ast-top-builder ast-spec))))
      (define new-info (combine-info info this-info))
      (cmplr header groups new-info))]
   #:methods gen:cmplr-node-pat-builder
@@ -359,3 +231,34 @@
      (match-define (cmplr (cmplr:header id args (cmplr:header:type cfrom cto)) groups info) cspec)
      (define-values (new-dirs new-body-stx) (update-stx-with-dirs dirs body-stx))
      (cmplr:node pat-stx new-dirs new-body-stx))])
+
+(struct cmplr-ast-group-builder []
+  #:methods gen:cmplr-group-builder
+  [(define (build-group-stx agb node-stxs cspec gspec)
+     (match-define (cmplr header groups info) cspec)
+     (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
+     (match-define (cmplr:header:type cfrom cto) cmplr-type)
+     (match-define (cmplr:group gid gtype gnodes ginfo) gspec)
+     (define (to-match-pat cnode)
+       (match-define (cmplr:node pat-stx dirs body-stx) cnode)
+       (cmplr:ast:match:pat pat-stx #f (combine-general-dirs dirs body-stx)))
+     (cmplr:ast:group gid cmplr-input-stxid (map car cmplr-args) (map to-match-pat node-stxs)))])
+
+(struct cmplr-ast-top-builder [ast-spec]
+  #:methods gen:cmplr-top-builder
+  [(define (build-cmplr-top atb group-stxs cspec)
+     (match-define (cmplr-ast-top-builder ast-spec) atb)
+     (match-define (cmplr header groups info) cspec)
+     (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
+     (match-define (cmplr:header:type cfrom cto) cmplr-type)
+     (list
+      #`(define (#,cmplr-id #,cmplr-input-stxid #,@(map list (map car cmplr-args) (map cdr cmplr-args)))
+          #,@(map to-syntax group-stxs)
+          (cond
+            #,@(for/list ([group groups])
+                 (match-define (cmplr:group gid (cmplr:header:type gfrom gto) nodes info) group)
+                 (define ast-group-spec (find-group-spec gfrom ast-spec))
+                 (define gfid (get-fid (ast:basic-id ast-group-spec)))
+                 (define group-check? (format-id gfid "~a?" gfid))
+                 #`((#,group-check? #,cmplr-input-stxid) (#,gid #,cmplr-input-stxid #,@(map car cmplr-args))))
+            [else (error "invalid input to transform ~a ~a" (quote #,cmplr-id) #,cmplr-input-stxid)]))))])

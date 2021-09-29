@@ -218,6 +218,7 @@
   [(define (build-group-stx scgb node-stxs cspec gspec)
      (match-define (cmplr:group gid gtype nodes info) gspec)
      (define node-parts (map (curry node-syntax-class-part cspec gspec) node-stxs))
+     ;; TODO add cmplr-args
      (cmplr:stx:class gid node-parts (info-value 'splicing info)))])
 
 (define (node-syntax-class-part cspec gspec nspec)
@@ -237,7 +238,7 @@
      (match-define (cmplr header groups info) cspec)
      (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
      (match-define (cmplr:header:type cfrom cto) cmplr-type)
-     (define cinp #'cinp)
+     (define cinp cmplr-input-stxid)
      (list
       #`(define (#,cmplr-id cmplr-inp #,@(map list (map car cmplr-args) (map cdr cmplr-args)))
           #,@(to-syntax stxc)

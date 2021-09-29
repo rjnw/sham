@@ -167,14 +167,29 @@
     (define gprs (group-parents (get-oid gids) spec))
     (ast-format-id tid (reverse gprs) (get-oid nids) (or (format-info ninfo) (format-info ginfo) (format-info info))))
 
-  ;; (define (find-internal-type t spec)
-  ;;   (match-define (ast:type:internal depth path) t)
-  ;;   (match t
-  ;;     [(cons fst rst)
-  ;;      (define group-spec (find-group-spec fst spec))
-  ;;      (if group-spec
-  ;;          group-spec
-  ;;          (find-first ))]))
+  (define (find-in-spec stxid curr-spec spec)
+    (match curr-spec
+      [(? ast?) (find-group-spec stxid curr-spec)]
+      [(? ast:group?) (find-node-spec stxid curr-spec spec)]
+      [(? ast:node?) #f]))
+
+  (define (ast-from-path path curr-spec spec)
+    (match path
+      [(list s) (find-in-spec s curr-spec spec)]
+      [(cons fst rst) (ast-from-path rst (find-in-spec fst curr-spec spec) spec)]))
+
+  (define (ast-type-from-var-stx stxid depth spec)
+    (match (split-identifier stxid)
+      [`(! ,intr) (ast:type:intrinsic depth intr)]
+      [(list (or ': '_) id typs ...) (ast:type:internal depth (ast-from-path typs spec spec))]
+      [else #f]))
+
+  (define (get-ast-type pat depth spec)
+    (match pat
+      [(ast:pat:single var maybe-check)
+       (or (ast-type-from-var-stx var depth spec)
+           (and maybe-check (ast:type:check depth maybe-check)))]))
+
   (define (intrinsic-type? t) (member t `(str string integer int bool boolean sym symbol)))
   (define (id&type raw-id (c #f) (depth #f) (maybe-type #f))
     (define (from-specified k typs)

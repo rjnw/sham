@@ -1,7 +1,10 @@
 #lang racket
-(require racket/generic)
+(require racket/generic
+         (for-template racket))
 (require "reqs.rkt")
 (provide (all-defined-out))
+
+(define cmplr-input-stxid #`cinp)
 
 ;; used for normal variables in pattern
 ;;   for basic builders this does nothing but keep generate-temporary id along
@@ -23,15 +26,10 @@
 (struct cmplr:pat:ast:node [arg-stxs ast-node-spec]
   #:methods gen:stx
   [(define (->syntax pan)
-     (match-define (cmplr:pat:ast:node op rands) pan)
-     (printf "ast-node: ~a\n" rands)
-     (error 'sham/sam/TODO "cmplr:pat:ast:node")
-     (define rands-stx
-       (match rands
-         [(list (cmplr:pat:seq ps))
-          (to-syntax (flatten ps))]
-         [else (to-syntax rands)]))
-     #`(#,(get-fid (ast:basic-id op)) #,@rands-stx))])
+     (match-define (cmplr:pat:ast:node arg-stxs ast-node-spec) pan)
+     (if arg-stxs
+         #`(#,(get-fid (ast:basic-id ast-node-spec)) #,@(to-syntax arg-stxs))
+         #`(#,(get-fid (ast:basic-id ast-node-spec)))))])
 
 (struct cmplr:pat:ooo pat:ooo []
   #:methods gen:stx
@@ -49,3 +47,17 @@
 (struct cmplr:dir [])
 (struct cmplr:dir:bind cmplr:dir [var val])
 (struct cmplr:dir:bind:val cmplr:dir:bind [])
+
+(struct cmplr:ast:match:pat [pat dirs result]
+  #:methods gen:stx
+  [(define (->syntax mp)
+     (match-define (cmplr:ast:match:pat pat dirs result) mp)
+     (seq->syntax pat dirs result))])
+
+(struct cmplr:ast:group [id inp args parts]
+  #:methods gen:stx
+  [(define (->syntax ag)
+     (match-define (cmplr:ast:group id inp args parts) ag)
+     #`(define (#,(to-syntax id) #,inp #,@(map to-syntax args))
+         (match #,inp
+           #,@(map to-syntax parts))))])

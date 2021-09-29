@@ -2,6 +2,8 @@
 (require "reqs.rkt")
 (provide (all-defined-out))
 
+(struct ast-path [pat depth])
+
 (define (add-ooo-stx-path state k)
   (define (in-path p) (cons k p))
   (match-define (cmplr:state:node spec-state vars path) state)
