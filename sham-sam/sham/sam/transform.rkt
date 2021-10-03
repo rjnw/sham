@@ -2,10 +2,12 @@
 (require (for-syntax syntax/parse))
 (require
  "runtime/transform.rkt"
+ "syntax/cmplr/runtime.rkt"
  (for-syntax "syntax/transform.rkt"
              (submod "syntax/class.rkt" compiler)))
 
-(provide (all-from-out "runtime/transform.rkt")
+(provide (all-from-out "runtime/transform.rkt"
+                       "syntax/cmplr/runtime.rkt")
          (all-defined-out))
 
 (define-syntax (define-transform stx)

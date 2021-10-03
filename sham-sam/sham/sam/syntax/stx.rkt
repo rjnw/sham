@@ -20,7 +20,8 @@
 
 (struct stx:forced-seq [stx]
   #:methods gen:stx
-  [(define (->syntax fs) (syntax-e (to-syntax (stx:forced-seq-stx fs))))])
+  [(define (->syntax fs)
+     (syntax-e (to-syntax (stx:forced-seq-stx fs))))])
 
 (define (stx-define-values vars vals)
   #`(define-values #,(to-syntax vars) #,(to-syntax vals)))

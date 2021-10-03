@@ -2,11 +2,15 @@
 
 (require "runtime/generics.rkt"
          "runtime/props.rkt"
+         "runtime/ast.rkt"
+         "runtime/identifier.rkt"
          (for-syntax syntax/parse
                      "syntax/kw-info.rkt"
                      "syntax/utils.rkt"))
 
 (provide (all-defined-out)
+         (all-from-out "runtime/ast.rkt"
+                       "runtime/identifier.rkt")
          gmap gfold)
 
 (struct ast:location [sloc tag] #:transparent)
@@ -23,27 +27,3 @@
     [(_ (~optional v #:defaults ([v #f])) kws:keyword-info)
      (define inf (attribute kws.spec))
      #`(metadata-with-location v #,(info-1value 'srcloc inf (syntax-srcloc stx)))]))
-
-(struct ast [md])
-(struct ast:group ast [args])
-
-(struct ast:term ast:group [args]
-  #:methods gen:term:fold
-  [(define (gfold ff f v)
-     (match-define (ast:term md gas tas) v)
-     (define ngas ((gfold-rec-vl ff f) gas))
-     (define ntas ((gfold-rec-vl ff f) tas))
-     (cond [(ff v) => (lambda (ff^) (ff^ ngas ntas))]
-           [(has-ast-constructor? v) (((get-ast-constructor v)) md ngas ntas)]))]
-  #:methods gen:term:map
-  [(define (gmap f v)
-     (match-define (ast:term md gas tas) v)
-     ((if (has-ast-constructor? v) (((get-ast-constructor v))) ast:term)
-      md
-      ((gmap-rec-vl f) gas)
-      ((gmap-rec-vl f) tas)))])
-
-(struct ast:scope [kind instance])
-(struct ast:id ast [orig gen scope])
-(struct ast:id:def ast:id [(maybe-refs #:mutable)])
-(struct ast:id:ref ast:id [(maybe-def #:mutable)])

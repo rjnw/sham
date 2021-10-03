@@ -1,7 +1,9 @@
 #lang racket
 
-(require syntax/strip-context)
-(require "stx-to-cry-stx.rkt")
+(require syntax/strip-context
+         sham/sam/pretty)
+
+(require "stx-to-cry-ast.rkt")
 (provide (rename-out [cry-read read]
                      [cry-read-syntax read-syntax]))
 
@@ -28,7 +30,7 @@
     (println "read-syntax:")
     (pretty-print (syntax->datum s))
     (println "parsed-cry:")
-    (pretty-print (syntax->datum (stx-to-cry-stx s))))
+    (pretty-print (pretty-print-ast (stx-to-cry-ast s))))
 
   (strip-context
    #`(module default racket

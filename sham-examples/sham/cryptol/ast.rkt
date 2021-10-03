@@ -16,13 +16,14 @@
      #:alias p)
 
   (def
-    [val (t bs:def.bind ...)]
+    [gen (d_ds)]
+    [val (id_name e_val)]
     [type (id_name t_val)]
     [typeof (id_name t_val)]
+    [test (id_name e_v1 e_v2)]
     ;; [import (id_name id_qualifier (id_only ...) (id_hide ...) (parameter_ps ...))]
     ;; [mod-inst (id_name id_of (p_ps ...) (d_ds ...))]
     ;; [private (d_ds ...)]
-    [bind ((pat_ps ...) e_body)]
     #:alias d)
 
   (pat
@@ -31,6 +32,7 @@
    [sequence (pat_ps ...)])
 
   (expr
+   [bind ((pat_ps ...) e_body)]
    [app (e_o
          (e_t ...)
          e_rands ...)]
@@ -42,28 +44,29 @@
    [error (msg)]
    [lit (integer_v)]
    [char (char_c)]
+   [tuple (e_vals ...)]
    [zero ()]
    #:alias e)
+
+  (bit expr [true] [false])
+
+  (sequence expr
+            [basic (e_val ...)]
+            [enum (e_from e_step e_to)]
+            [str string_s]
+            ;; sequence comprehension [expr | pat <- expr, ... | ...]
+            [comp (e_body ((pat_ps e_vs) ...) ...)])
 
   #;(record expr
             [tuple (e ...)]
             [literal ((id_field e_val) ...)]
             [project (e (~ (~or id integer) field))]
             [update (e (id_fields e_vals) ...)])
-
-  (bit expr [true] [false])
-
   ;; (numeric expr
   ;;          [zero]
   ;;          ;; [inf]
   ;;          ;; [polynomial ((integer_e integer_i) ...)] ;; polynomial expression e*x^i ...
   ;;          [int (~ integer val)])
-
-  (sequence expr
-            [basic (e_val ...)]
-            [enum (e_from e_step e_to)]
-            ;; sequence comprehension [expr | pat <- expr, ... | ...]
-            [comp (e_body ((pat_ps e_vs) ...) ...)])
 
   (type
    [bit]                                ;; true & false

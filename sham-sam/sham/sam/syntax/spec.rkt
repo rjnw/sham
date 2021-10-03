@@ -54,21 +54,21 @@
                        (struct/c ast:pat:repeat pat/c (cons/c (maybe/c natural-number/c)
                                                               (maybe/c natural-number/c)))))
 
-  (define ast:id/c (assoc/c symbol? syntax?))
+  (define ast:ids/c (assoc/c symbol? syntax?))
   (define ast:info/c (listof (cons/c symbol? (listof syntax?))))
   (define ast:type/c ast:type?)
   (define ast:node/c (struct/c ast:node
-                               ast:id/c
+                               ast:ids/c
                                ast:info/c
-                               (listof (struct/c ast:node:arg ast:id/c ast:info/c ast:type/c))
+                               (listof (struct/c ast:node:arg ast:ids/c ast:info/c ast:type/c))
                                ast:pat/c))
   (define ast:group/c (struct/c ast:group
-                                ast:id/c
+                                ast:ids/c
                                 ast:info/c
                                 syntax?
-                                (listof (struct/c ast:group:arg ast:id/c ast:info/c ast:type/c))
+                                (listof (struct/c ast:group:arg ast:ids/c ast:info/c ast:type/c))
                                 (assoc/c symbol? ast:node/c)))
-  (define ast/c (struct/c ast syntax? ast:id/c (assoc/c symbol? ast:group/c) ast:info/c))
+  (define ast/c (struct/c ast syntax? ast:ids/c (assoc/c symbol? ast:group/c) ast:info/c))
 
   (define (make-ast-id orig) `((0 . ,orig) ;; (t0 . ,(generate-temporary orig))
                                ))

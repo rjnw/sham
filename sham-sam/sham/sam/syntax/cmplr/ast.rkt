@@ -14,6 +14,8 @@
 
 (provide (all-defined-out))
 
+(define make-operator-stxid #`make)
+
 (struct ast-pat-node-operator [ast-spec]
   #:methods gen:cmplr-operator
   [(define (operator-parse-syntax op stx state frec)
@@ -90,6 +92,36 @@
          [else (values stx state)]))
      (if (syntax? stx) (try-ast stx) (values stx state)))])
 
+(struct ast-make-body-operator [ast-spec make-op-id]
+  #:methods gen:cmplr-operator
+  [(define (operator-parse-syntax ambo stx state frec)
+     (match-define (ast-make-body-operator ast-spec make-op-id) ambo)
+     (define (perform-make node&args)
+       (match-define (cmplr:state:node (and spec-state (cmplr:spec-state:node cspec gspec nspec)) dirs path) state)
+       (match-define (cmplr (cmplr:header cid cargs (cmplr:header:type cfrom cto)) groups info) cspec)
+       (match-define (cmplr:group gid (cmplr:header:type gfrom gto) nodes ginfo) gspec)
+       (match-define (cons stxid node-args) node&args)
+       (define node-spec
+         (match (split-identifier stxid)
+           [(list #f node-id) (find-node-spec node-id gto ast-spec)]
+           [(list ': group-id node-id) (find-node-spec node-id group-id ast-spec)]
+           [else (error 'sham/sam/transform "unknown type of node stxid ~a" stxid)]))
+       (unless (ast:node? node-spec) (error 'sham/sam/transform "unknown node for make operator ~a ~a" stxid node-spec))
+       (define node-fid (get-fid (ast:basic-id node-spec)))
+       (define node-make-id (format-id node-fid "make-~a" node-fid))
+       (define-values (node-args-stxs new-state) (mapl/state frec state node-args))
+       ;; TODO add metadata
+       (values #`(#,node-make-id #,@node-args-stxs) new-state))
+     (define (make-op-args stx)
+       (match (syntax-e stx)
+         [(list op-id node-id node-args ...)
+          #:when (equal? (->symbol op-id) (->symbol make-op-id))
+          (cons node-id node-args)]
+         [else #f]))
+     (cond
+       [(and (syntax? stx) (make-op-args stx)) => perform-make]
+       [else (values stx state)]))])
+
 (define (compile-ast-type var pat depth ast-spec cstate)
   (printf "compile-ast-type: ~a ~a\n" var pat)
   (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) dirs path) cstate)
@@ -159,6 +191,9 @@
   (match-define (cmplr (cmplr:header cid cargs (cmplr:header:type cfrom cto)) groups info) cspec)
   (basic-stx-rec pat-stx node-state (info-value ik-node-pat-ops info)))
 
+;;  TODO get group spec once at the start of pat and body builder
+;; (struct cmplr:state:ast-node cmplr:state:node [group-spec ast-spec])
+
 (define (ast-node-body-builder ctype body-stx node-state)
   (match-define (cmplr-ast-target ast-spec) ctype)
   (match-define (cmplr:state:node (and spec-state (cmplr:spec-state:node cspec gspec nspec)) dirs path) node-state)
@@ -216,6 +251,7 @@
      ;; (printf "cmplr-ast-target:\n")
      (define this-info
        (kw-info (ik-node-body-bs cat)
+                (ik-node-body-ops (ast-make-body-operator ast-spec make-operator-stxid))
                 (ik-node-bs (cmplr-ast-node-builder))))
      (define new-info (combine-info info this-info))
      (cmplr header groups new-info))]

@@ -10,10 +10,11 @@
          "pat.rkt"
          "pat-stx.rkt"
          "state.rkt"
-         "basic.rkt")
-(provide (all-defined-out))
+         "basic.rkt"
+         (for-template "runtime.rkt")
+         "../../runtime/transform.rkt")
 
-(define result-attribute-syntax #'result)
+(provide (all-defined-out))
 
 (define (internal-syntax-class stxid cspec)
   (define (is-group g)
@@ -40,7 +41,7 @@
 
        (define svar (cmplr:pat:stx:var gen-id var-id var-type-stx))
        (define sdir (cmplr:dir:stx:with (stx-cls-with-var var-id path)
-                                        (stx-cls-attr-val gen-id (and internal-class result-attribute-syntax))))
+                                        (stx-cls-attr-val gen-id (and internal-class result-attribute-stxid))))
        (values svar (cmplr:state:node spec (append vdirs (list sdir)) path)))
 
      ;; (printf "stx-var: ~a ~a\n" val state)
@@ -64,15 +65,44 @@
 (struct stx-~-pat-operator []
   #:methods gen:cmplr-operator
   [(define (operator-parse-syntax op stx state frec)
-     ;; (printf "stx-special: ~a ~a\n" stx state)
-     (define (fmap stx state) (error 'todo "do special for ooo"))
-     (define-values (special-op rst)
-       (match (syntax-e stx)
-         [(cons (and fst (regexp #rx"^~(.*)$" (list _ actual))) rst) (values fst rst)]
-         [else (values #f stx)]))
-     (if special-op
-         (let-values ([(arg-stxs args-state) (frec rst state)])
-           (values (cmplr:pat:stx:op #`op (stx:forced-seq arg-stxs)) args-state))
+     (define (special-op? stxe)
+       (and (cons? stxe)
+            (identifier? (car stxe))
+            (regexp-match #rx"^~(.*)$" (symbol->string (syntax->datum (car stxe))))))
+     (define (do-special-op stx)
+       (match-define (cons fst rst) (syntax-e stx))
+       (define-values (rst-stxs rst-state) (mapl/state frec state rst))
+       (values (cmplr:pat:stx:op fst rst-stxs) rst-state))
+     (if (and (syntax? stx)
+              (not (identifier? stx))
+              (special-op? (syntax-e stx)))
+         (do-special-op stx)
+         (values stx state)))])
+
+(struct stx-id-pat-operator []
+  #:methods gen:cmplr-operator
+  [(define (operator-parse-syntax op stx state frec)
+     (define (id-operator? stxe)
+       (and (cons? stxe)
+            (identifier? (car stxe))
+            (regexp-match #rx"^id-.*$" (symbol->string (syntax->datum (car stxe))))
+            ;; (member (syntax-e (car stxe)) '(id-def id-ref))
+            ))
+     (define (do-op)
+       (match-define (cmplr:state:node spec vdirs path) state)
+       (match-define (cmplr:spec-state:node cspec gspec nspec) spec)
+       (syntax-parse stx
+         [(id-op:id id-name:id ((~datum quote) id-kind))
+          (define gen-id-name (generate-temporary #`id-name))
+          (define id-dir (cmplr:dir:stx:with (stx-cls-with-var #`id-name path)
+                                             (stx-cls-attr-val gen-id-name result-attribute-stxid)))
+          (values (cmplr:pat:stx:op (format-id #`id-op "~~~a" #`id-op)
+                                    (list gen-id-name #`'id-kind))
+                  (cmplr:state:node spec (append vdirs (list id-dir)) path))]))
+     (if (and (syntax? stx)
+              (not (identifier? stx))
+              (id-operator? (syntax-e stx)))
+         (do-op)
          (values stx state)))])
 
 (struct stx-ooo-seq-pat-operator [identifies? pat-type parser]
@@ -194,7 +224,8 @@
         (stx-vec-pat-operator)
         (stx-quote-pat-operator)
         (stx-var-pat-operator)
-        (stx-~-pat-operator)))
+        (stx-~-pat-operator)
+        (stx-id-pat-operator)))
 
      (define this-info
        (kw-info (ik-node-pat-bs css)
@@ -228,7 +259,7 @@
   (cmplr:stx:class:pat pat
                        (append stx-pat-dirs
                                (list
-                                (cmplr:dir:stx:attr result-attribute-syntax
+                                (cmplr:dir:stx:attr result-attribute-stxid
                                                     (combine-general-dirs other-dirs body))))))
 
 (struct cmplr-stx-class-top-builder []
@@ -244,4 +275,4 @@
           #,@(to-syntax stxc)
           (syntax-parse cmplr-inp
             [(~var #,cinp #,(cmplr:group-id (car groups)))
-             (attribute #,(format-id cinp "~a.~a" cinp result-attribute-syntax))]))))])
+             (attribute #,(format-id cinp "~a.~a" cinp result-attribute-stxid))]))))])
