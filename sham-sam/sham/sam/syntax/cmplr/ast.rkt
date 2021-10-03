@@ -123,7 +123,7 @@
        [else (values stx state)]))])
 
 (define (compile-ast-type var pat depth ast-spec cstate)
-  (printf "compile-ast-type: ~a ~a\n" var pat)
+  (printf "compile-ast-type: ~a ~a ~a\n" var pat depth)
   (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) dirs path) cstate)
   (match-define (cmplr header groups info) cspec)
   (match-define (cmplr:header cid cargs ctyp) header)
@@ -156,7 +156,7 @@
     [(ast:type:internal depth spec) (compile-spec-type depth spec)]
     [(ast:type:intrinsic depth t) (error 'sham/sam/TODO "intrinsic ast type ~a ~a" var ast-spec)]
     [(ast:type:identifier depth) #`(rt:identifier->syntax #,var #'#,var)]
-    [else (error 'sham/sam/TODO "compile-ast-type ~a ~a" var ast-spec)]))
+    [t (error 'sham/sam/TODO "compile-ast-type ~a ~a ~a" var t ast-spec)]))
 
 (struct ast-pat-compile-var-operator [op-stxid ast-spec]
   #:methods gen:cmplr-operator

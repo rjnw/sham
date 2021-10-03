@@ -179,9 +179,18 @@
       [(cons fst rst) (ast-from-path rst (find-in-spec fst curr-spec spec) spec)]))
 
   (define (ast-type-from-var-stx stxid depth spec)
+    (printf "ast-type-from-var-stx: ~a ~a\n" stxid (split-identifier stxid))
+    (define (from-specified id typs)
+      (cond [(or (ast-from-path typs spec spec)
+                 (and (empty? typs) (ast-from-path (list id) spec spec)))
+             => (λ (s) (ast:type:internal depth s))]
+            [else (match (map syntax->datum typs)
+                    [(list (or 'id 'identifier)) (ast:type:identifier depth)]
+                    [(? intrinsic-type? t) (ast:type:intrinsic depth t)])]))
     (match (split-identifier stxid)
       [`(! ,intr) (ast:type:intrinsic depth intr)]
-      [(list (or ': '_) id typs ...) (ast:type:internal depth (ast-from-path typs spec spec))]
+      [(list (or ': '_) id typs ...) (from-specified id typs)]
+      [(list #f id) (from-specified id (list id))]
       [else #f]))
 
   (define (get-ast-type pat depth spec)

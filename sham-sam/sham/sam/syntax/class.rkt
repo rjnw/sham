@@ -93,13 +93,13 @@
 
   (define-syntax-class compiler-group
     (pattern (name:id type:compiler-type
-                      (node-binding:expr node-body:expr node-dirs:keyword-info ...) ...
+                      (node-binding:expr node-dirs ... node-body:expr) ...
                       info:keyword-info)
              #:attr spec (cmplr:group #`name
                                       (attribute type.spec)
                                       (map cmplr:node
                                            (attribute node-binding)
-                                           (attribute node-dirs.spec)
+                                           (attribute node-dirs)
                                            (attribute node-body))
                                       (attribute info.spec))))
 

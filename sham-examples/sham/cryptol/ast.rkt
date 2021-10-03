@@ -7,7 +7,7 @@
   (top
    [mod (id_name
          ;; (parameter_ps ...)
-         decl_body ...)])
+         def_body ...)])
 
   #;(parameter
      [type (id kind (~optional value))]
@@ -16,11 +16,12 @@
      #:alias p)
 
   (def
-    [gen (d_ds)]
+    [gen (d_ds ...)]
     [val (id_name e_val)]
     [type (id_name t_val)]
     [typeof (id_name t_val)]
     [test (id_name e_v1 e_v2)]
+    [bind ((pat_ps ...) e_body)]
     ;; [import (id_name id_qualifier (id_only ...) (id_hide ...) (parameter_ps ...))]
     ;; [mod-inst (id_name id_of (p_ps ...) (d_ds ...))]
     ;; [private (d_ds ...)]
@@ -32,7 +33,6 @@
    [sequence (pat_ps ...)])
 
   (expr
-   [bind ((pat_ps ...) e_body)]
    [app (e_o
          (e_t ...)
          e_rands ...)]
