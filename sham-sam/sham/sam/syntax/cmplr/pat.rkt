@@ -2,6 +2,7 @@
 (require racket/generic
          (for-template racket))
 (require "reqs.rkt")
+
 (provide (all-defined-out))
 
 (define cmplr-input-stxid #`cinp)
@@ -47,6 +48,9 @@
 (struct cmplr:dir [])
 (struct cmplr:dir:bind cmplr:dir [var val])
 (struct cmplr:dir:bind:val cmplr:dir:bind [])
+(struct cmplr-bind-var [stxid depth]
+  #:methods gen:stx
+  [(define (->syntax bv) (cmplr-bind-var-stxid bv))])
 
 (struct cmplr:ast:match:pat [pat dirs result]
   #:methods gen:stx
@@ -60,4 +64,5 @@
      (match-define (cmplr:ast:group id inp args parts) ag)
      #`(define (#,(to-syntax id) #,inp #,@(map to-syntax args))
          (match #,inp
-           #,@(map to-syntax parts))))])
+           #,@(map to-syntax parts)
+           [else (error 'sham/sam/transform "incorrect value for ~a ~a" '#,id #,inp)])))])

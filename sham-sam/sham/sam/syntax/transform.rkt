@@ -21,9 +21,7 @@
 
  "cmplr/utils.rkt"
  "cmplr/syntax.rkt"
- "cmplr/ast.rkt"
-
- (prefix-in rt: (for-template "../runtime/compiler.rkt")))
+ "cmplr/ast.rkt")
 
 (provide build-transform-syntax
          (rename-out [cmplr-stx-type rkt-syntax-cmplr]))

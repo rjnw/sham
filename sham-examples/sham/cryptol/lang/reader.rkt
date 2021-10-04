@@ -3,7 +3,8 @@
 (require syntax/strip-context
          sham/sam/pretty)
 
-(require "stx-to-cry-ast.rkt")
+(require "stx-to-cry-ast.rkt"
+         "../interpret.rkt")
 (provide (rename-out [cry-read read]
                      [cry-read-syntax read-syntax]))
 
@@ -12,26 +13,17 @@
 
 (define (cry-read-syntax src in)
   (printf "read-sytnax: ~a ~a\n" src in)
-  (define res
-    (parameterize (
-                   ;; [read-square-bracket-as-paren #t]
-                   ;; [read-square-bracket-with-tag #t]
-                   ;; [read-curly-brace-with-tag #t]
-                   [read-accept-bar-quote #f]
-                   [read-accept-quasiquote #f]
-                   )
-      (let loop []
-        (define stx (read-syntax src in))
-        ;; (printf "read-syntax: ~a\n" stx)
-        ;; (printf "syntax-property: ~a\n" (syntax-property stx 'paren-shape))
-        (if (eof-object? stx) '() (cons stx (loop))))))
-  (pretty-print-columns 160)
-  (for ([s res])
-    (println "read-syntax:")
-    (pretty-print (syntax->datum s))
-    (println "parsed-cry:")
-    (pretty-print (pretty-print-ast (stx-to-cry-ast s))))
-
+  (define cdefs
+    (for/list ([ln in])
+      (parameterize ([read-accept-bar-quote #f]
+                     [read-accept-quasiquote #f])
+        (define stx (read-syntax ln in))
+        (println "read-syntax:") (pretty-print (syntax->datum stx))
+        (define cry-ast (stx-to-cry-ast stx))
+        (println "parsed-cry:") (pretty-print-ast cry-ast) (newline)
+        (define rkt-stx (cry-interpret cry-ast))
+        (pretty-print (syntax->datum rkt-stx))
+        rkt-stx)))
   (strip-context
    #`(module default racket
-       42)))
+       #,@cdefs)))

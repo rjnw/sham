@@ -101,6 +101,14 @@
     ;; (assoc-default (->symbol group-id) (ast-groups ast-spec))
     (and grp-pair (cdr grp-pair)))
 
+  (define (find-group-children group-spec ast-spec)
+    (match-define (ast:group gids ginfo parent args nodes) group-spec)
+    (define gid (get-oid gids))
+    (define (is-child? group)
+      (and (ast:group-parent (cdr group))
+           (equal? (->symbol (ast:group-parent (cdr group))) (->symbol gid))))
+    (map cdr (filter is-child? (ast-groups ast-spec))))
+
   (define (full-group-args gs as)
     (if gs
         (append (if (ast:group-parent gs)

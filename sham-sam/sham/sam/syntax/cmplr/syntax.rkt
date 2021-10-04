@@ -190,6 +190,15 @@
   ;; (define result-attr-dir (stx-cls-dir #`#:attr (list result-attr (stx:qs stx-result))))
   ;; `(,@bvar-with-dirs ,result-attr-dir)
   )
+(struct cmplr-val-src-stx-tgt []
+  #:methods gen:cmplr-node-body-builder
+  [(define (build-node-body-stx vssb body-stx state)
+     (printf "val-src-stx-tgt: ~a ~a\n" body-stx state)
+     (match-define (cmplr:state:node spec dirs path) state)
+     (define bind-dirs (filter cmplr:dir:bind? dirs))
+     (define other-dirs (filter-not cmplr:dir:bind? dirs))
+     (values (combine-binds-with-syntax bind-dirs (stx:qs body-stx))
+             (cmplr:state:node spec other-dirs path)))])
 
 (struct cmplr-stx-type cmplr:type [maybe-of-ast]
   #:property prop:procedure (λ (_ of)
@@ -240,7 +249,16 @@
 
 (struct cmplr-stx-target [maybe-ast-spec]
   #:methods gen:cmplr-spec-updater
-  [(define (update-cmplr-spec cst curr-spec) curr-spec)]
+  [(define (update-cmplr-spec cst curr-spec)
+     (match-define (cmplr-stx-target maybe-ast-spec) cst)
+     (match-define (cmplr header groups info) curr-spec)
+     (match-define (cmplr:header cmplr-id cmplr-args (cmplr:header:type src tgt)) header)
+     (define (for-stx-src) curr-spec)
+     (define (for-val-src)
+       (define this-info
+         (kw-info (ik-node-body-bs (cmplr-val-src-stx-tgt))))
+       (cmplr header groups (combine-info info this-info)))
+     (if (cmplr-stx-type? src) (for-stx-src) (for-val-src)))]
   #:methods gen:cmplr-node-body-builder
   [(define build-node-body-stx syntax-node-body-builder)])
 
@@ -260,7 +278,7 @@
                        (append stx-pat-dirs
                                (list
                                 (cmplr:dir:stx:attr result-attribute-stxid
-                                                    (combine-general-dirs other-dirs body))))))
+                                                    (combine-binds-with-let other-dirs body))))))
 
 (struct cmplr-stx-class-top-builder []
   #:methods gen:cmplr-top-builder

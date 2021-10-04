@@ -22,7 +22,7 @@
     [[(id-def name 'value) ': ~! ts:stype] (make typeof (id-create-ref name) ts)]
     [[(id-def name 'value) ps:pat ... '= ~! b:cexpr ws:def ...]
      ;; #:bind-ids [ps -> ws b] [ws -> * b]
-     (make val name (make bind ps (make expr:where b ws)))])
+     (make val name (make expr:bind ps (make expr:where b ws)))])
 
   (pat (stx -> pat)
        [(~and (~not '=) (id-def name 'value)) (make var name)]
@@ -30,7 +30,7 @@
        [[ps:pat ...] (make sequence ps)])
 
   (cexpr (stx -> expr)
-         [[v:cexpr (~seq '\| p:pat '<- pv:cexpr) ...] (make sequence:comp v p pv)]
+         [[v:cexpr (~seq '\| (~seq p:pat '<- pv:cexpr) ...) ...] (make sequence:comp v p pv)]
          [[v1:cexpr '.. v2:cexpr] (make sequence:enum v1 (make lit 1) v2)]
          [[es:cexpr ...] (make sequence:basic es)]
          [s:string (make sequence:str s)]

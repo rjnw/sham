@@ -7,7 +7,6 @@
 (define default-ast-id-scope (ast:scope #f #f))
 (define (new-id-scope kind) (ast:scope kind (gensym kind)))
 
-(struct ast:id ast [stxid])
 (define ast:id/c (or/c symbol? syntax? ast:id?))
 
 (struct ast:id:def ast:id [gen scope (maybe-refs #:mutable)])

@@ -42,14 +42,27 @@
 
 ;; (struct cmplr:dir:bind:stx cmplr:dir:bind [])
 
-(define (combine-general-dirs dirs body)
-  ;; (unless (empty? other-dirs)
-  ;;   (error 'sham/sam/transform "non syntax pattern directives found when generating group syntax: ~a" other-dirs))
-  (define (do-dir dir body)
+(define (combine-binds-with-let dirs body)
+  (define (create-let-bind dir)
     (match dir
-      [(cmplr:dir:bind var-stx val-stx)
-       #`(let ([#,(to-syntax var-stx) #,(to-syntax val-stx)]) #,(to-syntax body))]))
-  (foldr do-dir body dirs))
+      [(cmplr:dir:bind var val)
+       #`[#,(to-syntax var) #,(to-syntax val)]]))
+  (define let-binds (map create-let-bind dirs))
+  #`(let #,let-binds #,(to-syntax body)))
+
+(define (combine-binds-with-syntax dirs body)
+  (define (create-with-bind dir)
+    (define (var-stxid var)
+      (match var
+        [(? identifier?) var]
+        [(cmplr-bind-var stxid depth)
+         (to-syntax (stx-cls-with-var stxid depth))]))
+    (match dir
+      [(cmplr:dir:bind var val)
+       (printf "vv: ~a ~a\n" var val)
+       #`(#,(var-stxid var) #,(to-syntax val))]))
+  (define with-binds (map create-with-bind dirs))
+  #`(with-syntax #,with-binds #,(to-syntax body)))
 
 (struct cmplr:dir:stx [])
 ;; syntax-class directive ; #:with/#:when/#:attr ...

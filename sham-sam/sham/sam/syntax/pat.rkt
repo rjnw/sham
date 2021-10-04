@@ -35,11 +35,11 @@
 
 (define (pretty-pat p)
   (match p
-    [(pat:var v) `(~v ,(syntax-e v))]
+    [(pat:var v) (syntax-e v)]
     [(pat:dat v) v]
     [(pat:seq ps) (for/list ([p ps]) (pretty-pat p))]
     [(pat:alt ps) (for/list ([p ps]) (pretty-pat p))]
-    [(pat:ooo op k) `(~r ,(pretty-pat op) ,k)]
+    [(pat:ooo op k) `(,(pretty-pat op) ,(syntax->datum (oook-syntax k)))]
     [(pat:app op rands) `(,op ,@(map pretty-pat rands))]))
 
 (define (pretty-path path)
@@ -50,7 +50,7 @@
     [`(at-alt ,frec ,ppath) `(at-alt ,(pretty-path ppath))]
     [`(in-alt ,pat ,i ,ppath) `(in-alt ,(pretty-pat pat) ,i ,(pretty-path ppath))]
     [`(at-ooo ,frec ,ppath) `(at-ooo ,(pretty-path ppath))]
-    [`(in-ooo ,pat ,k ,ppath) `(in-ooo ,(pretty-pat pat) ,k ,(pretty-path ppath))]))
+    [`(in-ooo ,pat ,k ,ppath) `(in-ooo ,(pretty-pat pat) ,(syntax->datum (oook-syntax k)) ,(pretty-path ppath))]))
 
 ;; f := val/c ast:pat/c pattern-path/c -> val/c
 ;;  folds over pattern along with a zipper containing the position of current pattern
@@ -86,6 +86,9 @@
   (cond [(dat-equal? dat val) (cons val rst)]
         [else #f]))
 (define (nodat-dodat dat fst rst) (cons #f (cons fst rst)))
+(define (ignore-dodat dat fst rst)
+  (cond [(dat-equal? dat fst) (cons dat rst)]
+        [else (cons #f (cons fst rst))]))
 
 (define ((f-parse-stx-with-pattern (dodat default-dodat)) val pat path)
   (match val
@@ -136,7 +139,7 @@
                 (<= (length nis) min-req-after))))
      (if (list? is)
          (if (equal? min-req-after (length is))
-             (stk is (cons `(repeat () ,pat) os))
+             (stk is (cons `(ooo () ,pat) os))
              (let rec ([cval (stk is `())]
                        [nk (cons mn mx)])
                (cond [(err? cval) (err `(ooo "in-ooo" ,pat ,nk ,cval))]
@@ -158,8 +161,7 @@
 
        [(pat:dat val)
         (cond
-          [(dodat val fst rst) => (λ (res) (stk (cdr res)
-                                                (cons `(dat ,(car res) ,pat) os)))]
+          [(dodat val fst rst) => (λ (res) (stk (cdr res) (cons `(dat ,(car res) ,pat) os)))]
           ;; [(dat=? val fst) (stk rst (cons `(dat ,fst ,pat) os))]
           [else (err `(dat "datum-not-equal" ,pat ,val ,fst))])]
 
@@ -215,7 +217,7 @@
 ;;   of the given `arg`
 ;; p@(pat:multiple ss) -> `(multiple s i p)
 ;; p@(pat:repeat s) -> `(repeat s p)
-#;(define (find-pattern pat f?)
+(define (find-pattern pat f?)
   (let/cc k
     (define (f _ pat path)
       (match pat
@@ -224,27 +226,6 @@
         [(pat:seq ps) (match path [`(at-seq ,frec ,pp) (for ([i (vector-length ps)]) (frec #f i)) #f])]
         [else #f]))
     (pat-zipper f #f pat)))
-
-(define (stx-with-pat->match-pattern stx pat)
-  (define norm-stx
-    (match pat
-      [(pat:var s)
-       (if (equal? (length (syntax-e stx)) 1)
-           (car (syntax-e stx))
-           (error 'sham/sam/internal "cannot match single pattern with a list syntax ~a ~a\n" pat stx))]
-      [else stx]))
-  (define (rec ps)
-    (printf "rec: ~a\n" ps)
-    (match ps
-      [`(seq ,args ,pat) #`(vector #,@(flatten (map rec (reverse args))))]
-      [`(ooo ,args ,pat) #`(list #,@(flatten (map rec (reverse args))))]
-      [`(var ,arg ,pat) #`#,arg]
-      [`(dat ,s ,pat) #`'#,s]
-      [`(.. ,s ,pat) #`#,s]
-      [else (error 'sham/sam/internal "could not match parsed syntax ~a in pattern ~a\n" ps pat)]))
-  (match (parse-stx-with-pattern pat norm-stx)
-    [(stk '() (list parsed)) (rec parsed)]
-    [err (error 'sham/sam/pat "cannot parse ~a with ~a, err: ~a" stx pat err)]))
 
 ;; (parse-stx-with-pattern (seq (var a) (seq (rpt (var b))) (dat 'λ)) #`(va (vb1 vb2 (... ...) vbx) λ))
 ;; ((seq
@@ -321,6 +302,8 @@
                                       (alt ((var ,osa ,opa)) 1 ,opa2))
                                      ,opo))
                                ,ops))))
-  (define lpat (seq (seq (rpt pa)) pb))
-  (stx-with-pat->match-pattern #`((a b c) f) lpat)
-  (stx-with-pat->match-pattern #`((a b c (... ...)) f) lpat))
+  ;; (define lpat (seq (seq (rpt pa)) pb))
+  ;; (stx-with-pat->match-pattern #`((a b c) f) lpat)
+  ;; (stx-with-pat->match-pattern #`((a b c (... ...)) f) lpat)
+  ;; (stx-with-pat->match-pattern #`() (dat 'A) #t)
+  )

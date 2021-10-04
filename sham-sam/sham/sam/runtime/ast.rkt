@@ -7,6 +7,24 @@
 (struct ast [md])
 (struct ast:group ast [args])
 
+(define (print-ast ast port mode)
+  (pretty-print
+   (let rec ([a ast])
+     (match a
+       [(ast:term md gargs args)
+        (append (list (object-name a))
+                ;; (if md (list md) (list))
+                (if (vector-empty? gargs) (list) (list (rec gargs)))
+                (if (vector-empty? args) (list) (vector->list (rec args))))
+        ;; `(,(object-name a) ,(rec gargs) ,(rec args))
+        ]
+       [(ast:id md stxid) (syntax->datum stxid)]
+       [(? vector? v) (vector-map rec v)]
+       [(? list? v) (map rec v)]
+       [(? (or/c string? number? symbol?) v) v]
+       [else (pretty-format a)]))
+   port))
+
 (struct ast:term ast:group [args]
   #:methods gen:term:fold
   [(define (gfold ff f v)
@@ -21,4 +39,11 @@
      ((if (has-ast-constructor? v) (((get-ast-constructor v))) ast:term)
       md
       ((gmap-rec-vl f) gas)
-      ((gmap-rec-vl f) tas)))])
+      ((gmap-rec-vl f) tas)))]
+  #:methods gen:custom-write
+  [(define write-proc print-ast)])
+
+(struct ast:id ast [stxid]
+  #:methods gen:custom-write
+  [(define (write-proc v port mode)
+     (print (syntax->datum (ast:id-stxid v)) port))])

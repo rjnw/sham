@@ -155,7 +155,7 @@
   (match (get-ast-type pat depth ast-spec)
     [(ast:type:internal depth spec) (compile-spec-type depth spec)]
     [(ast:type:intrinsic depth t) (error 'sham/sam/TODO "intrinsic ast type ~a ~a" var ast-spec)]
-    [(ast:type:identifier depth) #`(rt:identifier->syntax #,var #'#,var)]
+    [(ast:type:identifier depth) #`(rt:identifier->syntax #,var)]
     [t (error 'sham/sam/TODO "compile-ast-type ~a ~a ~a" var t ast-spec)]))
 
 (struct ast-pat-compile-var-operator [op-stxid ast-spec]
@@ -171,7 +171,8 @@
           (define gen-id (format-id res-id "v-~a" res-id))
           (match-define (ast-path pat depth) path)
           (define var-pat (cmplr:pat:tvar gen-id res-id pat))
-          (define compile-dir (cmplr:dir:bind res-id (compile-ast-type gen-id pat depth ast-spec state)))
+          (define compile-dir (cmplr:dir:bind (cmplr-bind-var res-id depth)
+                                              (compile-ast-type gen-id pat depth ast-spec state)))
           (values var-pat (append-dir-in-state compile-dir state))]
          [else (values stx state)]))
      (if (syntax? stx) (do-pat (syntax-e stx)) (values stx state)))])
@@ -236,7 +237,7 @@
      (define this-info
        (kw-info (ik-node-pat-bs cas)
                 (ik-node-pat-ops . pat-ops)
-                (ik-group-bs (cmplr-ast-group-builder))
+                (ik-group-bs (cmplr-ast-group-builder ast-spec))
                 (ik-top-bs (cmplr-ast-top-builder ast-spec))))
      (define new-info (combine-info info this-info))
      (cmplr header groups new-info))]
@@ -268,17 +269,32 @@
      (define-values (new-dirs new-body-stx) (update-stx-with-dirs dirs body-stx))
      (cmplr:node pat-stx new-dirs new-body-stx))])
 
-(struct cmplr-ast-group-builder []
+(struct cmplr-ast-group-builder [ast-spec]
   #:methods gen:cmplr-group-builder
   [(define (build-group-stx agb node-stxs cspec gspec)
+     (match-define (cmplr-ast-group-builder ast-spec) agb)
      (match-define (cmplr header groups info) cspec)
      (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
      (match-define (cmplr:header:type cfrom cto) cmplr-type)
-     (match-define (cmplr:group gid gtype gnodes ginfo) gspec)
+     (match-define (cmplr:group gid (cmplr:header:type gfrom gto) gnodes ginfo) gspec)
+     (define ast-group-spec (find-group-spec gfrom ast-spec))
      (define (to-match-pat cnode)
        (match-define (cmplr:node pat-stx dirs body-stx) cnode)
-       (cmplr:ast:match:pat pat-stx #f (combine-general-dirs dirs body-stx)))
-     (cmplr:ast:group gid cmplr-input-stxid (map car cmplr-args) (map to-match-pat node-stxs)))])
+       (cmplr:ast:match:pat pat-stx #f (combine-binds-with-let dirs body-stx)))
+     (define (to-child-pat gs)
+       (match-define (ast:group gids info parent args nodes) gs)
+       (define gfid (get-fid gids))
+       (define goid (get-oid gids))
+       (define (is-cmplr-group? g)
+         (match-define (cmplr:group _ (cmplr:header:type cgfrom cgto) _ _) g)
+         (equal? (->symbol goid) (->symbol cgfrom)))
+       (define cmplr-group (find-first groups is-cmplr-group?))
+       #`((? #,(format-id gfid "~a?" gfid))
+          (#,(cmplr:group-id cmplr-group)
+           #,cmplr-input-stxid
+           #,@(map car cmplr-args))))
+     (define child-delegates (map to-child-pat (find-group-children ast-group-spec ast-spec)))
+     (cmplr:ast:group gid cmplr-input-stxid (map car cmplr-args) (append (map to-match-pat node-stxs) child-delegates)))])
 
 (struct cmplr-ast-top-builder [ast-spec]
   #:methods gen:cmplr-top-builder

@@ -3,7 +3,6 @@
          racket/generic)
 
 (require "runtime.rkt"
-         "runtime/ast.rkt"
          "runtime/identifier.rkt")
 
 (provide (all-defined-out))
