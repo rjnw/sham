@@ -16,7 +16,7 @@
 (define (pretty-print-ast a (out (current-output-port)) (width #f))
   (define (pp v)
     (parameterize ([pretty-print-columns (or width (pretty-print-columns))])
-               (pretty-print v out)))
+      (pretty-print v out)))
   (let rec [(v a)]
       (cond [(pretty-doc? v)
              (pp:pretty-print (get-doc v) out (or width (pp:current-page-width)))]

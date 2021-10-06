@@ -39,7 +39,7 @@
    [cond ((e_chk e_then) ... e_else)]
    [var (id_name)]
    [tvar (id_name)]
-   [annot (t e)]
+   [annot (e t)]
    [where (e_body d_defs ...)]
    [error (msg)]
    [lit (integer_v)]
@@ -53,7 +53,7 @@
   (sequence expr
             [basic (e_val ...)]
             [enum (e_from e_step e_to)]
-            [str string_s]
+            [str (string_s)]
             ;; sequence comprehension [expr | pat <- expr, ... | ...]
             [comp (e_body ((pat_ps e_vs) ...) ...)])
 
@@ -82,7 +82,7 @@
 
   ;; dimension for sequences: integer, infinity or a poly variable
   (dim
-   [int integer_v]
+   [int (integer_v)]
    ;; [inf]
    [app (id_rator dim_rands ...)]
    [var (id_name)]))

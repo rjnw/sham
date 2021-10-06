@@ -106,7 +106,8 @@
            [(list #f node-id) (find-node-spec node-id gto ast-spec)]
            [(list ': group-id node-id) (find-node-spec node-id group-id ast-spec)]
            [else (error 'sham/sam/transform "unknown type of node stxid ~a" stxid)]))
-       (unless (ast:node? node-spec) (error 'sham/sam/transform "unknown node for make operator ~a ~a" stxid node-spec))
+       (unless (ast:node? node-spec)
+         (error 'sham/sam/transform "unknown node for make operator ~a ~a" stxid node-spec))
        (define node-fid (get-fid (ast:basic-id node-spec)))
        (define node-make-id (format-id node-fid "make-~a" node-fid))
        (define-values (node-args-stxs new-state) (mapl/state frec state node-args))
@@ -154,7 +155,7 @@
       [else (error 'sham/sam/cmplr "not a group ast spec for compiling ~a ~a" var spec)]))
   (match (get-ast-type pat depth ast-spec)
     [(ast:type:internal depth spec) (compile-spec-type depth spec)]
-    [(ast:type:intrinsic depth t) (error 'sham/sam/TODO "intrinsic ast type ~a ~a" var ast-spec)]
+    [(ast:type:intrinsic depth t) (error 'sham/sam/TODO "intrinsic ast type ~a ~a" t ast-spec)]
     [(ast:type:identifier depth) #`(rt:identifier->syntax #,var)]
     [t (error 'sham/sam/TODO "compile-ast-type ~a ~a ~a" var t ast-spec)]))
 
@@ -184,6 +185,19 @@
          (match (syntax-e stx)
            [(list ss ...) (mapl/state frec state ss)]
            [i (values stx state)])
+         (values stx state)))])
+
+(struct ast-normal-var-operator []
+  #:methods gen:cmplr-operator
+  [(define (operator-parse-syntax op stx state frec)
+     (if (identifier? stx)
+         (match-let ([(cmplr:state:node spec dirs (ast-path pat depth)) state]
+                     [gen-stxid (generate-temporary stx)])
+           (values (cmplr:pat:tvar gen-stxid stx pat)
+                   (cmplr:state:node spec
+                                     (append dirs
+                                             (list (cmplr:dir:bind (cmplr-bind-var stx depth) gen-stxid)))
+                                     (ast-path #f #f))))
          (values stx state)))])
 
 (define (ast-node-pat-builder ctype pat-stx node-state)
@@ -232,6 +246,7 @@
      (printf "cmplr-ast-source:\n")
      (define pat-ops
        (list (ast-default-rec-operator)
+             (ast-normal-var-operator)
              (ast-pat-node-operator ast-spec)
              (ast-pat-compile-var-operator #`rt:^ ast-spec)))
      (define this-info

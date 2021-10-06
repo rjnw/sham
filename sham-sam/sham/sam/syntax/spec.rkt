@@ -194,7 +194,7 @@
              => (λ (s) (ast:type:internal depth s))]
             [else (match (map syntax->datum typs)
                     [(list (or 'id 'identifier)) (ast:type:identifier depth)]
-                    [(? intrinsic-type? t) (ast:type:intrinsic depth t)])]))
+                    [(list (? intrinsic-type? t)) (ast:type:intrinsic depth t)])]))
     (match (split-identifier stxid)
       [`(! ,intr) (ast:type:intrinsic depth intr)]
       [(list (or ': '_) id typs ...) (from-specified id typs)]
