@@ -1,4 +1,5 @@
 #lang racket
+;; https://github.com/GaloisInc/cryptol/blob/master/lib/Cryptol.cry
 
 ;; bitwise and logical operators
 (defi
