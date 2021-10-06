@@ -26,10 +26,6 @@
         [(tuple (^ ps) ...) #(ps ...)]
         [(sequence (^ ps) ...) (icry-seq ps ...)])
 
-  (ibit (bit -> stx)
-        [true #t]
-        [false #f])
-
   (iseq (sequence -> stx)
         [(basic (^ vs) ...) (stream vs ...)]
         [(enum (^ from) (^ step) (^ to))
@@ -52,4 +48,5 @@
          [(error msg) (error msg)]
          [(lit i) (icry-from-integer i)]
          [(char c) (icry-from-char c)]
+         [(tuple (^ v) ...) #(v ...)]
          [(zero) (icry-from-integer 0)]) )

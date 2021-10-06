@@ -168,7 +168,7 @@
        (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) dirs path) state)
        (match ss
          [(list op res-id args ...)
-          #:when (free-identifier=? op op-stxid)
+          #:when (and (identifier? op) (free-identifier=? op op-stxid))
           (define gen-id (format-id res-id "v-~a" res-id))
           (match-define (ast-path pat depth) path)
           (define var-pat (cmplr:pat:tvar gen-id res-id pat))

@@ -48,8 +48,6 @@
    [zero ()]
    #:alias e)
 
-  (bit expr [true] [false])
-
   (sequence expr
             [basic (e_val ...)]
             [enum (e_from e_step e_to)]
