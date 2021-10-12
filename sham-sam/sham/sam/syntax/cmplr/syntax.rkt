@@ -12,7 +12,7 @@
          "state.rkt"
          "basic.rkt"
          (for-template "runtime.rkt")
-         "../../runtime/transform.rkt")
+         (for-template (prefix-in rt: "../../runtime/transform.rkt")))
 
 (provide (all-defined-out))
 
@@ -193,7 +193,7 @@
 (struct cmplr-val-src-stx-tgt []
   #:methods gen:cmplr-node-body-builder
   [(define (build-node-body-stx vssb body-stx state)
-     (printf "val-src-stx-tgt: ~a ~a\n" body-stx state)
+     ;; (printf "val-src-stx-tgt: ~a ~a\n" body-stx state)
      (match-define (cmplr:state:node spec dirs path) state)
      (define bind-dirs (filter cmplr:dir:bind? dirs))
      (define other-dirs (filter-not cmplr:dir:bind? dirs))
@@ -287,10 +287,10 @@
      (match-define (cmplr header groups info) cspec)
      (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
      (match-define (cmplr:header:type cfrom cto) cmplr-type)
-     (define cinp cmplr-input-stxid)
+     (define cinp #'transform-input)
      (list
-      #`(define (#,cmplr-id cmplr-inp #,@(map list (map car cmplr-args) (map cdr cmplr-args)))
+      #`(define (#,cmplr-id #,cmplr-input-stxid #,@(map list (map car cmplr-args) (map cdr cmplr-args)))
           #,@(to-syntax stxc)
-          (syntax-parse cmplr-inp
+          (syntax-parse #,cmplr-input-stxid
             [(~var #,cinp #,(cmplr:group-id (car groups)))
              (attribute #,(format-id cinp "~a.~a" cinp result-attribute-stxid))]))))])

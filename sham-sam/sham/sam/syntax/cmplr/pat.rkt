@@ -1,11 +1,11 @@
 #lang racket
 (require racket/generic
-         (for-template racket))
-(require "reqs.rkt")
+         (for-template racket
+                       racket/stxparam))
+(require "reqs.rkt"
+         (for-template "runtime.rkt"))
 
 (provide (all-defined-out))
-
-(define cmplr-input-stxid #`cinp)
 
 ;; used for normal variables in pattern
 ;;   for basic builders this does nothing but keep generate-temporary id along
@@ -63,6 +63,7 @@
   [(define (->syntax ag)
      (match-define (cmplr:ast:group id inp args parts) ag)
      #`(define (#,(to-syntax id) #,inp #,@(map to-syntax args))
-         (match #,inp
-           #,@(map to-syntax parts)
-           [else (error 'sham/sam/transform "incorrect value for ~a ~a" '#,id #,inp)])))])
+         (syntax-parameterize ([this-ast (make-rename-transformer #'#,inp)])
+           (match #,inp
+             #,@(map to-syntax parts)
+             [else (error 'sham/sam/transform "incorrect value for ~a ~a" '#,id #,inp)]))))])

@@ -2,10 +2,14 @@
 
 (require syntax/parse
          (prefix-in rt: "../../runtime/transform.rkt")
+         racket/stxparam
          (for-syntax racket/syntax))
 
 (provide (all-defined-out)
          (for-syntax (all-defined-out)))
+
+(define-for-syntax cmplr-input-stxid #'transform-input)
+(define-syntax-parameter this-ast (make-rename-transformer cmplr-input-stxid))
 
 (define-for-syntax result-attribute-stxid #'result)
 

@@ -32,8 +32,6 @@
   (match-define (cmplr header groups info) cmplr-spec)
   (match-define (cmplr:header cmplr-id cmplr-args cmplr-type) header)
   (match-define (cmplr:header:type cfrom cto) cmplr-type)
-  (printf "build-compiler-syntax: info:\n")
-  (pretty-print-info info)
 
   (define (builders typ) (flatten (info-values typ info)))
   (define (foldr-builders typ f base) (foldr f base (builders typ)))
@@ -41,7 +39,6 @@
   (define (do-group group-spec)
     (match-define (cmplr:group gid gtype gnodes ginfo) group-spec)
     (define (do-node node-spec)
-      (printf "do-node: ~a\n" node-spec)
       (match-define (cmplr:node pat dirs body) node-spec)
       (match-let*-values
           ([(node-spec-state) (cmplr:spec-state:node cmplr-spec group-spec node-spec)]
@@ -58,9 +55,7 @@
 
   (define cmplr-stx (foldr-builders ik-top-bs (build-top cmplr-spec) (map do-group groups)))
 
-  (pretty-print-columns 160)
-  (printf "cmplr-stx: \n") (pretty-print (map syntax->datum cmplr-stx))
-  ;; (error 'STOP)
+  (pretty-print-columns 160) (printf "transform-stx: \n") (pretty-print (map syntax->datum cmplr-stx))
 
   (values cmplr-stx cmplr-spec))
 

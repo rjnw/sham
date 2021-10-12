@@ -1,5 +1,5 @@
 #lang racket
-(require "../ast.rkt"
+(require (only-in "../ast.rkt" cry-ast)
          sham/sam/transform
          sham/sam/runtime)
 
@@ -51,9 +51,9 @@
         [#(t:type ...) (make tuple t)]
         [[dm:dim t:type] (make sequence dm t)]
         [[dm:dim] (make sequence dm (make bit))]
-        [(id-ref name 'type) (make var name)]
         ['integer (make integer)]
         ['bit (make bit)]
+        [(id-ref name 'type) (make var name)]
         [(st:stype) st])
 
   (stype (stx -> type)

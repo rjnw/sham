@@ -70,7 +70,7 @@
    [bit]                                ;; true & false
    [integer]                            ;; unbounded integers
    [sequence (dim t)]                   ;; collection of `dim` homogeneous elements
-   [tuple (t ...)]
+   [tuple (t_ts ...)]
    [var (id_name)]
    [poly ((id_vars ...) t)]
    [constraint ((cs ...) t)]
@@ -83,4 +83,5 @@
    [int (integer_v)]
    ;; [inf]
    [app (id_rator dim_rands ...)]
-   [var (id_name)]))
+   [var (id_name)])
+  #:format (#f - #t - -))

@@ -4,13 +4,33 @@
 (provide (all-defined-out))
 
 (struct ast:scope [kind instance])
-(define default-ast-id-scope (ast:scope #f #f))
+(define default-id-scope (ast:scope #f #f))
 (define (new-id-scope kind) (ast:scope kind (gensym kind)))
 
 (define ast:id/c (or/c symbol? syntax? ast:id?))
+(define debug-id? (make-parameter #f))
+(define (write-id v sym port mode)
+  (define stxid (ast:id-stxid v))
+  (define-values (dir fname rel?) (split-path (syntax-source stxid)))
+  (if (debug-id?)
+      (fprintf port
+               "~a~a~a:~a:~a"
+               (syntax->datum stxid)
+               sym
+               fname
+               (syntax-line stxid)
+               (syntax-column stxid))
+      (fprintf port "~a~a" (syntax->datum stxid) sym)))
 
-(struct ast:id:def ast:id [gen scope (maybe-refs #:mutable)])
-(struct ast:id:ref ast:id [(maybe-def #:mutable)])
+(struct ast:id:def ast:id [gen scope (maybe-refs #:mutable)]
+ #:methods gen:custom-write
+  [(define (write-proc v port mode)
+     (write-id v '$ port mode))])
+
+(struct ast:id:ref ast:id [(maybe-def #:mutable)]
+ #:methods gen:custom-write
+  [(define (write-proc v port mode)
+     (write-id v '@ port mode))])
 
 (define (ast-id-stxid aid)
   (cond [(ast:id? aid) (ast:id-stxid aid)]
@@ -27,8 +47,9 @@
   (add-id-ref! def ref)
   ref)
 
-(define (id-orig=? i1 i2)
-  (equal? (ast-id-stxid i1) (ast-id-stxid i2)))
+(define (id-free=? i1 i2) (free-identifier=? (ast-id-stxid i1) (ast-id-stxid i2)))
+
+(define (id-orig=? i1 i2) (or (equal? (ast-id-stxid i1) (ast-id-stxid i2)) (id-free=? i1 i2)))
 
 (define (id-def=? i1 i2)
   (and (ast:id:def? i1) (ast:id:def? i2) (id-orig=? i1 i2) (id-ref=? i1 i2)))
@@ -43,9 +64,35 @@
            (or ;; (id-gen=? i1 i2)
                (id-orig=? i1 i2)))))
 
-(define (make-scope-mapping assocs) (make-hasheqv assocs))
-(define (make-id-mapping assocs) (make-hash assocs))
+;; (define (cons-in-free-id-table fit ast-id)
+;;   (free-id-table-update fit (ast-id-stxid ast-id) (λ (vs) (cons val vs)) '()))
 
-(define (find-def-for-id stxid scope maybe-scope-map)
-  (and (hash? maybe-scope-map)
-       (hash-ref (hash-ref maybe-scope-map scope) stxid)))
+;; ;; id-table: (hash-eqv ast:scope (free-id-table ast:id))
+;; (define (make-id-table assocs)
+;;   (define ((add-to-free-map stxid val) curr-val)
+;;     (free-id-table-update curr-val stxid
+;;                           (λ (vs) (cons (car vs) (cons val (cdr vs))))
+;;                           '()))
+;;   (let rec ([a assocs]
+;;             [scope-mapping (make-immutable-hasheqv)])
+
+;;     (define (add-mapping scope id val)
+;;       (hash-update scope-mapping scope (add-to-free-map id val) (make-immutable-free-id-table)))
+;;     (match-define (cons id val) a)
+;;     (match id
+;;       [(? syntax?) (add-mapping default-id-scope id id)]
+;;       [(ast:id:def stxid gen scope maybe-ref) (add-mapping scope stxid id)]
+;;       [(ast:id stxid) (add-mapping default-id-scope stxid id)])))
+
+;; (define (id-table-add-def-id table def)
+;;   (match-define (id-table scope-map) table)
+;;   (id-table (add-id-table ))
+;;   (match* (table def)
+;;     [(id-table scope-map) (ast:id:def)]))
+
+(define (find-def-for-id stxid id-map (scope default-id-scope))
+  #f
+  ;; (hash-ref (id-mapping-scope-mapping id-map) stxid)
+  ;; (and (hash? maybe-scope-map)
+  ;;      (hash-ref (hash-ref maybe-scope-map scope) stxid))
+  )

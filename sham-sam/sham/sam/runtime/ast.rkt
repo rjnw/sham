@@ -18,12 +18,13 @@
                 (if (vector-empty? args) (list) (vector->list (rec args))))
         ;; `(,(object-name a) ,(rec gargs) ,(rec args))
         ]
-       [(ast:id md stxid) (syntax->datum stxid)]
+       [(ast:id md stxid) (string->symbol (pretty-format a))]
        [(? vector? v) (vector-map rec v)]
        [(? list? v) (map rec v)]
        [(? (or/c string? number? symbol?) v) v]
        [else (pretty-format a)]))
-   port))
+   port
+   #:newline? #f))
 
 (struct ast:term ast:group [args]
   #:methods gen:term:fold
@@ -43,7 +44,4 @@
   #:methods gen:custom-write
   [(define write-proc print-ast)])
 
-(struct ast:id ast [stxid]
-  #:methods gen:custom-write
-  [(define (write-proc v port mode)
-     (print (syntax->datum (ast:id-stxid v)) port))])
+(struct ast:id ast [stxid])

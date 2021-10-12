@@ -59,7 +59,6 @@
          (to-syntax (stx-cls-with-var stxid depth))]))
     (match dir
       [(cmplr:dir:bind var val)
-       (printf "vv: ~a ~a\n" var val)
        #`(#,(var-stxid var) #,(to-syntax val))]))
   (define with-binds (map create-with-bind dirs))
   #`(with-syntax #,with-binds #,(to-syntax body)))

@@ -16,8 +16,7 @@
                  | M <- pmsg])]])
 
 (def
-  [pad : {msgLen}
-       (and (fin msgLen) (>= 64 (width msgLen)))
+  [pad : {msgLen} (fin msgLen) (>= 64 (width msgLen))
        => [msgLen] -> [(/^ (+ msgLen 65) 512) [512]]]
   [pad msg = (split (<> msg [True] (: zero [padLen]) (: 'msgLen [64])))
        [type padLen = (%^ (+ 'msgLen 65) 512)]])

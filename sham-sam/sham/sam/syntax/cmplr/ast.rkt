@@ -1,7 +1,10 @@
 #lang racket
 
 (require racket/syntax
-         (for-template racket))
+         syntax/parse
+         (for-template racket
+                       racket/stxparam
+                       racket/splicing))
 
 (require "reqs.rkt"
          "pat.rkt"
@@ -10,6 +13,7 @@
          "basic.rkt"
          "syntax.rkt"
          "pat-stx.rkt"
+         (for-template "runtime.rkt")
          (for-template (prefix-in rt: "../../runtime/transform.rkt")))
 
 (provide (all-defined-out))
@@ -20,7 +24,7 @@
   #:methods gen:cmplr-operator
   [(define (operator-parse-syntax op stx state frec)
      (match-define (ast-pat-node-operator ast-spec) op)
-     (printf "ast-pat-node-operator:\n ~a\n ~a\n" stx state)
+     ;; (printf "ast-pat-node-operator:\n ~a\n ~a\n" stx state)
      (match-define (cmplr:state:node spec-state dirs path) state)
      (match-define (cmplr:spec-state:node cspec gspec nspec) spec-state)
      (match-define (cmplr:group gid (cmplr:header:type gfrom gto) nodes info) gspec)
@@ -36,7 +40,7 @@
          (match-define (ast:node ids info args node-pat) ast-node-spec)
          (match-define initial-parse (stx-path-for-pattern node-pat (datum->syntax #f node-rst-stx)))
          (define initial-depth (if (ast-path? path) (ast-path-depth path) #f))
-         (printf "parse-seq-node-stx:initial-parse: \n~a\n" initial-parse)
+         ;; (printf "parse-seq-node-stx:initial-parse: \n~a\n" initial-parse)
          (define (recur-pattern-parse parse depth) ;; TODO keep track of ooo depth
            (match parse
              [`(seq ,args ,(pat:seq arg-pats))
@@ -123,17 +127,21 @@
        [(and (syntax? stx) (make-op-args stx)) => perform-make]
        [else (values stx state)]))])
 
-(define (compile-ast-type var pat depth ast-spec cstate)
-  (printf "compile-ast-type: ~a ~a ~a\n" var pat depth)
+(define (compile-ast-type var pat depth app-info ast-spec cstate)
+  ;; (printf "compile-ast-type: ~a ~a ~a ~a\n" var pat depth app-info)
   (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) dirs path) cstate)
   (match-define (cmplr header groups info) cspec)
   (match-define (cmplr:header cid cargs ctyp) header)
+  (define arg-stxs
+    (for/list ([arg (map car cargs)])
+      (cond [(info-value (syntax->datum arg) app-info) => car]
+            [else arg])))
   (define (compile-group-at-depth cmplr-group depth)
     (match-define (cmplr:group id gtype nodes ginfo) cmplr-group)
     (let rec ([depth depth]
               [val var])
       (match depth
-        [#f #`(#,id #,val #,@(map car cargs))]
+        [#f #`(#,id #,val #,@arg-stxs)]
         [`((,mn . ,mx) . ,rst)
          (define nval (generate-temporary var))
          #`(map (λ (#,nval) #,(rec rst nval)) #,val)]
@@ -163,20 +171,21 @@
   #:methods gen:cmplr-operator
   [(define (operator-parse-syntax op stx state frec)
      (match-define (ast-pat-compile-var-operator op-stxid ast-spec) op)
-     (printf "ast-pat-compile-var-operator:\n ~a\n ~a\n" stx state)
-     (define (do-pat ss)
+     ;; (printf "ast-pat-compile-var-operator:\n ~a\n ~a\n" stx state)
+     (define (do-pat stx)
        (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) dirs path) state)
-       (match ss
-         [(list op res-id args ...)
-          #:when (and (identifier? op) (free-identifier=? op op-stxid))
-          (define gen-id (format-id res-id "v-~a" res-id))
+       (syntax-parse stx
+         [(op res-id info:keyword-info)
+          #:when (free-identifier=? #`op op-stxid)
+          (define gen-id (format-id #`res-id "v-~a" #`res-id))
           (match-define (ast-path pat depth) path)
-          (define var-pat (cmplr:pat:tvar gen-id res-id pat))
-          (define compile-dir (cmplr:dir:bind (cmplr-bind-var res-id depth)
-                                              (compile-ast-type gen-id pat depth ast-spec state)))
+          (define var-pat (cmplr:pat:tvar gen-id #`res-id pat))
+          (define compile-dir
+            (cmplr:dir:bind (cmplr-bind-var #`res-id depth)
+                            (compile-ast-type gen-id pat depth (attribute info.spec) ast-spec state)))
           (values var-pat (append-dir-in-state compile-dir state))]
          [else (values stx state)]))
-     (if (syntax? stx) (do-pat (syntax-e stx)) (values stx state)))])
+     (if (syntax? stx) (do-pat stx) (values stx state)))])
 
 (struct ast-default-rec-operator []
   #:methods gen:cmplr-operator
@@ -243,7 +252,7 @@
   [(define (update-cmplr-spec cas curr-spec)
      (match-define (cmplr-ast-source ast-spec) cas)
      (match-define (cmplr header groups info) curr-spec)
-     (printf "cmplr-ast-source:\n")
+     ;; (printf "cmplr-ast-source:\n")
      (define pat-ops
        (list (ast-default-rec-operator)
              (ast-normal-var-operator)
@@ -277,7 +286,7 @@
 (struct cmplr-ast-node-builder []
   #:methods gen:cmplr-node-builder
   [(define (build-node-stx canb node node-spec-state)
-     (printf "cmplr-ast-node-builder: ~a\n" node)
+     ;; (printf "cmplr-ast-node-builder: ~a\n" node)
      (match-define (cmplr:node pat-stx dirs body-stx) node)
      (match-define (cmplr:spec-state:node cspec gspec nspec) node-spec-state)
      (match-define (cmplr (cmplr:header id args (cmplr:header:type cfrom cto)) groups info) cspec)
@@ -309,7 +318,10 @@
            #,cmplr-input-stxid
            #,@(map car cmplr-args))))
      (define child-delegates (map to-child-pat (find-group-children ast-group-spec ast-spec)))
-     (cmplr:ast:group gid cmplr-input-stxid (map car cmplr-args) (append (map to-match-pat node-stxs) child-delegates)))])
+     (cmplr:ast:group gid
+                      cmplr-input-stxid
+                      (map car cmplr-args)
+                      (append (map to-match-pat node-stxs) child-delegates)))])
 
 (struct cmplr-ast-top-builder [ast-spec]
   #:methods gen:cmplr-top-builder
@@ -320,7 +332,8 @@
      (match-define (cmplr:header:type cfrom cto) cmplr-type)
      (list
       #`(define (#,cmplr-id #,cmplr-input-stxid #,@(map list (map car cmplr-args) (map cdr cmplr-args)))
-          #,@(map to-syntax group-stxs)
+          (splicing-syntax-parameterize ([this-ast (make-rename-transformer #'#,cmplr-input-stxid)])
+            #,@(map to-syntax group-stxs))
           (cond
             #,@(for/list ([group groups])
                  (match-define (cmplr:group gid (cmplr:header:type gfrom gto) nodes info) group)
