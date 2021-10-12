@@ -13,65 +13,13 @@
 (define sham-result-type sham-basic-integer-type) ;TODO do something to add error message as well
 (define sham-result-arg #`res)
 
-(struct env [type typeof val] #:prefab)
-(define (print-env e)
-  (match-define (env t to vl) e)
-  (define (print-as ls)
-    (for ([p ls])
-      (printf "   ~a: ~a\n" (car p) (cdr p))))
-  (printf "  type:\n") (print-as t)
-  (printf "  typeof:\n") (print-as to)
-  (printf "  vals:\n") (print-as vl))
-
-(define (update-env oe #:type (type '()) #:typeof (typeof '()) #:val (val '()))
-  (match-define (env ot oto ov) (or oe (env '() '() '())))
-  (env (append type ot) (append typeof oto) (append val ov)))
-
-(struct cc [type env pvars res lifts] #:prefab)
-
-(define (print-cc c)
-  (match-define (cc t env pvars res lifts) c)
-  (printf "ctxt:\n type: ~a\n pvars: ~a\n res: ~a\n #lifts: ~a\n" t pvars res (length (unbox lifts)))
-  (printf " env:\n")
-  (print-env env)
-  c)
-
-(define (update-context! (from #f)
-                         #:type (type #f)
-                         #:env (env #f)
-                         #:lifts (lifts '())
-                         #:pvars (pvars #f)
-                         #:res (res #f))
-  (cond
-    [(cc? from)
-     (match-define (cc t oe op os ol) from)
-     (unless (empty? lifts) (set-box! ol (append lifts (unbox ol))))
-     (cc (or type t) (or env oe) (or pvars op) (or res os) ol)]
-    [else (cc type env pvars res (if (box? lifts) lifts (box lifts)))]))
-(define ((lookup-in-env f) ctxt name)
-  (printf "looking-in-env: ~a ~a\n" f name)
-  (print-cc ctxt)
-  (define -env (f (cc-env ctxt)))
-  (define pair (assoc name -env id-free=?))
-  (and pair (cdr pair)))
-(define lookup-typeof (lookup-in-env env-typeof))
-(define lookup-val (lookup-in-env env-val))
-(define lookup-type (lookup-in-env env-type))
-(define lookup-type-var (lookup-in-env env-val))
-
-(define (update-def-val-ctxt ctxt ast)
-  (match-define (def-val name val) ast)
+(define (update-ctxt-for-def-val name body ctxt)
   (define-values (uptype pvars cs) (unwrap-poly (lookup-typeof ctxt name)))
   ;; TODO use constraints
   (update-context! ctxt #:type uptype #:pvars pvars))
 
-;; TODO
-(define (sham-tuple-index val i) #`(ll-op-gep #,val 0 #,i))
-(define (sham-sequence-index val i) #`(ll-op-gep #,val 1 #,i))
-
-(define (update-bind-ctxt ctxt ast)
-  (printf "updating-bind-ctxt: ~a\n" ast)
-  (print-cc ctxt)
+(define (update-ctxt-for-bind ctxt pats body)
+  ;; (printf "updating-ctxt-for-bind: ~a ~a\n" pats body) (print-cc ctxt)
   (define (pat-bind pat-ast val typ)
     (match pat-ast
       [(pat-var name) (list (list name val typ))]
@@ -80,24 +28,26 @@
               (for/list ([p ps]
                          [i (length ps)]
                          [t (type-tuple-ts typ)])
-                (pat-bind p (sham-tuple-index val i) t)))]
+                (pat-bind p (compile-tuple-index val i ctxt) t)))]
       [(pat-sequence ps ...)
        (apply append
               (for/list ([p ps]
                          [i (length ps)])
-                (pat-bind p (sham-sequence-index val i) (type-sequence-t typ))))]))
+                (pat-bind p (compile-sequence-index val i ctxt) (type-sequence-t typ))))]))
   (define ctype (cc-type ctxt))
-  (define all-farg-types (get-farg-types ctype))
-  (match-define (list fargs ... res) (build-list (length all-farg-types) (λ (i) #`(ll-val-param #,i))))
-
-  (printf "binds: ~a, ~a\n" (expr-bind-ps ast) fargs)
-  (define pat-binds (append-map pat-bind (expr-bind-ps ast) fargs (drop-right all-farg-types 1)))
-  (printf "updating-for-bind: pat-binds: ~a\n" pat-binds)
+  (match-define (list farg-types ... res-type) (get-farg-types ctype))
+  (define farg-vals (map (λ (ft i) (compile-function-arg ft i ctype ctxt))
+                         farg-types
+                         (build-list (length farg-types) identity)))
+  (define res-val (compile-function-result res-type ctype ctxt))
+  ;; (printf "binds: ~a, ~a, res: ~a\n" pats fargs-vals res-val)
+  (define pat-binds (append-map pat-bind pats farg-vals farg-types))
+  ;; (printf "updating-ctxt-bind: both-pat-binds: ~a\n" pat-binds)
   (print-cc (update-context! ctxt
-                    #:type (last all-farg-types)
-                    #:res res
+                    #:type res-type
+                    #:res res-val
                     #:env (update-env (cc-env ctxt)
-                                      #:val (map (curryr drop-right 1) pat-binds)
+                                      #:val (map (λ (l) (list (first l) (second l))) pat-binds)
                                       #:typeof (map (λ (l) (list (first l) (third l))) pat-binds)))))
 
 (define (compile-val-defs defs (ctxt #f))
@@ -111,7 +61,29 @@
     (update-context! ctxt
                      #:env (update-env (and ctxt (cc-env ctxt)) #:typeof typeof-env #:type type-env)))
   (for/list ([vt combined-vals])
-    (cry-def-to-sham-stx (car vt) (update-context! new-ctxt #:type (def-typeof-val (cdr vt))))))
+
+    (ccry (car vt) (update-context! new-ctxt #:type (def-typeof-val (cdr vt))))))
+
+(struct cmp-def [id])
+
+;; this creates a lazy compiler which compiles when intrinsic arguments are given and per application
+(define (lazy-compile-def-val name body orig-ctxt)
+  (define type (lookup-typeof name orig-ctxt))
+  (define-values (uptype pvars cs) (unwrap-poly type orig-ctxt))
+  (λ (pargs vargs curr-ctxt)
+    (let* ([maybe-result-type (cc-type curr-ctxt)]
+           [maybe-varg-types (map (curryr maybe-calc-type curr-ctxt) vargs)]
+
+           [pvar-binds (figure-out-pvars pvars cs pargs maybe-varg-types)]
+
+           [new-name (ast-id-gen name)]
+           [new-env (update-env (cc-env ctxt) #:typeof pvar-binds)]
+           [new-ctxt (update-context! ctxt #:type uptype #:env new-env
+                                      #:lifts)]))
+
+    (define cmp-val (ccry val new-ctxt))
+    (define cmp-def (compile-def-val name new-type cmp-val orig-ctxt))
+    (cons new-name cmp-val)))
 
 (define sham-sequence-length-type #`i64)
 (define (sham-sequence-type sub-type)
@@ -150,14 +122,25 @@
 (define (char-literal c ctxt) c)
 (define (zero-literal ctxt) 0)
 
-(define-transform (cry-def-to-sham-stx (ctxt #f))
+(define-transform (ccry (ctxt #f))
   (cry-ast -> rkt-value)
   (cdef (def -> any)
-        [(val (^ name) (^ body #:ctxt (update-def-val-ctxt ctxt this-ast)))
-         #`(make-def-function #,name #,(sham-def-type ctxt this-ast) #,body)])
+        [(val name body)
+         (let ([val-ctxt (update-ctxt-for-def-val name body ctxt)])
+           (lazy-compile-def-val name body val-ctxt))])
   (cexpr (expr -> any)
-         [(bind (p ...) (^ res #:ctxt (update-bind-ctxt ctxt this-ast))) res]
-         ;; [(app o (i ...) a ...) (sham:expr:op (sham-op o ctxt) (sham-args i a))]
+         [(bind (p ...) res)
+          (let ([bind-ctxt (update-ctxt-for-bind ctxt p res)])
+            (compile-bind (cexpr res bind-ctxt) bind-ctxt))]
+         [(app o (i ...) a ...)
+          (define oval (lookup-val ctxt o)) ;; value for defs in env is a function that specialize-compile
+          (define coval (oval i a ctxt))    ;; get compiled value
+          (define otype (lookup-typeof ctxt o))
+          (define avals
+            (for/list ([av a]
+                       [at (get-farg-types otype)])
+              (cexpr av (update-context! ctxt #:type at))))
+          #`(sham-app #,(ast-id-stxid o) #,avals)]
          ;; [(cond (chk thn) ... els) (compile-cond chk thn els)]
          [(var name) (lookup-val ctxt name)]
          [(tvar name) (lookup-type-var ctxt name)]
@@ -178,9 +161,11 @@
 (module+ test
   (require "../lang/stx-to-cry-ast.rkt")
   (define bit-id-stx #`(def [id : bit -> bit] [id a = a]))
-  (define bit-id-any #`(def [id : {a} a -> a] [id a = a]))
-  (define proj1 #`(def [p1 : #(bit bit) -> bit]
-                    [p1 #(b1 b2) = b1]))
+  (define id-any #`(def [id : {a} a -> a] [id a = a]))
+  (define bit-use-any #`(def [bit-id : bit -> bit] [bit-id a = id a]))
+
+  (define pt1 #`(def [pt1 : #(bit bit) -> bit] [pt1 #(b1 b2) = b1]))
+
   ;; (define bit-id-cast (stx-to-cry-ast bit-id-stx))
   ;; (println bit-id-cast)
 
@@ -188,4 +173,4 @@
     (with-handlers ([exn:fail? (λ (e) (displayln e) ((error-display-handler) "error-compiling" e))])
       (println (compile-val-defs (list (stx-to-cry-ast d))))))
   (tc bit-id-stx)
-  (tc proj1))
+  (tc pt1))

@@ -43,12 +43,19 @@
 ;; (struct cmplr:dir:bind:stx cmplr:dir:bind [])
 
 (define (combine-binds-with-let dirs body)
-  (define (create-let-bind dir)
-    (match dir
-      [(cmplr:dir:bind var val)
-       #`[#,(to-syntax var) #,(to-syntax val)]]))
-  (define let-binds (map create-let-bind dirs))
-  #`(let #,let-binds #,(to-syntax body)))
+  (define bind-groups (group-by cmplr:dir:bind? dirs))
+  (define (do-let bg body)
+    (define (create-let-bind dir)
+      (match dir
+        [(cmplr:dir:bind var val)
+         #`[#,(to-syntax var) #,(to-syntax val)]]))
+    (define let-binds (map create-let-bind bg))
+    #`(let #,let-binds #,(to-syntax body)))
+  (for/fold ([body body])
+            ([bg bind-groups])
+    (cond [(andmap cmplr:dir:bind? bg) (do-let bg body)]
+          [(andmap syntax? bg) #`(begin #,@bg #,(to-syntax body))]
+          [else (error 'sham/sam/transform "unknown directives: ~a" bg)])))
 
 (define (combine-binds-with-syntax dirs body)
   (define (create-with-bind dir)

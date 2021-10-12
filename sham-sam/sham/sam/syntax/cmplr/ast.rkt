@@ -211,9 +211,11 @@
 
 (define (ast-node-pat-builder ctype pat-stx node-state)
   (match-define (cmplr-ast-source ast-spec) ctype)
-  (match-define (cmplr:state:node (cmplr:spec-state:node cspec gspec nspec) '() path) node-state)
+  (match-define (cmplr:state:node (and spec-state (cmplr:spec-state:node cspec gspec nspec)) orig-dirs path) node-state)
   (match-define (cmplr (cmplr:header cid cargs (cmplr:header:type cfrom cto)) groups info) cspec)
-  (basic-stx-rec pat-stx node-state (info-value ik-node-pat-ops info)))
+  (define-values (new-pat-stx pat-state) (basic-stx-rec pat-stx (cmplr:state:node spec-state '() path) (info-value ik-node-pat-ops info)))
+  (match-define (cmplr:state:node pat-spec pat-dirs pat-path) pat-state)
+  (values new-pat-stx (cmplr:state:node pat-spec (append orig-dirs pat-dirs) pat-path)))
 
 ;;  TODO get group spec once at the start of pat and body builder
 ;; (struct cmplr:state:ast-node cmplr:state:node [group-spec ast-spec])
@@ -252,7 +254,6 @@
   [(define (update-cmplr-spec cas curr-spec)
      (match-define (cmplr-ast-source ast-spec) cas)
      (match-define (cmplr header groups info) curr-spec)
-     ;; (printf "cmplr-ast-source:\n")
      (define pat-ops
        (list (ast-default-rec-operator)
              (ast-normal-var-operator)

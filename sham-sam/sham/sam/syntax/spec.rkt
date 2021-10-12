@@ -187,7 +187,7 @@
       [(cons fst rst) (ast-from-path rst (find-in-spec fst curr-spec spec) spec)]))
 
   (define (ast-type-from-var-stx stxid depth spec)
-    (printf "ast-type-from-var-stx: ~a ~a\n" stxid (split-identifier stxid))
+    ;; (printf "ast-type-from-var-stx: ~a ~a\n" stxid (split-identifier stxid))
     (define (from-specified id typs)
       (cond [(or (ast-from-path typs spec spec)
                  (and (empty? typs) (ast-from-path (list id) spec spec)))

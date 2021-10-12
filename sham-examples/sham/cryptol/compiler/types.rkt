@@ -15,3 +15,9 @@
     [(type-poly (vars ...) t) (unwrap-poly t (append vs vars) cs)]
     [(type-constraint (cns ...) t) (unwrap-poly t vs (append cs cns))]
     [else (values cry-type vs cs)]))
+
+(define (maybe-calc-type ast maybe-type curr-ctxt)
+  #f)
+
+(define (figure-out-pvars pvars constraints pargs varg-env)
+  (error 'TODO))
