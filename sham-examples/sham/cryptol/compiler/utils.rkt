@@ -24,3 +24,13 @@
             [(d vdefs)]
     (match-define (def-val name e) d)
     (cons (cons d (find-typeof name tdefs)) res)))
+
+
+(define debug? (make-parameter #f))
+
+(define-syntax (debug stx)
+  (syntax-case stx ()
+    [(_ es ...)
+     #`(when (debug?) es ...)]))
+
+(define-syntax (TODO stx) #`(error 'sham/cry/todo #,(format "~a" stx)))

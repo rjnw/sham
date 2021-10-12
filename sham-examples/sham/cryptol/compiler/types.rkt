@@ -1,6 +1,8 @@
 #lang racket
 
-(require "../ast.rkt")
+(require "../ast.rkt"
+         "ctxt.rkt"
+         "utils.rkt")
 (provide (all-defined-out))
 
 (define (get-farg-types cry-type)
@@ -17,7 +19,11 @@
     [else (values cry-type vs cs)]))
 
 (define (maybe-calc-type ast maybe-type curr-ctxt)
-  #f)
+  TODO)
 
+;; returns pvar-binds as env-vars
 (define (figure-out-pvars pvars constraints pargs varg-env)
-  (error 'TODO))
+  TODO)
+
+(define (specialize-type orig-type pvar-binds maybe-varg-types)
+  TODO)

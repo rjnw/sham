@@ -1,25 +1,60 @@
 #lang racket
-
+(require (for-syntax racket/syntax))
 (provide (all-defined-out))
 
-(struct compiler
-  [
-   def-val
-   function-arg
-   function-result
+(define-for-syntax compiler-functions
+  #`(
+     def-val
 
-   type
-   type-sequence
-   type-int
-   type-tuple
-   ])
+     function-arg
+     function-result
 
-(define (compile-tuple-index val i) #`(ll-op-gep #,val 0 #,i))
-(define (compile-sequence-index val i) #`(ll-op-gep #,val 1 #,i))
-(define (compile-function-arg arg-type arg-index ftype ctxt) #f)
-(define (compile-function-result res-type ftype ctxt) #f)
-(define (compile-def-val name body ctxt) #f)
+     expr-app
+     expr-cond
+     expr-bind
+     expr-var
+     expr-tvar
 
-(define test-compiler (compiler))
+     error-msg
+
+     integer-literal
+     char-literal
+     zero-literal
+
+     tuple-index
+     sequence-index
+
+     sequence-basic
+     sequence-enum
+     sequence-string
+     sequence-comp
+     sequence-var
+
+     type
+     type-sequence
+     type-int
+     type-tuple))
+
+(define-syntax (create-compiler-struct stx)
+  (syntax-case stx ()
+    [(_ cid) #`(struct cid #,compiler-functions)]))
+(create-compiler-struct compiler)
+
+(define-syntax (create-test-compiler stx)
+  #`(compiler
+     #,@(for/list ([f (syntax-e compiler-functions)]) #`(λ (ctxt . args) `(#,f ,@args)))))
+
+(define test-compiler (create-test-compiler))
 
 (define current-compiler (make-parameter test-compiler))
+
+(define-syntax (create-compiler-functions stx)
+  #`(begin
+      #,@(for/list ([f (syntax-e compiler-functions)])
+           #`(define-syntax (#,(format-id stx "compile-~a" f) stx)
+               (syntax-case stx ()
+                 [(_ args (... ...) ctxt)
+                  #'((#,(format-id f "compiler-~a" f) (current-compiler))
+                     ctxt args (... ...))])))))
+
+(create-compiler-functions)

@@ -4,20 +4,33 @@
 
 (provide (all-defined-out))
 
-(struct env [type typeof val] #:prefab)
+(struct env-var [name (val #:mutable) (type #:mutable)] #:transparent)
+(struct env-svar env-var [oname otype pargs] #:transparent)
+
+(define ((find-in-env-vars get) env-vars)
+  (match env-vars
+    ['() #f]
+    [(cons fst rst) (or (get fst) ((find-in-env-vars get) rst))]))
+(define (print-ev ev)
+  (match ev
+    [(env-var name val type)
+     (printf "~a:~a=~a" name type val)]
+    [(env-svar name val type oname otype pargs)
+     (printf "~a<~a:~a>:~a=~a" name oname pargs val type oname)])
+  ev)
+(define (print-evs evs) (for [(ev evs)] (print-ev ev) (newline)) evs)
+
+;; type stores name type for val and kind for type in bind
+(struct env [type val] #:prefab)
 (define (print-env e)
-  (match-define (env t to vl) e)
-  (define (print-as ls)
-    (for ([p ls])
-      (printf "   ~a: ~a\n" (car p) (cdr p))))
-  (printf "  type:\n") (print-as t)
-  (printf "  typeof:\n") (print-as to)
-  (printf "  vals:\n") (print-as vl))
+  (match-define (env ts vs) e)
+  (printf "  type:\n") (print-evs ts)
+  (printf "  vals:\n") (print-evs vs)
+  e)
 
-(define (update-env oe #:type (type '()) #:typeof (typeof '()) #:val (val '()))
-  (match-define (env ot oto ov) (or oe (env '() '() '())))
-  (env (append type ot) (append typeof oto) (append val ov)))
-
+(define (update-env oe #:type (types '()) #:val (vals '()))
+  (match-define (env ot ov) (or oe (env '() '())))
+  (env (append types ot) (append vals ov)))
 (struct cc [type env pvars res lifts] #:prefab)
 
 (define (print-cc c)
@@ -40,13 +53,25 @@
      (cc (or type t) (or env oe) (or pvars op) (or res os) ol)]
     [else (cc type env pvars res (if (box? lifts) lifts (box lifts)))]))
 
-(define ((lookup-in-env f) ctxt name)
+(define (add-lifts! c . lfs)
+  (define lifts (flatten lfs))
+  (set-box! (cc-lifts c) (append (unbox (cc-lifts c)) lifts))
+  c)
+
+(define ((lookup-in-env f) c/e name)
   (printf "looking-in-env: ~a ~a\n" f name)
-  (print-cc ctxt)
-  (define -env (f (cc-env ctxt)))
-  (define pair (assoc name -env id-free=?))
-  (and pair (cdr pair)))
-(define lookup-typeof (lookup-in-env env-typeof))
-(define lookup-val (lookup-in-env env-val))
-(define lookup-type (lookup-in-env env-type))
-(define lookup-type-var (lookup-in-env env-type))
+  (define env (cond
+                [(cc? c/e) (cc-env c/e)]
+                [(env? c/e) c/e]
+                [else (error 'sham/cryptol "unknown ctxt/env ~a" c/e)]))
+  (print-env env)
+  (define -env (f env))
+  (define (is-val? v)
+    (id-free=? (env-var-name v) name))
+  (filter is-val? -env))
+
+
+(define lookup-val (compose (find-in-env-vars env-var-val) (lookup-in-env env-val)))
+(define lookup-typeof (compose (find-in-env-vars env-var-type) (lookup-in-env env-val)))
+(define lookup-type (compose (find-in-env-vars env-var-val) (lookup-in-env env-type)))
+(define lookup-kind (compose (find-in-env-vars env-var-type) (lookup-in-env env-type)))
