@@ -1,14 +1,17 @@
 #lang sham/cryptol
 ;;  https://github.com/GaloisInc/cryptol-specs/blob/master/Primitive/Keyless/Hash/SHA1.cry
+#:compile-with test
 
 (def
   [sha1 : {n} (<= (width (* 8 n)) 64) => [n [8]] -> [160]]
   [sha1 msg = (sha1^ pmsg)
+        [pmsg : [(/^ (+ (* n 8) 65) 512) [512]]]
         [pmsg = (pad (join msg))]])
 
 (def
   [sha1^ : {chunks} (fin chunks) => [chunks [512]] -> [160]]
   [sha1^ pmsg = (join (! Hs 0))
+         [Hs : [(+ chunks 1) [5 [32]]]]
          [Hs = (<>
                 [[#x67452301 #xefcdab89 #x98badcfe #x10325476 #xc3d2e1f0]]
                 [(block H (split M))

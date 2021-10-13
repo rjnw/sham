@@ -33,7 +33,7 @@
          [[v:cexpr (~seq '\| (~seq p:pat '<- pv:cexpr) ...) ...] (make sequence:comp v p pv)]
          [[v1:cexpr '.. v2:cexpr] (make sequence:enum v1 (make lit 1) v2)]
          [[es:cexpr ...] (make sequence:basic es)]
-         [s:string (make sequence:str s)]
+         [s:string (make sequence:str (syntax-e s))]
 
          [#(es:cexpr ...) (make tuple es)]
          [(': e:cexpr t:type) (make annot e t)]
@@ -44,8 +44,8 @@
           (make app rator iargs rands)]
          [(rator:cexpr rands:cexpr ...) (make app rator '() rands)]
          [(id-ref name 'value) (make var name)]
-         [i:integer (make lit i)]
-         [c:char (make char c)])
+         [i:integer (make lit (syntax-e i))]
+         [c:char (make char (syntax-e c))])
 
   (type (stx -> type)
         [#(t:type ...) (make tuple t)]
@@ -67,7 +67,7 @@
          #:splicing)
 
   (dim (stx -> dim)
-       [i:integer (make int i)]
+       [i:integer (make int (syntax-e i))]
        [(rator:id rands:dim ...) (make app rator rands)]
        [(id-ref name 'type) (make var name)])
   #:strict-parens)

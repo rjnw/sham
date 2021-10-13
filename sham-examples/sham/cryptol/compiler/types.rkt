@@ -67,20 +67,41 @@
     [((type-poly (v1ars ...) pt1)
       t2)
      (unify-type pt1 t2 (update-env #:type (for/list ([v v1ars]) (env-var v #f #f))))]
-    [((type-constraint (cs ...) ct1) t2)
-     (unify-type ct1 t2)]
+    [((type-constraint (cs ...) ct1) t2) (unify-type ct1 t2 ctxt)]
     [((type-func ft1 tt1) (type-func ft2 tt2))
      (type-func (unify-type ft1 ft2 ctxt) (unify-type tt1 tt2 ctxt))]
     [((type-func ft1 ft2) t2) (unify-type t2 t1 ctxt)]
+    [((type-sequence d1 t1) (type-sequence d2 t2))
+     (type-sequence (unify-type d1 d2 ctxt) (unify-type t1 t2 ctxt))]
+    [((dim-int i) (dim-var name)) (unify-type t1 (lookup-type ctxt name) ctxt)]
+    [((dim-var n1) (dim-int i)) (unify-type t2 (lookup-type ctxt n1) ctxt)]
+    [((dim-int i1) (dim-int i2))
+     #:when (equal? i1 i2)
+     t1]
+    [((? dim-app?) t2)
+     (unify-type (calc-dim t1 ctxt) t2 ctxt)]
     [(ut1 t2) #:when (unknown-type? ut1 ctxt) t2]
     [(t1 ut2) #:when (unknown-type? ut2 ctxt) t1]
-    [(_ _) (error 'sham/cryptol/unify "mismatch types: ~a ~a" t1 t2)]))
+    [(_ _)
+     (debug (print-cc ctxt))
+     (error 'sham/cryptol/unify "mismatch types: \n~a \n~a" t1 t2)]))
 
 (define (maybe-sequence-elem-type seq-type)
   (match seq-type
     [(type-sequence dim t) t]
     [(type-poly (vs ...) t) (maybe-sequence-elem-type t)]
     [(type-constraint (cs ...) t) (maybe-sequence-elem-type t)]
+    [else #f]))
+(define (maybe-sequence-dim seq-type)
+  (match seq-type
+    [(type-sequence dim t) dim]
+    [(type-poly (vs ...) t) (maybe-sequence-dim t)]
+    [(type-constraint (cs ...) t) (maybe-sequence-dim t)]
+    [else #f]))
+(define (maybe-dim-i dim)
+  (match dim
+    [(dim-int i) i]
+    [(dim-var name) TODO]
     [else #f]))
 
 (define (maybe-tuple-type-i type i)
@@ -100,7 +121,8 @@
 (define (maybe-calc-type ast maybe-type ctxt)
   (debug (printf "maybe-calc-type: ~a ~a\n" ast maybe-type))
   (match ast
-    [(expr-bind (ps ...) body) (maybe-calc-type body maybe-type ctxt)]
+    [(expr-bind (ps ...) body) TODO ;; (maybe-calc-type body maybe-type ctxt)
+     ]
     [(expr-app rator (tvars ...) vargs ...) TODO]
     [(expr-cond [chk thn] ... els) TODO]
     [(expr-var name) (unify-type (lookup-typeof ctxt name) maybe-type ctxt)]
@@ -108,7 +130,7 @@
     [(expr-annot e t) (maybe-calc-type e (unify-type t maybe-type ctxt) ctxt)]
     [(expr-where body) (maybe-calc-type body maybe-type ctxt)]
     [(expr-lit i) (unify-type (type-integer) maybe-type ctxt)]
-    [(expr-char c) (unify-type (type-integer) maybe-type ctxt)]
+    [(expr-char c) (unify-type (type-sequence (dim-int 8) (type-bit)) maybe-type ctxt)]
     [(expr-tuple vs ...)
      (unify-type
       (make-type-tuple
@@ -132,15 +154,66 @@
            (/ (add1 (- (expr-lit-v to) (expr-lit-v from))) (expr-lit-v step))
            #f))
      (unify-type (type-sequence sdim (type-integer)) maybe-type ctxt)]
-    [(expr-sequence-str s) (unify-type (type-sequence (string-length s) (type-integer)) maybe-type)]
-    [(expr-sequence-comp body [(var val)] ...) TODO]
-    ;; [else maybe-type]
-    ))
+    [(expr-sequence-str s)
+     (unify-type (type-sequence (dim-int (string-length s)) (type-sequence (dim-int 8) (type-bit))) maybe-type ctxt)]
+    [(expr-sequence-comp body [(var val)] ...)
+     (define valts (map (curryr maybe-calc-type #f ctxt) val))
+     (define val-lengths (map (compose maybe-dim-i maybe-sequence-dim) valts))
+     (define given-length (maybe-sequence-dim maybe-type))
+     (unless (or given-length (andmap identity val-lengths))
+       (error 'sham/cryptol "unknown length for sequence comprehension ~a ~a" ast val-lengths))
+     (define dim (or given-length (dim-int (apply min val-lengths))))
+     (define maybe-elem-type (maybe-sequence-elem-type maybe-type))
+     (type-sequence
+      dim
+      (maybe-calc-type body maybe-elem-type
+                       (update-env ctxt #:val (for/list ([vn var] [vt valts])
+                                                (env-var vn #f (maybe-sequence-elem-type vt))))))]))
 
 (define (kind-from-constraint name cs) (type-integer)) ;; TODO
+(define (calc-dim-app da ctxt)
+  (match-define (dim-app rator rands ...) da)
+  (define rand-vals (map (compose maybe-dim-i (curryr calc-dim ctxt)) rands))
+  (debug (printf "calc-dim-app: ~a ~a\n" da rand-vals))
+  (define f
+    (match (syntax->datum rator)
+      [`+ +]
+      [`- -]
+      [`* *]
+      [`/ /]
+      [`/^ (compose ceiling /)]                                 ;; ceiling division
+      [`%  modulo]
+      [`%^ (compose ceiling modulo)]                               ;; ceiling modulas
+      [`^^ expt]                               ;; exponentiation
+      [`lg2 (compose ceiling (curryr log 2))]                              ;; ceiling log (base 2)
+      [`width (compose ceiling (curryr log 2) add1)]                            ;; bit width (lg2 (n + 1))
+      [`max max]
+      [`min min]))
+  (dim-int (apply f rand-vals)))
+
+(define (calc-dim d ctxt)
+  (match d
+    [(dim-int i) d]
+    [(dim-var n) (calc-dim (lookup-type ctxt n) ctxt)]
+    [(? dim-app?) (calc-dim-app d ctxt)]))
+
+(define (contains-var? t)
+  (match t
+    [(type-var _) #t]
+    [(type-sequence d t) (and (contains-var? d) (contains-var? t))]
+    [(type-tuple ts ...) (andmap contains-var? ts)]
+    [(type-bit) #f]
+    [(type-integer) #f]
+
+    [(dim-var _) #t]
+    [(dim-int i) #f]
+    ))
 
 (define (pargs-from-context! poly-type conc-type known-args ctxt)
-  (define (just1 lst) (if (equal? (length lst) 1) (car lst) (error 'sham/sam/cry-type "internal TODO ~a ~a" lst known-args)))
+  (define (just1 lst)
+    (if (equal? (length lst) 1)
+        (car lst)
+        (error 'sham/sam/cry-type "poly vars incorrectly specified ~a ~a" lst known-args)))
   (define (get-known-val name)
     (define known-vals (lookup-env-vars known-args name))
     (printf "gkv: ~a ~a ~a\n" name known-args known-vals)
@@ -152,10 +225,13 @@
       [((type-var pv) ct)
        (define known-env-var (get-known-val pv))
        (set-env-var-val! known-env-var (unify-type (env-var-val known-env-var) ct ctxt))]
+      [((dim-var n) (dim-int i)) (set-env-var-val! (get-known-val n) ct)]
+      [((dim-int i1) (dim-int i2)) #:when (equal? i1 i2) (void)]
       [((type-sequence pd pt) (type-sequence cd ct)) (rec pd cd) (rec pt ct)]
       [((type-tuple pts ...) (type-tuple cts ...)) (map rec pts cts)]
       [((type-bit) _) (void)]
       [((type-integer) _) (void)]
+      [(t1 t2) #:when (not (contains-var? t1)) (void)]
       [(_ _) (TODO "pargs-from-context! ~a ~a" pt ct)]))
   known-args)
 

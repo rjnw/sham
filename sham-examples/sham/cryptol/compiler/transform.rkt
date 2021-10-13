@@ -11,6 +11,8 @@
          sham/sam/rkt
          sham/sam/runtime)
 
+(provide compile-defs)
+
 (define (update-ctxt-for-def-val name body ctxt)
   (define-values (uptype pvars cs) (unwrap-poly (lookup-typeof ctxt name)))
   ;; TODO use constraints
@@ -84,6 +86,7 @@
           (let ([bind-ctxt (update-ctxt-for-bind ctxt p res)])
             (compile-expr-bind (cexpr res bind-ctxt) bind-ctxt))]
          [(app rator (targs ...) vargs ...)
+          (debug (printf "app: ~a ~a ~a\n" rator targs vargs))
           (let* ([rator-lazy-val (lookup-val ctxt (expr-var-name rator))]
                  [compiled-rator (rator-lazy-val targs vargs ctxt)]
                  [new-rator-type (env-var-type compiled-rator)]
@@ -144,7 +147,8 @@
     (cons (compile-tests ctests vals-ctxt) vals-ctxt)))
 
 (module+ test
-  (require "../lang/stx-to-cry-ast.rkt")
+  (require "stx-to-cry-ast.rkt")
+  (require rackunit)
   (define bit-id-stx #`(def [id : bit -> bit] [id a = a]))
   (define id-any #`(def [id : {a} a -> a] [id a = a]))
   (define ti1 #`(test ti1 (== (id (: true bit)) (: true bit))))
@@ -154,14 +158,16 @@
 
   (define pt1 #`(def [pt1 : {a b} #(a b) -> a] [pt1 #(b1 b2) = b1]))
   (define tpt1 #`(test tpt1 (== (pt1 #((: true bit) (: false bit))) true)))
-  ;; (define bit-id-cast (stx-to-cry-ast bit-id-stx))
-  ;; (println bit-id-cast)
 
+  (define (print-result td)
+    (match-define (cons tests c) td)
+    (pretty-print tests)
+    (print-cc c)
+    (pretty-print (unbox (cc-lifts c))))
   (define (tc . d)
-    (with-handlers ([exn:fail? (λ (e) (displayln e) ((error-display-handler) "error-compiling" e))])
-      (println (compile-defs (map stx-to-cry-ast d)))))
-  ;; (tc bit-id-stx)
+    (check-not-exn (thunk (print-result (compile-defs (map stx-to-cry-ast d))))))
+  (tc bit-id-stx)
   (tc pt1 tpt1)
-  ;; (tc id-any ti1)
-  ;; (tc id-any bit-id-use-any tbi1)
+  (tc id-any ti1)
+  (tc id-any bit-id-use-any tbi1)
   )
