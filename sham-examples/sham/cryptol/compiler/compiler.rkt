@@ -5,6 +5,9 @@
 (define-for-syntax compiler-functions
   #`(
      def-val
+     def-test
+
+     tests
 
      function-arg
      function-result
@@ -17,6 +20,7 @@
 
      error-msg
 
+     tuple-literal
      integer-literal
      char-literal
      zero-literal

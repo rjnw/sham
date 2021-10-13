@@ -1,10 +1,14 @@
 #lang racket
+(require (for-syntax syntax/parse))
 (require "../ast.rkt"
          sham/sam/runtime/identifier)
 
 (provide (all-defined-out))
+
 (define (remove-gen-defs defs)
-  (append-map (λ (d) (if (def-gen? d) (def-gen-ds d) d)) defs))
+  (cond [(list? defs) (map remove-gen-defs defs)]
+        [(def-gen? defs) (remove-gen-defs (def-gen-ds defs))]
+        [else defs]))
 
 (define (split-defs defs)
   (define val-defs (filter def-val? defs))
@@ -26,11 +30,17 @@
     (cons (cons d (find-typeof name tdefs)) res)))
 
 
-(define debug? (make-parameter #f))
+(define debug? (make-parameter #t))
 
 (define-syntax (debug stx)
   (syntax-case stx ()
     [(_ es ...)
      #`(when (debug?) es ...)]))
 
-(define-syntax (TODO stx) #`(error 'sham/cry/todo #,(format "~a" stx)))
+(define (debug-print v) (debug (printf "debug: ") (pretty-print v) (newline)) v)
+
+(define-syntax (TODO stx)
+  (syntax-parse stx
+    [(_ s:string args:expr ...)
+     #`(error 'sham/cry/todo s args ...)]
+    [else #`(error 'sham/cry/todo #,(format "~a" stx))]))

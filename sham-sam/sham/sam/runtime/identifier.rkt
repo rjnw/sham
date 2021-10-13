@@ -11,7 +11,7 @@
 (define debug-id? (make-parameter #f))
 (define (write-id v sym port mode)
   (define stxid (ast:id-stxid v))
-  (define-values (dir fname rel?) (split-path (syntax-source stxid)))
+  (define-values (dir fname rel?) (if (path? (syntax-source stxid)) (split-path (syntax-source stxid)) (values #f '- #f)))
   (if (debug-id?)
       (fprintf port
                "~a~a~a:~a:~a"

@@ -1,5 +1,6 @@
 #lang racket
 
+(require "utils.rkt")
 (require sham/sam/runtime)
 
 (provide (all-defined-out))
@@ -7,16 +8,44 @@
 (struct env-var [name (val #:mutable) (type #:mutable)] #:transparent)
 (struct env-svar env-var [oname otype pargs] #:transparent)
 
-(define ((find-in-env-vars get) env-vars)
+(define (get-from-env-vars env-vars get)
   (match env-vars
     ['() #f]
-    [(cons fst rst) (or (get fst) ((find-in-env-vars get) rst))]))
+    [(cons fst rst) (or (get fst) (get-from-env-vars rst get))]))
+
+(define (lookup-env-vars evs name)
+  (define (is-val? v)
+    (id-free=? (env-var-name v) name))
+  (filter is-val? evs))
+
+(define ((lookup-in-env f getter) c/e name)
+  (define env (cond
+                [(cc? c/e) (cc-env c/e)]
+                [(env? c/e) c/e]
+                [else (error 'sham/cryptol "unknown ctxt/env ~a" c/e)]))
+  ;; (debug (printf "looking-in-env: ~a ~a\n" f name) (print-env env))
+  (get-from-env-vars (lookup-env-vars (f env) name) getter))
+(define (combine-env-vars vars1 vars2)
+  (define (combine from into)
+    (match-define (env-var fname fval ftype) from)
+    (match-define (env-var tname tval ttype) into)
+    (set-env-var-val! into (or fval tval))
+    (set-env-var-val! into (or ftype ttype))
+    into)
+  (match vars1
+    ['() vars2]
+    [(cons fst rst)
+     (cons
+      (cond [(lookup-env-vars (env-var-name fst) rst) => (combine fst)]
+            [else fst])
+      (combine-env-vars rst vars2))]))
+
 (define (print-ev ev)
   (match ev
     [(env-var name val type)
-     (printf "~a:~a=~a" name type val)]
+     (printf "   ~a:~a=~a" name type val)]
     [(env-svar name val type oname otype pargs)
-     (printf "~a<~a:~a>:~a=~a" name oname pargs val type oname)])
+     (printf "   ~a<~a:~a>:~a=~a" name oname pargs val type oname)])
   ev)
 (define (print-evs evs) (for [(ev evs)] (print-ev ev) (newline)) evs)
 
@@ -28,11 +57,17 @@
   (printf "  vals:\n") (print-evs vs)
   e)
 
-(define (update-env oe #:type (types '()) #:val (vals '()))
-  (match-define (env ot ov) (or oe (env '() '())))
-  (env (append types ot) (append vals ov)))
-(struct cc [type env pvars res lifts] #:prefab)
+(define (update-env c/e #:type (types '()) #:val (vals '()) #:combine-with (cw append))
+  (define (doe e)
+    (match-define (env ot ov) e)
+    (env (cw (if (env-var? types) (list types) types) ot)
+         (cw (if (env-var? vals) (list vals) vals) ov)))
+  (cond [(cc? c/e) (update-context! c/e #:env (doe (cc-env c/e)))]
+        [(env? c/e) (doe c/e)]
+        [else (doe (env '() '()))]))
 
+;; context keeps track of current type, poly type vars currently active, result value and lifts
+(struct cc [type env pvars res lifts] #:prefab)
 (define (print-cc c)
   (match-define (cc t env pvars res lifts) c)
   (printf "ctxt:\n type: ~a\n pvars: ~a\n res: ~a\n #lifts: ~a\n" t pvars res (length (unbox lifts)))
@@ -58,20 +93,7 @@
   (set-box! (cc-lifts c) (append (unbox (cc-lifts c)) lifts))
   c)
 
-(define ((lookup-in-env f) c/e name)
-  (printf "looking-in-env: ~a ~a\n" f name)
-  (define env (cond
-                [(cc? c/e) (cc-env c/e)]
-                [(env? c/e) c/e]
-                [else (error 'sham/cryptol "unknown ctxt/env ~a" c/e)]))
-  (print-env env)
-  (define -env (f env))
-  (define (is-val? v)
-    (id-free=? (env-var-name v) name))
-  (filter is-val? -env))
-
-
-(define lookup-val (compose (find-in-env-vars env-var-val) (lookup-in-env env-val)))
-(define lookup-typeof (compose (find-in-env-vars env-var-type) (lookup-in-env env-val)))
-(define lookup-type (compose (find-in-env-vars env-var-val) (lookup-in-env env-type)))
-(define lookup-kind (compose (find-in-env-vars env-var-type) (lookup-in-env env-type)))
+(define lookup-val (lookup-in-env env-val env-var-val))
+(define lookup-typeof (lookup-in-env env-val env-var-type))
+(define lookup-type (lookup-in-env env-type env-var-val))
+(define lookup-kind (lookup-in-env env-type env-var-type))
