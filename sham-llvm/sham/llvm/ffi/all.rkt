@@ -21,7 +21,7 @@
  "ir-reader.rkt"
  "linker.rkt"
  "object.rkt"
- "orc-bindings.rkt"
+ ;; "orc-bindings.rkt"
  "target-machine.rkt"
  "target.rkt"
  "transforms.rkt")
