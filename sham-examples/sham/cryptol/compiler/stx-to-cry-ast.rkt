@@ -19,7 +19,7 @@
 
   (def (stx -> def)
     [['type (id-def name 'type) '= ts:stype] (make type name ts)]
-    [[(id-def name 'value) ': ~! ts:stype] (make typeof (id-create-ref name) ts)]
+    [[(id-ref names 'value)  ... ': ~! ts:stype] (make typeof names ts)]
     [[(id-def name 'value) ps:pat ... '= ~! b:cexpr ws:def ...]
      ;; #:bind-ids [ps -> ws b] [ws -> * b]
      (make val name (make expr:bind ps (make expr:where b ws)))])

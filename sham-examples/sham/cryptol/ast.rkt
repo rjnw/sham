@@ -19,7 +19,7 @@
     [gen (d_ds ...)]
     [val (id_name e_val)]
     [type (id_name t_val)]
-    [typeof (id_name t_val)]
+    [typeof (id_names ... t_val)]
     [test (id_name e_v1 e_v2)]
     ;; [import (id_name id_qualifier (id_only ...) (id_hide ...) (parameter_ps ...))]
     ;; [mod-inst (id_name id_of (p_ps ...) (d_ds ...))]
@@ -45,7 +45,7 @@
    [lit (integer_v)]
    [char (char_c)]
    [tuple (e_vals ...)]
-   [zero ()]
+   ;; [zero ()]
    #:alias e)
 
   (sequence expr

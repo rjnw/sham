@@ -6,7 +6,9 @@
 (provide (all-defined-out))
 
 (struct env-var [name (val #:mutable) (type #:mutable)] #:transparent)
-(struct env-svar env-var [oname otype pargs] #:transparent)
+(struct env-lazy-var env-var [] #:transparent) ;; val is wrapped in a function which takes pargs vargs and ctxt to compile
+(struct env-primitive-var env-var [] #:transparent)     ;; primitive value which should compile an app primitively
+(struct env-special-var env-var [oname otype pargs] #:transparent) ;; lazy compile returns a specialized value for specific pargs and gensym'd name
 
 (define (get-from-env-vars env-vars get)
   (match env-vars
