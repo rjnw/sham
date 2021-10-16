@@ -5,10 +5,12 @@
 
 (provide (all-defined-out))
 
-(define (remove-gen-defs defs)
-  (cond [(list? defs) (map remove-gen-defs defs)]
-        [(def-gen? defs) (remove-gen-defs (def-gen-ds defs))]
-        [else defs]))
+(define (remove-gen-defs ds)
+  (flatten
+   (let loop ([defs ds])
+     (cond [(list? defs) (map loop defs)]
+           [(def-gen? defs) (loop (def-gen-ds defs))]
+           [else defs]))))
 
 (define (split-defs defs)
   (define val-defs (filter def-val? defs))
@@ -19,8 +21,8 @@
 
 (define (find-typeof name tdefs)
   (define (is-type? tdef)
-    (match-define (def-typeof tname t) tdef)
-    (free-identifier=? (ast-id-stxid name) (ast-id-stxid tname)))
+    (match-define (def-typeof tnames ... t) tdef)
+    (ormap (λ (tname) (free-identifier=? (ast-id-stxid name) (ast-id-stxid tname))) tnames))
   (findf is-type? tdefs))
 
 (define (combine-val&typeof vdefs tdefs)

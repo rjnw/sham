@@ -51,7 +51,12 @@
 (define (unify-type t1 t2 ctxt)
   (debug (printf "unify-type: ~a ~a\n" t1 t2))
   (match* (t1 t2)
+    [((type-var v1) (type-var v2))
+     (debug (printf "both-vars: ~a ~a ~a ~a\n" v1 (lookup-type ctxt v1) v2 (lookup-type ctxt v2))
+            (print-cc ctxt))
+     #f]
     [((type-var n1) t2)
+     #:when (not (unknown-type? t2 ctxt))
      (define nt1 (lookup-type ctxt n1))
      (cond [(not (unknown-type? nt1 ctxt)) (unify-type nt1 t2 ctxt)]
            [else (unify-type t2 t1 ctxt)])]
@@ -66,7 +71,7 @@
     [((type-tuple t1s ...) u) #:when (unknown-type? u ctxt) t1]
     [((type-poly (v1ars ...) pt1)
       t2)
-     (unify-type pt1 t2 (update-env #:type (for/list ([v v1ars]) (env-var v #f #f))))]
+     (unify-type pt1 t2 (update-env ctxt #:type (for/list ([v v1ars]) (env-var v #f #f))))]
     [((type-constraint (cs ...) ct1) t2) (unify-type ct1 t2 ctxt)]
     [((type-func ft1 tt1) (type-func ft2 tt2))
      (type-func (unify-type ft1 ft2 ctxt) (unify-type tt1 tt2 ctxt))]
@@ -139,7 +144,7 @@
             (build-list (length vs) (λ (i) (maybe-tuple-type-i maybe-type i)))))
       maybe-type
       ctxt)]
-    [(expr-zero) (unify-type (type-integer) maybe-type ctxt)]
+    ;; [(expr-zero) (unify-type (type-integer) maybe-type ctxt)]
 
     [(expr-sequence-basic es ...)
      (define elem-type
@@ -216,15 +221,17 @@
         (error 'sham/sam/cry-type "poly vars incorrectly specified ~a ~a" lst known-args)))
   (define (get-known-val name)
     (define known-vals (lookup-env-vars known-args name))
-    (printf "gkv: ~a ~a ~a\n" name known-args known-vals)
     (just1 known-vals))
   (let rec ([pt poly-type] [ct conc-type])
-    (debug (printf "pargs-from-context: ~a ~a\n" pt ct))
+    ;; (debug (printf "pargs-from-context: ~a ~a\n" pt ct))
     (match* (pt ct)
       [((type-func pf pt) (type-func cf ct)) (rec pf cf) (rec pt ct)]
       [((type-var pv) ct)
        (define known-env-var (get-known-val pv))
-       (set-env-var-val! known-env-var (unify-type (env-var-val known-env-var) ct ctxt))]
+       (define new-type (unify-type (env-var-val known-env-var) ct ctxt))
+       (if (unknown-type? new-type ctxt)
+           (error 'sham/cryptol "cannot specialize: ~a" pv)
+           (set-env-var-val! known-env-var new-type))]
       [((dim-var n) (dim-int i)) (set-env-var-val! (get-known-val n) ct)]
       [((dim-int i1) (dim-int i2)) #:when (equal? i1 i2) (void)]
       [((type-sequence pd pt) (type-sequence cd ct)) (rec pd cd) (rec pt ct)]
@@ -238,15 +245,26 @@
 ;; returns pvar-binds as env-vars
 (define (figure-out-pargs type pargs varg-types res-type app-ctxt)
   (define-values (uptype pvars cs) (unwrap-poly type))
-  (debug (printf "figure-out-pargs:\n  type: ~a\n  pargs: ~a\n  varg-types: ~a\n  res-type: ~a\n" type pargs varg-types res-type))
+  ;; (debug (printf "figure-out-pargs:\n  type: ~a\n  pargs: ~a\n  varg-types: ~a\n  res-type: ~a\n" type pargs varg-types res-type))
   (define given-pvars
     (for/list ([pvar pvars]
                [i (length pvars)])
       (env-var pvar (if (< i (length pargs)) (list-ref pargs i) #f) (kind-from-constraint pvar cs))))
-  (debug (printf "given-pargs: ") (print-evs given-pvars))
+  ;; (debug (printf "given-pargs: ") (print-evs given-pvars))
   (pargs-from-context! uptype (foldr make-type-func res-type varg-types) given-pvars app-ctxt))
 
-(define (specialize-type orig-type pvar-args maybe-varg-types maybe-result-type ctxt)
+(define (specialize-func-type orig-type pvar-args maybe-varg-types maybe-result-type ctxt)
   (define maybe-type (foldr make-type-func maybe-result-type maybe-varg-types))
-  (debug (printf "specialize-type: ~a ~a ~a\n" orig-type pvar-args maybe-type))
+  (debug (printf "specializing-type: ~a ~a ~a\n" orig-type pvar-args maybe-type))
   (debug-print (unify-type orig-type maybe-type (update-env ctxt #:type pvar-args))))
+
+(define (specialize-poly-type orig-type poly-args value-args ctxt)
+  (define-values (uptype pvars cs) (unwrap-poly orig-type))
+  (match-define (list varg-types ... res-type) (get-farg-types uptype))
+  (define given-result-type (cc-type ctxt))
+  (let* ([maybe-result-type (cc-type ctxt)]
+         [maybe-varg-types (map (curryr maybe-calc-type ctxt) value-args (drop-right (get-farg-types uptype) 1))]
+         [pvar-args (figure-out-pargs orig-type poly-args maybe-varg-types maybe-result-type ctxt)]
+         [new-type (specialize-func-type uptype pvar-args maybe-varg-types maybe-result-type ctxt)])
+    (debug (printf "specialized-poly-type: \n ~a\n ~a\n" orig-type new-type))
+    (values pvar-args new-type)))

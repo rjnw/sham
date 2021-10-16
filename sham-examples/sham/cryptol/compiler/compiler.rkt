@@ -13,6 +13,7 @@
      function-result
 
      expr-app
+     expr-app-primitive
      expr-cond
      expr-bind
      expr-var

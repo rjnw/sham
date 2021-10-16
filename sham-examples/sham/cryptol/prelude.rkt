@@ -1,6 +1,6 @@
 #lang racket
 ;; https://github.com/GaloisInc/cryptol/blob/master/lib/Cryptol.cry
-
+(provide (all-defined-out))
 (define primitive-typeofs-stx
   #`(def
       [true false : bit]

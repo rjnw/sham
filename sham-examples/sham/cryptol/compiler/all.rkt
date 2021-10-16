@@ -30,7 +30,7 @@
 
     (define res-stxs
       (parameterize ([current-compiler cmplr])
-        (compile-defs cry-asts)))
+        (compile-cry cry-asts)))
     (debug (printf "result:\n~a\n" res-stxs))
 
     (strip-context

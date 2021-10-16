@@ -5,7 +5,11 @@
 
 (provide (all-defined-out))
 
-(struct env-var [name (val #:mutable) (type #:mutable)] #:transparent)
+(struct env-var [name (val #:mutable) (type #:mutable)] #:transparent
+  ;; #:methods gen:custom-write
+  ;; [(define (write-proc v port mode) (display (env-var-name v) port))]
+  )
+
 (struct env-lazy-var env-var [] #:transparent) ;; val is wrapped in a function which takes pargs vargs and ctxt to compile
 (struct env-primitive-var env-var [] #:transparent)     ;; primitive value which should compile an app primitively
 (struct env-special-var env-var [oname otype pargs] #:transparent) ;; lazy compile returns a specialized value for specific pargs and gensym'd name
@@ -44,11 +48,14 @@
 
 (define (print-ev ev)
   (match ev
+    [(env-lazy-var name val type)
+     (printf "   ~a:~a" name type)]
+    [(env-special-var name val type oname otype pargs)
+     (printf "   ~a<~a:~a>:~a=~a" name oname pargs type val)]
     [(env-var name val type)
-     (printf "   ~a:~a=~a" name type val)]
-    [(env-svar name val type oname otype pargs)
-     (printf "   ~a<~a:~a>:~a=~a" name oname pargs val type oname)])
+     (printf "   ~a:~a=~a" name type val)] )
   ev)
+
 (define (print-evs evs) (for [(ev evs)] (print-ev ev) (newline)) evs)
 
 ;; type stores name type for val and kind for type in bind
@@ -58,7 +65,7 @@
   (printf "  type:\n") (print-evs ts)
   (printf "  vals:\n") (print-evs vs)
   e)
-
+(define (empty-env) (env '() '()))
 (define (update-env c/e #:type (types '()) #:val (vals '()) #:combine-with (cw append))
   (define (doe e)
     (match-define (env ot ov) e)
@@ -76,7 +83,7 @@
   (printf " env:\n")
   (print-env env)
   c)
-
+(define (empty-context) (cc #f (empty-env) '() #f (box '())))
 (define (update-context! (from #f)
                          #:type (type #f)
                          #:env (env #f)
@@ -95,6 +102,7 @@
   (set-box! (cc-lifts c) (append (unbox (cc-lifts c)) lifts))
   c)
 
+(define lookup-env-val (lookup-in-env env-val identity))
 (define lookup-val (lookup-in-env env-val env-var-val))
 (define lookup-typeof (lookup-in-env env-val env-var-type))
 (define lookup-type (lookup-in-env env-type env-var-val))
