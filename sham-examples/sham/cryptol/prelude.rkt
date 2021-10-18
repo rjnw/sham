@@ -18,7 +18,7 @@
       [/ % : {a} (integral a) => a -> a -> a]
       [to-integer : {a} (integral a) => a -> integer]
 
-      [== != : {a} (Eq a) => a -> a -> bit]
+      [== != : {a} (eq a) => a -> a -> bit]
       [< > <= >= : {a} (cmp a) => a -> a -> bit]
 
       ;; sequences

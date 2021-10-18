@@ -5,75 +5,80 @@
 
 (provide (all-defined-out))
 
-(struct env-var [name (val #:mutable) (type #:mutable)] #:transparent
-  ;; #:methods gen:custom-write
-  ;; [(define (write-proc v port mode) (display (env-var-name v) port))]
-  )
+(struct env-var [name val] #:transparent)
 
 (struct env-lazy-var env-var [] #:transparent) ;; val is wrapped in a function which takes pargs vargs and ctxt to compile
 (struct env-primitive-var env-var [] #:transparent)     ;; primitive value which should compile an app primitively
-(struct env-special-var env-var [oname otype pargs] #:transparent) ;; lazy compile returns a specialized value for specific pargs and gensym'd name
+(struct env-prelude-var env-var [] #:transparent)     ;; prelude value
+(struct env-special-var env-var [type oname otype pargs] #:transparent) ;; lazy compile returns a specialized value for specific pargs and gensym'd name
 
-(define (get-from-env-vars env-vars get)
+(define (maybe-first-env-vars env-vars)
   (match env-vars
     ['() #f]
-    [(cons fst rst) (or (get fst) (get-from-env-vars rst get))]))
+    [(cons fst rst) (env-var-val fst)]))
 
 (define (lookup-env-vars evs name)
   (define (is-val? v)
     (id-free=? (env-var-name v) name))
   (filter is-val? evs))
 
-(define ((lookup-in-env f getter) c/e name)
+(define ((lookup-in-env f) c/e name)
   (define env (cond
                 [(cc? c/e) (cc-env c/e)]
                 [(env? c/e) c/e]
                 [else (error 'sham/cryptol "unknown ctxt/env ~a" c/e)]))
   ;; (debug (printf "looking-in-env: ~a ~a\n" f name) (print-env env))
-  (get-from-env-vars (lookup-env-vars (f env) name) getter))
-(define (combine-env-vars vars1 vars2)
-  (define (combine from into)
-    (match-define (env-var fname fval ftype) from)
-    (match-define (env-var tname tval ttype) into)
-    (set-env-var-val! into (or fval tval))
-    (set-env-var-val! into (or ftype ttype))
-    into)
-  (match vars1
-    ['() vars2]
-    [(cons fst rst)
-     (cons
-      (cond [(lookup-env-vars (env-var-name fst) rst) => (combine fst)]
-            [else fst])
-      (combine-env-vars rst vars2))]))
+  (maybe-first-env-vars (lookup-env-vars (f env) name)))
 
 (define (print-ev ev)
   (match ev
-    [(env-lazy-var name val type)
-     (printf "   ~a:~a" name type)]
+    [(env-primitive-var n v) (void)]
+    [(env-prelude-var n v) (void)]
     [(env-special-var name val type oname otype pargs)
-     (printf "   ~a<~a:~a>:~a=~a" name oname pargs type val)]
-    [(env-var name val type)
-     (printf "   ~a:~a=~a" name type val)] )
+     (printf "   ~a<~a:~a>:~a\n" name oname (map pretty-cry pargs) (pretty-cry otype))]
+    [(env-lazy-var name val) (void)]
+    [(env-var name val) (printf "   ~a=~a$\n" name (pretty-cry val))]
+    ;; [(env-primitive-var name val) (printf "  ~a:~a\n" name (pretty-cry type))]
+    ;; [(env-var name #f)
+    ;;  (printf "  ~a:~a\n" name (pretty-cry type))]
+    ;; [(env-var name #f) (printf "  ~a?" name)]
+    )
   ev)
 
-(define (print-evs evs) (for [(ev evs)] (print-ev ev) (newline)) evs)
+(define (print-evs evs) (for [(ev evs)] (print-ev ev)) evs)
 
 ;; type stores name type for val and kind for type in bind
-(struct env [type val] #:prefab)
+(struct env [val typeof type tvar] #:prefab)
 (define (print-env e)
-  (match-define (env ts vs) e)
-  (printf "  type:\n") (print-evs ts)
+  (match-define (env vs tos ts tvs) e)
   (printf "  vals:\n") (print-evs vs)
+  (printf "  typofs:\n") (print-evs tos)
+  (printf "  type:\n") (print-evs ts)
+  (printf "  tvars:\n") (print-evs tvs)
   e)
-(define (empty-env) (env '() '()))
-(define (update-env c/e #:type (types '()) #:val (vals '()) #:combine-with (cw append))
+
+(define lookup-val (lookup-in-env env-val))
+(define lookup-typeof (lookup-in-env env-typeof))
+(define lookup-type (lookup-in-env env-type))
+(define lookup-tvar (lookup-in-env env-tvar))
+(define (empty-env) (env '() '() '() '()))
+(define (update-env c/e
+                    #:val (vals '())
+                    #:typeof (typeofs '())
+                    #:type (types '())
+                    #:tvar (tvars '()))
+  ;; (printf "update-env: ~a ~a ~a ~a\n" vals typeofs types tvars)
+  (define (combine news old)
+    (append (if (env-var? news) (list news) news) old))
   (define (doe e)
-    (match-define (env ot ov) e)
-    (env (cw (if (env-var? types) (list types) types) ot)
-         (cw (if (env-var? vals) (list vals) vals) ov)))
+    (match-define (env ovals otypeofs otypes otvars) e)
+    (env (combine vals ovals)
+         (combine typeofs otypeofs)
+         (combine types otypes)
+         (combine tvars otvars)))
   (cond [(cc? c/e) (update-context! c/e #:env (doe (cc-env c/e)))]
         [(env? c/e) (doe c/e)]
-        [else (doe (env '() '()))]))
+        [else (doe (empty-env))]))
 
 ;; context keeps track of current type, poly type vars currently active, result value and lifts
 (struct cc [type env pvars res lifts] #:prefab)
@@ -101,9 +106,3 @@
   (define lifts (flatten lfs))
   (set-box! (cc-lifts c) (append (unbox (cc-lifts c)) lifts))
   c)
-
-(define lookup-env-val (lookup-in-env env-val identity))
-(define lookup-val (lookup-in-env env-val env-var-val))
-(define lookup-typeof (lookup-in-env env-val env-var-type))
-(define lookup-type (lookup-in-env env-type env-var-val))
-(define lookup-kind (lookup-in-env env-type env-var-type))

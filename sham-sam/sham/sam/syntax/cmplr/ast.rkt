@@ -164,7 +164,12 @@
   (match (get-ast-type pat depth ast-spec)
     [(ast:type:internal depth spec) (compile-spec-type depth spec)]
     [(ast:type:intrinsic depth t) (error 'sham/sam/TODO "intrinsic ast type ~a ~a" t ast-spec)]
-    [(ast:type:identifier depth) #`(rt:identifier->syntax #,var)]
+    [(ast:type:identifier depth) (let rec ([d depth] [v var])
+                                   (match d
+                                     [#f #`(rt:identifier->syntax #,v)]
+                                     [`((,mn . ,mx) . ,rst)
+                                      (define nval (generate-temporary var))
+                                      #`(map (λ (#,nval) #,(rec rst nval)) #,v)]))]
     [t (error 'sham/sam/TODO "compile-ast-type ~a ~a ~a" var t ast-spec)]))
 
 (struct ast-pat-compile-var-operator [op-stxid ast-spec]

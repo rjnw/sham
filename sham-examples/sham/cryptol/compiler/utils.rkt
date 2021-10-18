@@ -1,6 +1,8 @@
 #lang racket
 (require (for-syntax syntax/parse))
 (require "../ast.rkt"
+         sham/sam/transform
+         sham/sam/rkt
          sham/sam/runtime/identifier)
 
 (provide (all-defined-out))
@@ -46,3 +48,49 @@
     [(_ s:string args:expr ...)
      #`(error 'sham/cry/todo s args ...)]
     [else #`(error 'sham/cry/todo #,(format "~a" stx))]))
+
+(define-transform (pretty-cry-ast)
+  (cry-ast -> rkt-value)
+  (cdef (def -> any)
+        [(gen (^ ds) ...) ds]
+        [(val n (^ v)) `(,n = ,v)]
+        [(typeof ns ... (^ v)) `(,@ns : ,v)]
+        [(type n (^ t)) `(type ,n : ,t)]
+        [(test n (^ v1) (^ v2)) `(test ,n : ,v1 = ,v2)])
+  (cpat (pat -> any)
+        [(var n) n]
+        [(tuple (^ ps) ...) `(tuple ,@ps)]
+        [(sequence (^ ps) ...) (apply vector ps)])
+  (cexpr (expr -> any)
+         [(bind ((^ ps) ...) (^ b)) `(,@ps = ,b)]
+         [(app (^ o) ((^ ia) ...) (^ a) ...) `(,o {,@ia} ,@a)]
+         [(cond ((^ c) (^ t)) ... (^ e)) `(cond ,@(map cons c t) ,e)]
+         [(var n) n]
+         [(tvar n) `',n]
+         [(annot (^ e) (^ t)) `(,e : ,t)]
+         [(where (^ b) (^ ds) ...) `(where ,b ,ds)]
+         [(error msg) `(error ,msg)]
+         [(lit i) i]
+         [(char c) c]
+         [(tuple (^ vs) ...) `($ ,@vs)])
+  (cseq (sequence -> any)
+        [(basic (^ vs) ...) (apply vector vs)]
+        [(enum (^ f) (^ s) (^ t)) `(,f .. ,s ,t)]
+        [(str s) `(str ,s)]
+        [(comp (^ body) ((v (^ l))) ...)
+         `[,body \| ,@(map cons v l)]])
+  (ctyp (type -> any)
+        [bit 'bit]
+        [integer 'int]
+        [(sequence (^ d) (^ t)) (vector d t)]
+        [(tuple (^ ts) ...) `(tuple ,@ts)]
+        [(var n) n]
+        [(poly (vars ...) (^ t)) `(,vars : ,t)]
+        [(constraint (cs ...) (^ t)) `(,@(map syntax->datum cs) => ,t)]
+        [(func (^ f) (^ t)) `(,f -> ,t)])
+  (cdim (dim -> any)
+        [(int v) v]
+        [(app op (^ args) ...) `(,(syntax->datum op) ,@args)]
+        [(var n) `(dim ,n)]))
+
+(define (pretty-cry v) (if (struct-cry-ast? v) (pretty-cry-ast v) v))

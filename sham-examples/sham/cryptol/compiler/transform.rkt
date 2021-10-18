@@ -19,7 +19,7 @@
   ;; (printf "updating-ctxt-for-bind: ~a ~a\n" pats body) (print-cc ctxt)
   (define (do-pat pat-ast val typ)
     (match pat-ast
-      [(pat-var name) (list (env-var name val typ))]
+      [(pat-var name) (list (list name val typ))]
       [(pat-tuple ps ...)
        (apply append
               (for/list ([p ps]
@@ -42,18 +42,20 @@
   (update-context! ctxt
                    #:type res-type
                    #:res res-val
-                   #:env (update-env (cc-env ctxt) #:val pat-vars)))
+                   #:env (update-env (cc-env ctxt)
+                                     #:val (map (λ (po) (env-var (first po) (second po))) pat-vars)
+                                     #:typeof (map (λ (po) (env-var (first po) (third po))) pat-vars))))
 
-(define (update-ctxt-for-defs defs ctxt)
+(define (update-ctxt-for-defs defs ctxt (evt env-var))
   (define-values (val-defs type-defs typeof-defs test-defs) (split-defs (remove-gen-defs defs)))
   (unless (empty? test-defs) (error 'sham/cryptol/ "please filter out tests first"))
   (define combined-vals (combine-val&typeof val-defs typeof-defs))
   (define typeof-env (flatten (for/list ([d typeof-defs])
-                        (map (λ (name) (env-var name #f (def-typeof-val d))) (def-typeof-names d)))))
-  (define type-env (for/list ([d type-defs]) (env-var (def-type-name d) (def-type-val d) #f)))
+                        (map (λ (name) (evt name (def-typeof-val d))) (def-typeof-names d)))))
+  (define type-env (for/list ([d type-defs]) (evt (def-type-name d) (def-type-val d))))
   (define new-ctxt
     (update-context! ctxt
-                     #:env (update-env (and ctxt (cc-env ctxt)) #:val typeof-env #:type type-env)))
+                     #:env (update-env (and ctxt (cc-env ctxt)) #:typeof typeof-env #:type type-env)))
   (letrec
       ([vals-ctxt
         (for/fold ([vc new-ctxt])
@@ -64,21 +66,21 @@
            #:val
            (env-lazy-var name
                          (λ (pargs vargs app-ctxt)
-                           (do-def-val name value vals-ctxt pargs vargs app-ctxt))
-                         (def-typeof-val (cdr vt)))))])
+                           (do-def-val name value vals-ctxt pargs vargs app-ctxt)))))])
     vals-ctxt))
 
 ;; this creates a lazy compiler which compiles when intrinsic arguments are given and per application
 (define (do-def-val name val orig-ctxt pargs vargs app-ctxt)
-  (debug (printf "forcing-lazy: ~a\n  val:~a\n  pargs:~a\n  vargs:~a" name val pargs vargs))
   (define val-type (lookup-typeof orig-ctxt name))
-  (define-values (pvar-args up-type) (specialize-poly-type val-type pargs vargs app-ctxt))
+  (debug (printf "forcing-lazy: ~a\n  val:~a\n  pargs:~a\n  vargs:~a\n  ret-type:~a\n"
+                 name val pargs vargs (cc-type orig-ctxt)))
+  (define-values (pargs-evs up-type) (specialize-poly-type val-type pargs vargs app-ctxt))
   (let* ([new-name (ast-id-gen name)]
-         [new-env (update-env (cc-env orig-ctxt) #:type pvar-args)]
+         [new-env (update-env (cc-env orig-ctxt) #:tvar pargs-evs)]
          [new-ctxt (update-context! orig-ctxt #:type up-type #:env new-env)]
          [cval (do-cry val new-ctxt)]
          [cdef (compile-def-val name up-type cval new-ctxt)]
-         [svar (env-special-var new-name cdef up-type name val-type pvar-args)])
+         [svar (env-special-var new-name cdef up-type name val-type pargs-evs)])
     (add-lifts! orig-ctxt svar)
     svar)
 
@@ -114,26 +116,26 @@
           (let ([bind-ctxt (update-ctxt-for-bind ctxt p res)])
             (compile-expr-bind (cexpr res bind-ctxt) bind-ctxt))]
          [(app rator (targs ...) vargs ...)
-          (debug (printf "app: ~a ~a ~a\n" (cons rator (lookup-env-val ctxt (expr-var-name rator))) targs vargs))
-          (let ([rator-val (lookup-env-val ctxt (expr-var-name rator))])
+          (debug (printf "app: ~a ~a ~a\n" (cons rator (lookup-val ctxt (expr-var-name rator))) targs vargs))
+          (let ([rator-val (car (lookup-env-vars (env-val (cc-env ctxt)) (expr-var-name rator)))])
             (match rator-val
-              [(env-primitive-var rator-name rator-pval rator-type)
+              [(env-primitive-var rator-name rator-pval)
                (define-values (pvar-args rator-up-type)
-                 (specialize-poly-type rator-type targs vargs ctxt))
+                 (specialize-poly-type (lookup-typeof ctxt rator-name) targs vargs ctxt))
                (define compiled-vargs
                  (map (λ (v t) (cexpr v (update-context! ctxt #:type t)))
                       vargs (drop-right (get-farg-types rator-up-type) 1)))
                (compile-expr-app-primitive rator-name rator-pval pvar-args compiled-vargs ctxt)]
-              [(env-lazy-var name valf type)
+              [(env-lazy-var name valf)
                (let* ([compiled-rator (valf targs vargs ctxt)]
-                      [new-rator-type (env-var-type compiled-rator)]
+                      [new-rator-type (env-special-var-type compiled-rator)]
                       [compiled-vargs
                        (for/list ([varg vargs]
                                   [vargt (get-farg-types new-rator-type)])
                          (cexpr varg (update-context! ctxt #:type vargt)))])
                  (compile-expr-app (env-var-name compiled-rator) compiled-vargs ctxt))]))]
          [(cond ((^ chk) (^ thn)) ... (^ els)) (compile-expr-cond chk thn els ctxt)]
-         [(var name) (compile-expr-var name (lookup-env-val ctxt name) ctxt)]
+         [(var name) (compile-expr-var name (lookup-val ctxt name) ctxt)]
          [(tvar name) (compile-expr-tvar name (lookup-type ctxt name) ctxt)]
          [(annot e t) (cexpr e (update-context! ctxt #:type t))]
          [(where body ds ...) (cexpr body (update-ctxt-for-defs ds ctxt))]
@@ -150,7 +152,7 @@
         [(comp body [(vars (^ vals #:ctxt (update-context! ctxt #:type #f)))] ...)
          (let* ([compiled-vvs
                  (for/list ([vr vars] [vl vals])
-                   (env-var vr (compile-sequence-var vr vl ctxt) #f))]
+                   (env-var vr (compile-sequence-var vr vl ctxt)))]
                 [comp-ctxt (update-context! ctxt #:env (update-env (cc-env ctxt) #:val compiled-vvs))]
                 [compiled-body (cexpr body comp-ctxt)])
            (compile-sequence-comp compiled-body compiled-vvs comp-ctxt))]))
@@ -163,15 +165,17 @@
   (define prim-typeofs (remove-gen-defs primitive-typeofs-asts))
   (define prim-env
     (flatten (for/list ([p prim-typeofs])
-               (map (λ (name) (env-primitive-var name #f (def-typeof-val p)))
+               (map (λ (name) (env-primitive-var name (def-typeof-val p)))
                     (def-typeof-names p)))))
 
   (define-values (val-defs type-defs typeof-defs test-defs) (split-defs (remove-gen-defs asts)))
-  (debug (printf "compile-cry: ~a\n" val-defs))
+  ;; (debug (printf "compile-cry: ~a\n" val-defs))
   (define ctxt
     (update-ctxt-for-defs
-     (append (remove-gen-defs prelude-defs-asts) type-defs typeof-defs val-defs)
-     (update-env (empty-context) #:val prim-env)))
+     (append type-defs typeof-defs val-defs)
+     (update-ctxt-for-defs prelude-defs-asts
+      (update-env (empty-context) #:val prim-env #:typeof prim-env)
+      env-prelude-var)))
   (values (compile-tests (for/list ([t test-defs]) (do-cry t ctxt)) ctxt) ctxt))
 
 (module+ test
