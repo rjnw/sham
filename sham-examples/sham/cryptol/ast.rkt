@@ -21,6 +21,9 @@
     [type (id_name t_val)]
     [typeof (id_names ... t_val)]
     [test (id_name e_v1 e_v2)]
+
+    [typed-val (id_name t_type e_val)]
+    [combined ((d_types ...) (d_tvs ...) (d_tests ...))]
     ;; [import (id_name id_qualifier (id_only ...) (id_hide ...) (parameter_ps ...))]
     ;; [mod-inst (id_name id_of (p_ps ...) (d_ds ...))]
     ;; [private (d_ds ...)]
@@ -76,6 +79,7 @@
    [constraint ((cs ...) t)]
    ;; [record ((id t) ...)]
    [func (t_from t_to)]
+   [unknown]
    #:alias t)
 
   ;; dimension for sequences: integer, infinity or a poly variable

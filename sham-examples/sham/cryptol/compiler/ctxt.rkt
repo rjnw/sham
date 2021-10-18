@@ -7,7 +7,7 @@
 
 (struct env-var [name val] #:transparent)
 
-(struct env-lazy-var env-var [] #:transparent) ;; val is wrapped in a function which takes pargs vargs and ctxt to compile
+(struct env-lazy-var env-var [ast] #:transparent) ;; val is wrapped in a function which takes pargs vargs and ctxt to compile
 (struct env-primitive-var env-var [] #:transparent)     ;; primitive value which should compile an app primitively
 (struct env-prelude-var env-var [] #:transparent)     ;; prelude value
 (struct env-special-var env-var [type oname otype pargs] #:transparent) ;; lazy compile returns a specialized value for specific pargs and gensym'd name
@@ -36,7 +36,7 @@
     [(env-prelude-var n v) (void)]
     [(env-special-var name val type oname otype pargs)
      (printf "   ~a<~a:~a>:~a\n" name oname (map pretty-cry pargs) (pretty-cry otype))]
-    [(env-lazy-var name val) (void)]
+    [(env-lazy-var name val ast) (printf "  ~a%\n" name)]
     [(env-var name val) (printf "   ~a=~a$\n" name (pretty-cry val))]
     ;; [(env-primitive-var name val) (printf "  ~a:~a\n" name (pretty-cry type))]
     ;; [(env-var name #f)

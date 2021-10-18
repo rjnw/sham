@@ -66,7 +66,8 @@
            #:val
            (env-lazy-var name
                          (λ (pargs vargs app-ctxt)
-                           (do-def-val name value vals-ctxt pargs vargs app-ctxt)))))])
+                           (do-def-val name value vals-ctxt pargs vargs app-ctxt))
+                         value)))])
     vals-ctxt))
 
 ;; this creates a lazy compiler which compiles when intrinsic arguments are given and per application
@@ -126,7 +127,7 @@
                  (map (λ (v t) (cexpr v (update-context! ctxt #:type t)))
                       vargs (drop-right (get-farg-types rator-up-type) 1)))
                (compile-expr-app-primitive rator-name rator-pval pvar-args compiled-vargs ctxt)]
-              [(env-lazy-var name valf)
+              [(env-lazy-var name valf ast)
                (let* ([compiled-rator (valf targs vargs ctxt)]
                       [new-rator-type (env-special-var-type compiled-rator)]
                       [compiled-vargs

@@ -11,7 +11,7 @@
 (def
   [sha1^ : {chunks} (fin chunks) => [chunks [512]] -> [160]]
   [sha1^ pmsg = (join (! Hs 0))
-         [Hs : [(+ chunks 1) [5 [32]]]]
+         ;; [Hs : [(+ chunks 1) [5 [32]]]]
          [Hs = (<>
                 [[#x67452301 #xefcdab89 #x98badcfe #x10325476 #xc3d2e1f0]]
                 [(block H (split M))

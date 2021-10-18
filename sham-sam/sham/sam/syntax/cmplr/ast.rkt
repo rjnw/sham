@@ -116,7 +116,7 @@
        (define node-make-id (format-id node-fid "make-~a" node-fid))
        (define-values (node-args-stxs new-state) (mapl/state frec state node-args))
        ;; TODO add metadata
-       (values #`(#,node-make-id #,@node-args-stxs) new-state))
+       (values #`(#,node-make-id #,@(map to-syntax node-args-stxs)) new-state))
      (define (make-op-args stx)
        (match (syntax-e stx)
          [(list op-id node-id node-args ...)
@@ -197,7 +197,8 @@
   [(define (operator-parse-syntax op stx state frec)
      (if (syntax? stx)
          (match (syntax-e stx)
-           [(list ss ...) (mapl/state frec state ss)]
+           [(list ss ...) (define-values (stxs nstate) (mapl/state frec state ss))
+                          (values (stx:seq stxs) nstate)]
            [i (values stx state)])
          (values stx state)))])
 
@@ -216,9 +217,12 @@
 
 (define (ast-node-pat-builder ctype pat-stx node-state)
   (match-define (cmplr-ast-source ast-spec) ctype)
-  (match-define (cmplr:state:node (and spec-state (cmplr:spec-state:node cspec gspec nspec)) orig-dirs path) node-state)
+  (match-define (cmplr:state:node (and spec-state (cmplr:spec-state:node cspec gspec nspec)) orig-dirs path)
+    node-state)
   (match-define (cmplr (cmplr:header cid cargs (cmplr:header:type cfrom cto)) groups info) cspec)
-  (define-values (new-pat-stx pat-state) (basic-stx-rec pat-stx (cmplr:state:node spec-state '() path) (info-value ik-node-pat-ops info)))
+  (define-values (new-pat-stx pat-state) (basic-stx-rec pat-stx
+                                                        (cmplr:state:node spec-state '() (ast-path #f #f))
+                                                        (info-value ik-node-pat-ops info)))
   (match-define (cmplr:state:node pat-spec pat-dirs pat-path) pat-state)
   (values new-pat-stx (cmplr:state:node pat-spec (append orig-dirs pat-dirs) pat-path)))
 
@@ -282,7 +286,7 @@
      ;; (printf "cmplr-ast-target:\n")
      (define this-info
        (kw-info (ik-node-body-bs cat)
-                (ik-node-body-ops (ast-make-body-operator ast-spec make-operator-stxid))
+                (ik-node-body-ops (ast-default-rec-operator) (ast-make-body-operator ast-spec make-operator-stxid))
                 (ik-node-bs (cmplr-ast-node-builder))))
      (define new-info (combine-info info this-info))
      (cmplr header groups new-info))]
