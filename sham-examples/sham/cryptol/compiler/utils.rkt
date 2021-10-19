@@ -67,7 +67,7 @@
         [(typeof ns ... (^ v)) `(,@ns : ,v)]
         [(type n (^ t)) `(type ,n : ,t)]
         [(typed-val n (^ t) (^ v)) `(,n : ,t = ,v)]
-        [(combined ((^ ts) ...) ((^ vs) ...) ((^ t) ...)) `(,@ts ,@vs ,@t)]
+        [(combined ((^ ts) ...) ((^ tos) ...) ((^ vs) ...) ((^ t) ...)) `(,@ts ,@tos ,@vs ,@t)]
         [(test n (^ v1) (^ v2)) `(test ,n : ,v1 = ,v2)])
   (cpat (pat -> any)
         [(var n) n]
@@ -108,7 +108,6 @@
         [(var n) `(dim ,n)]))
 
 (define (pretty-cry v) (if (struct-cry-ast? v) (pretty-cry-ast v) v))
-(require racket/trace)
 (define (new-name-def old) (ast-id-gen old))
 (define (lookup name env-vars)
   (define (is-ev? name ev) (id-free=? name ev))
@@ -117,6 +116,7 @@
     [else name]))
 (define var-pair cons)
 
+(require racket/trace)
 (define (do-pats pats env)
   (define (rec pat)
     (match pat
@@ -128,14 +128,14 @@
                   [nns '()]
                   #:result (values (make-pat-tuple pps) nns))
                  ([p ps])
-         (define-values (p^ ns) (rec ps))
+         (define-values (p^ ns) (rec p))
          (values (append pps (list p^)) (append nns ns)))]
       [(pat-sequence ps ...)
        (for/fold ([pps '()]
                   [nns '()]
                   #:result (values (make-pat-sequence pps) nns))
                  ([p ps])
-         (define-values (p^ ns) (rec ps))
+         (define-values (p^ ns) (rec p))
          (values (append pps (list p^)) (append nns ns)))]))
   (for/fold ([ps '()]
              [nns '()])
@@ -164,7 +164,7 @@
           (let-values ([(new-ds new-val-env new-type-env) (gensym-names-defs ds val-env type-env)])
             (make where (cexpr b new-val-env new-type-env)
                   (match new-ds
-                    [(def-combined () () ()) (list)]
+                    [(def-combined () () () ()) (list)]
                     [else (list new-ds)])))]
          [(error msg) (make error msg)]
          [(lit i) this-ast]
@@ -223,7 +223,8 @@
         (values (append nctvs (list nctv)) nve nte)))
     (values
      (make-def-combined
-      (map (curryr gensym-names-ast new-val-env new-type-env) (append type-defs rest-typeofs))
+      (map (curryr gensym-names-ast new-val-env new-type-env) type-defs)
+      (map (curryr gensym-names-ast new-val-env new-type-env) rest-typeofs)
       new-ctvs
       (map (curryr gensym-names-ast new-val-env new-type-env) test-defs))
      new-val-env

@@ -213,10 +213,11 @@
       [(expr-var name)
        (cond
          [(lookup-typeof ctxt name) => (λ (t) (unify-type t maybe-type ctxt))]
-         [(car (lookup-env-vars (env-val (cc-env ctxt)) name)) => (λ (e)
-                                                                    (match e
-                                                                      [(env-lazy-var name f ast) (maybe-calc-type ast maybe-type ctxt)]
-                                                                      [else (error 'sham/cry "cannot calculate type for: ~a ~a\n" name e)]))])]
+         [(car (lookup-env-vars (env-val (cc-env ctxt)) name))
+          => (λ (e)
+               (match e
+                 [(env-lazy-var name f ast) (maybe-calc-type ast maybe-type ctxt)]
+                 [else (error 'sham/cry "cannot calculate type for: ~a ~a\n" name e)]))])]
       [(expr-tvar name) (unify-type (type-from-name ctxt name) maybe-type ctxt)]
       [(expr-annot e t) (maybe-calc-type e (unify-type t maybe-type ctxt) ctxt)]
       [(expr-lit i) (unify-type (type-integer) maybe-type ctxt)]

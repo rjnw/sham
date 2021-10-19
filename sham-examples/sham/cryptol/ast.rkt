@@ -23,7 +23,7 @@
     [test (id_name e_v1 e_v2)]
 
     [typed-val (id_name t_type e_val)]
-    [combined ((d_types ...) (d_tvs ...) (d_tests ...))]
+    [combined ((d_types ...) (d_tos ...) (d_tvs ...) (d_tests ...))]
     ;; [import (id_name id_qualifier (id_only ...) (id_hide ...) (parameter_ps ...))]
     ;; [mod-inst (id_name id_of (p_ps ...) (d_ds ...))]
     ;; [private (d_ds ...)]
