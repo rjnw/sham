@@ -6,7 +6,8 @@
 (require "compiler.rkt"
          "transform.rkt"
          "stx-to-cry-ast.rkt"
-         "utils.rkt")
+         "utils.rkt"
+         "debug.rkt")
 
 (provide (all-defined-out))
 
@@ -26,9 +27,9 @@
 
     (define cry-asts (map stx-to-cry-ast stxs))
 
-    (debug (printf "cry-ast:\n") (for ([ca cry-asts]) (pretty-print-ast ca) (newline)))
+    (debug (printf "cry-ast:\n") (for ([ca cry-asts]) (pretty-print (pretty-cry ca)) (newline)))
 
-    (define res-stxs
+    (define-values (res-stxs ctxt)
       (parameterize ([current-compiler cmplr])
         (compile-cry cry-asts)))
     (debug (printf "result:\n~a\n" res-stxs))

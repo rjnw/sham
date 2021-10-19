@@ -35,9 +35,9 @@
     [(env-primitive-var n v) (void)]
     [(env-prelude-var n v) (void)]
     [(env-special-var name val type oname otype pargs)
-     (printf "   ~a<~a:~a>:~a\n" name oname (map pretty-cry pargs) (pretty-cry otype))]
-    [(env-lazy-var name val ast) (printf "  ~a%\n" name)]
-    [(env-var name val) (printf "   ~a=~a$\n" name (pretty-cry val))]
+     (printf "~a<~a:~a>:~a, " name oname (map pretty-cry pargs) (pretty-cry otype))]
+    [(env-lazy-var name val ast) (printf "~a%, " name)]
+    [(env-var name val) (printf "~a=~a$\n" name (pretty-cry val))]
     ;; [(env-primitive-var name val) (printf "  ~a:~a\n" name (pretty-cry type))]
     ;; [(env-var name #f)
     ;;  (printf "  ~a:~a\n" name (pretty-cry type))]
@@ -48,7 +48,13 @@
 (define (print-evs evs) (for [(ev evs)] (print-ev ev)) evs)
 
 ;; type stores name type for val and kind for type in bind
-(struct env [val typeof type tvar] #:prefab)
+(struct env [val typeof type tvar]
+  #:methods gen:custom-write
+  [(define (write-proc val port mode)
+     (fprintf port "<env>")
+     #;(parameterize ([current-output-port port])
+       (print-env val)))])
+
 (define (print-env e)
   (match-define (env vs tos ts tvs) e)
   (printf "  vals:\n") (print-evs vs)
@@ -81,7 +87,12 @@
         [else (doe (empty-env))]))
 
 ;; context keeps track of current type, poly type vars currently active, result value and lifts
-(struct cc [type env pvars res lifts] #:prefab)
+(struct cc [type env pvars res lifts]
+  #:methods gen:custom-write
+  [(define (write-proc val port mode)
+     (fprintf port "<ctxt>")
+     #;(parameterize ([current-output-port port])
+       (print-cc val)))])
 (define (print-cc c)
   (match-define (cc t env pvars res lifts) c)
   (printf "ctxt:\n type: ~a\n pvars: ~a\n res: ~a\n #lifts: ~a\n" t pvars res (length (unbox lifts)))

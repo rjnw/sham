@@ -1,5 +1,6 @@
 #lang sham/cryptol
 ;;  https://github.com/GaloisInc/cryptol-specs/blob/master/Primitive/Keyless/Hash/MD5.cry
+#:compile-with test
 
 (def [ntohl : [32] -> [32]]
   [ntohl w = (join (reverse (groupBy {8} w)))])
@@ -15,6 +16,7 @@
 
 (def [foldl : {n a b} (fin n) => a -> (a -> b -> a) -> [n b] -> a]
   [foldl seed f xs = (! res 0)
+         [res : [(+ n 1) a]]
          [res = (<> [seed] [(f a x) | a <- res | x <- xs])]])
 
 (def [md5_ref : [16 [8]] -> [16 [8]]]

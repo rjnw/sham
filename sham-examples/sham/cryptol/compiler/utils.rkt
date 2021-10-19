@@ -1,5 +1,6 @@
 #lang racket
-(require (for-syntax syntax/parse))
+(require (for-syntax syntax/parse)
+         racket/trace)
 (require "../ast.rkt"
          sham/sam/transform
          sham/sam/rkt
@@ -44,21 +45,6 @@
        (if (empty? new-names) #f (make-def-typeof new-names val))]))
   (values ctvs (filter-map remove-used tdefs)))
 
-(define debug? (make-parameter #t))
-
-(define-syntax (debug stx)
-  (syntax-case stx ()
-    [(_ es ...)
-     #`(when (debug?) es ...)]))
-
-(define (debug-print v) (debug (printf "debug: ") (pretty-print v) (newline)) v)
-
-(define-syntax (TODO stx)
-  (syntax-parse stx
-    [(_ s:string args:expr ...)
-     #`(error 'sham/cry/todo s args ...)]
-    [else #`(error 'sham/cry/todo #,(format "~a" stx))]))
-
 (define-transform (pretty-cry-ast)
   (cry-ast -> rkt-value)
   (cdef (def -> any)
@@ -90,11 +76,12 @@
         [(basic (^ vs) ...) (apply vector vs)]
         [(enum (^ f) (^ s) (^ t)) `(,f .. ,s ,t)]
         [(str s) `(str ,s)]
-        [(comp (^ body) ((v (^ l))) ...)
+        [(comp (^ body) (((^ v) (^ l))) ...)
          `[,body \| ,@(map cons v l)]])
   (ctyp (type -> any)
         [bit 'bit]
         [integer 'int]
+        [unknown 'unk]
         [(sequence (^ d) (^ t)) (vector d t)]
         [(tuple (^ ts) ...) `(tuple ,@ts)]
         [(var n) n]
@@ -160,9 +147,9 @@
          [(var n) (make var (lookup n val-env))]
          [(tvar n) (make tvar (lookup n type-env))]
          [(annot (^ e) (^ t)) (make annot e t)]
-         [(where b ds ...)
+         [(where (^ b) ds ...)
           (let-values ([(new-ds new-val-env new-type-env) (gensym-names-defs ds val-env type-env)])
-            (make where (cexpr b new-val-env new-type-env)
+            (make where b ;; (cexpr b new-val-env new-type-env)
                   (match new-ds
                     [(def-combined () () () ()) (list)]
                     [else (list new-ds)])))]
@@ -175,11 +162,12 @@
         [(enum (^ f) (^ s) (^ t)) (make enum f s t)]
         [(str s) this-ast]
         [(comp body ((v l)) ...)
-         (let ([nns (map new-name-def v)])
-           (make comp (cexpr body (append (map var-pair v nns) val-env) type-env) v l))])
+         (let-values ([(nvs nns) (do-pats v val-env)])
+           (make comp (cexpr body (append nns val-env) type-env) (map list nvs) (map list l)))])
   (ctype (type -> type)
-         [bit (make bit)]
-         [integer (make integer)]
+         [bit this-ast]
+         [integer this-ast]
+         [unknown this-ast]
          [(sequence (^ d) (^ t)) (make sequence d t)]
          [(tuple (^ ts) ...) (make tuple ts)]
          [(var n) (make var (lookup n type-env))]
@@ -202,14 +190,16 @@
          (let* ([nvs (map new-name-def vars)]
                 [nte (append (map var-pair vars nvs) type-env)])
            (values (make-type-poly nvs (gensym-names-ast t val-env nte)) nte))]
-        [else (values (gensym-names-ast type) type-env)]))
-    (define-values (new-def-val nvn)
+        [else (values (gensym-names-ast type val-env type-env) type-env)]))
+    (define-values (new-def-val nvn new-type-env)
       (match vt-def
         [(def-typed-val name type val)
          (define-values (new-type nte) (do-type type type-env))
          (define nn (new-name-def name))
          (define vnn (var-pair name nn))
-         (values (make-def-typed-val name new-type (gensym-names-ast val val-env #;(cons vnn val-env) nte)) vnn)]))
+         (values (make-def-typed-val name new-type (gensym-names-ast val val-env #;(cons vnn val-env) nte))
+                 vnn
+                 nte)]))
     (values new-def-val (cons nvn val-env) type-env))
   (define (do-defs defs val-env type-env)
     (define-values (val-defs type-defs typeof-defs test-defs) (split-defs defs))
@@ -234,7 +224,15 @@
 (module+ test
   (require "stx-to-cry-ast.rkt"
            "../prelude.rkt")
-  (gensym-names-defs
-   (append (remove-gen-defs (stx-to-cry-ast primitive-typeofs-stx))
-           (remove-gen-defs (stx-to-cry-ast prelude-defs-stx))
-           )))
+  ;; (gensym-names-defs
+  ;;  (append (remove-gen-defs (stx-to-cry-ast primitive-typeofs-stx))
+  ;;          (remove-gen-defs (stx-to-cry-ast prelude-defs-stx))
+  ;;          ))
+  (define-values (new-ast val-env type-env)
+    (gensym-names-defs
+     (stx-to-cry-ast #`(def
+                         [sha1 : {n} (<= (width (* 8 n)) 64) => [n [8]] -> [160]]
+                         [sha1 msg = (sha1^ pmsg)
+                               [pmsg : [(/^ (+ (* n 8) 65) 512) [512]]]
+                               [pmsg = (pad (join msg))]]))))
+  (pretty-print (pretty-cry new-ast)))

@@ -9,6 +9,7 @@
          "ctxt.rkt"
          "types.rkt"
          "compiler.rkt"
+         "debug.rkt"
          sham/sam/transform
          sham/sam/rkt
          sham/sam/runtime)
@@ -61,6 +62,7 @@
           (match-define (def-typed-val name type value) tv)
           (update-env
            vc
+           #:typeof (env-var name type)
            #:val
            (env-lazy-var name
                          (λ (pargs vargs app-ctxt)
@@ -72,7 +74,7 @@
 (define (do-typed-val name type val orig-ctxt pargs vargs app-ctxt)
   ;; (define val-type (lookup-typeof orig-ctxt name))
   (debug (printf "forcing-lazy: ~a\n  val:~a\n  pargs:~a\n  vargs:~a\n  ret-type:~a\n"
-                 name val pargs vargs (cc-type orig-ctxt)))
+                 name (pretty-cry val) pargs vargs (cc-type orig-ctxt)))
   (define-values (pargs-evs up-type) (specialize-poly-type type pargs vargs app-ctxt))
   (let* ([new-name (ast-id-gen name)]
          [new-env (update-env (cc-env orig-ctxt) #:tvar pargs-evs)]
@@ -96,7 +98,8 @@
           (let ([bind-ctxt (update-ctxt-for-bind ctxt p res)])
             (compile-expr-bind (cexpr res bind-ctxt) bind-ctxt))]
          [(app rator (targs ...) vargs ...)
-          (debug (printf "app: ~a ~a ~a\n" (cons rator (lookup-val ctxt (expr-var-name rator))) targs vargs))
+          (printf "cexpr-app: ~a\n" (pretty-cry this-ast))
+          ;; (debug (printf "app: ~a ~a ~a\n" (cons rator (lookup-val ctxt (expr-var-name rator))) targs vargs))
           (let ([rator-val (car (lookup-env-vars (env-val (cc-env ctxt)) (expr-var-name rator)))])
             (match rator-val
               [(env-primitive-var rator-name rator-pval)
