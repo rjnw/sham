@@ -1,5 +1,6 @@
 #lang racket
-(require (for-syntax racket/syntax))
+(require (for-syntax racket/syntax
+                     syntax/parse))
 (provide (all-defined-out))
 
 (define-for-syntax compiler-functions
@@ -45,12 +46,27 @@
     [(_ cid) #`(struct cid #,compiler-functions)]))
 (create-compiler-struct compiler)
 
-(define-syntax (create-test-compiler stx)
-  #`(compiler
-     #,@(for/list ([f (syntax-e compiler-functions)]) #`(λ (ctxt . args) `(#,f ,@args)))))
 
-(define test-compiler (create-test-compiler))
+(define-syntax (define-compiler stx)
+  (syntax-parse stx
+    [(_ name:id ((fname:id . fargs) . fbodys) ...)
+     (define given-fs
+       (map list
+            (syntax->datum #`(fname ...))
+            (syntax-e #`(fargs ...))
+            (syntax-e #`(fbodys ...))))
+     #`(define name
+         (compiler
+          #,@(for/list ([f (syntax-e compiler-functions)])
+               (cond
+                 [(assoc (syntax->datum f) given-fs)
+                  =>
+                  (λ (given)  #`(λ #,(cadr given) #,@(caddr given)))]
+                 [else #`(λ (ctxt . args) `(TODO #,f ,@args))]))))]))
 
+;; (define test-compiler (create-test-compiler))
+
+(define-compiler test-compiler)
 (define current-compiler (make-parameter test-compiler))
 
 (define-syntax (create-compiler-functions stx)

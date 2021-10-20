@@ -1,6 +1,6 @@
 #lang sham/cryptol
 ;;  https://github.com/GaloisInc/cryptol-specs/blob/master/Primitive/Keyless/Hash/SHA1.cry
-#:compile-with test
+#:compile-with sham
 
 (def
   [sha1 : {n} (<= (width (* 8 n)) 64) => [n [8]] -> [160]]

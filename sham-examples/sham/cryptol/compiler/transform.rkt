@@ -26,7 +26,7 @@
               (for/list ([p ps]
                          [i (length ps)]
                          [t (type-tuple-ts typ)])
-                (do-pat p (compile-tuple-index val i ctxt) t)))]
+                (do-pat p (compile-tuple-index val typ i ctxt) t)))]
       [(pat-sequence ps ...)
        (apply append
               (for/list ([p ps]
@@ -80,7 +80,7 @@
          [new-env (update-env (cc-env orig-ctxt) #:tvar pargs-evs)]
          [new-ctxt (update-context! orig-ctxt #:type up-type #:env new-env)]
          [cval (do-cry val new-ctxt)]
-         [cdef (compile-def-val name up-type cval new-ctxt)]
+         [cdef (compile-def-val name new-name up-type type pargs-evs cval new-ctxt)]
          [svar (env-special-var new-name cdef up-type name type pargs-evs)])
     (add-lifts! orig-ctxt svar)
     svar))
@@ -186,7 +186,7 @@
   (define (tc . d)
     (check-not-exn (thunk (compile&print d))))
   (tc id-any ti1)
-  (tc pt1 tpt1)
+  ;; (tc pt1 tpt1)
   ;; (tc id-any ti1)
   ;; (tc id-any bit-id-use-any tbi1)
   )

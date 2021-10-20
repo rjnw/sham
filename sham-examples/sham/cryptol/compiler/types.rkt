@@ -83,15 +83,14 @@
 ;; -> (cons new-type env-vars)
 (trace-define
  (unify-type t1 t2 ctxt)
+ (define (unk? t)
+   (or (false? t) (type-unknown? t)))
  (define (unknown-type? t (ctxt ctxt))
    (match t
      [(type-var n) (unknown-type? (lookup-tvar ctxt n) ctxt)]
      [(type-unknown) #t]
      [#f #t]
      [else #f]))
- ;; (define (add-from-unify name ut ctxt)
- ;;   (match-define (cons vars t) ut)
- ;;   (cons (if (concrete-type? t ctxt) (cons (env-var name t) vars) vars) t))
  (define (add-type-var name tu ctxt)
    (cond [(and (cons? tu) (or (dim? (cdr tu))
                               (type? (cdr tu))))
@@ -101,25 +100,19 @@
          [(or (type? tu) (dim? tu)) (cons (list (env-var name tu)) tu)]
          [(false? tu) (no-vars tu)]
          [else (error 'cry/unify "weird-result: ~a ~a" name tu)])
-   ;; (add-from-unify name (cons '() t) ctxt)
    )
  (define (no-vars tu)
    (cond [(and (cons? tu) (type? (cdr tu))) tu]
          [(or (false? tu) (type? tu) (dim? tu)) (cons '() tu)]
          [else (error 'cry/unify "weird-result: ~a" tu)]))
- ;; (debug (printf "unify-type: ~a ~a\n" (pretty-cry t1) (pretty-cry t2)))
  (match* (t1 t2)
    [((type-var v1) (type-var v2))
-    ;; (debug (printf "both-vars: ~a ~a ~a ~a\n" v1 (type-from-name ctxt v1) v2 (type-from-name ctxt v2))
-    ;;        ;; (print-cc ctxt)
-    ;;        )
     (define ut (unify-type (type-from-name ctxt v1) (type-from-name ctxt v2) ctxt))
     (if (cdr ut)
         (add-type-var v1 (add-type-var v2 ut ctxt) ctxt)
         (cons '() #f))]
    [((type-var n1) t2)
     #:when (not (unknown-type? t2))
-    ;; (printf "n1n2: ~a ~a\n" (expand-type ctxt n1) (expand-type ctxt t2))
     (match (type-from-name ctxt n1)
       [#f (if t2 (add-type-var n1 t2 ctxt) t2)]
       [nt1 (unify-type nt1 t2 ctxt)])]
@@ -128,8 +121,8 @@
     (match (type-from-name ctxt n2)
       [#f (if t1 (add-type-var n2 t1 ctxt) t1)]
       [nt2 (unify-type t1 nt2 ctxt)])]
-   [((? unknown-type?) t2) (no-vars t2)]
-   [(t1 (? unknown-type?)) (no-vars t1)]
+   [((? unk?) t2) (no-vars t2)]
+   [(t1 (? unk?)) (no-vars t1)]
    [((type-bit) _)  (no-vars t1)]
    [((type-integer) (type-integer)) (no-vars t1)]
    [((type-integer) (type-sequence d (type-bit))) (no-vars (type-sequence d (type-bit)))]
@@ -240,7 +233,10 @@
       [(expr-cond [chk thn] ... els) TODO]
       [(expr-var name)
        (define type-from-ctxt (lookup-typeof ctxt name))
-       (define (unified-with-given) (or type-from-ctxt maybe-type (unify-type type-from-ctxt maybe-type ctxt)))
+       (define (unified-with-given)
+         (if (and type-from-ctxt maybe-type)
+             (unify-type type-from-ctxt maybe-type ctxt)
+             (cons '() #f)))
        (define (type-from-ast prev-type)
          (match (lookup-env-vars (env-val (cc-env ctxt)) name)
            [(cons (env-lazy-var name f ast) rst) (maybe-calc-type ast prev-type ctxt)]
@@ -379,19 +375,19 @@
       (values (update-env ctxt #:tvar (append (car v-ut) (car t-ut)))
               (cons (cdr t-ut) vts))))
   (define pargs-vals (for/list ([p pevs]) (lookup-tvar varg-ctxt (env-var-name p))))
-  ;; (debug (printf "specialized-poly: \n\t~a => \n\t~a ~a\n pargs: ~a\n"
-  ;;                (pretty-cry orig-type) (map pretty-cry varg-types) (pretty-cry res-ut-type) pargs-vals))
+  (printf "pargs-vals: ~a\n" pargs-vals)
   ;; (when (ormap false? pargs-vals)
   ;;   (print-cc varg-ctxt)
   ;;   (error 'sham/cry "cannot specialize: ~a ~a ~a\n" (pretty-cry orig-type) pargs-vals varg-types))
+  (define full-func-type (maybe-full-type uptype varg-ctxt))
   (define ufunc-type (foldr make-type-func (cdr res-ut-type) (reverse varg-types)))
   (values (map (λ (p pv) (env-var (env-var-name p) pv)) pevs pargs-vals)
-          (if (ormap false? pargs-vals)
+          (if full-func-type ;; (ormap false? pargs-vals)
+              full-func-type
               (make-type-poly (filter (λ (v) (and (false? (cdr v))
                                                   (car v)))
                                       (map cons pevs pargs-vals))
-                              ufunc-type)
-              ufunc-type))
+                              ufunc-type)))
 
   #;(let* ([maybe-result-type (cc-type ctxt)]
          [maybe-varg-types (map (curryr maybe-calc-type ctxt) value-args (drop-right (get-farg-types uptype) 1))]

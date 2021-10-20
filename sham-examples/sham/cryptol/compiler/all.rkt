@@ -4,22 +4,14 @@
          sham/sam/pretty)
 
 (require "compiler.rkt"
+         "sham.rkt"
          "transform.rkt"
          "stx-to-cry-ast.rkt"
          "utils.rkt"
+         "ctxt.rkt"
          "debug.rkt")
 
 (provide (all-defined-out))
-
-  ;; (define (get-ast stx)
-  ;;   (println "read-syntax:") (pretty-print (syntax->datum stx))
-  ;;   (define cry-ast (stx-to-cry-ast stx))
-  ;;   (println "parsed-cry:") (pretty-print-ast cry-ast) (newline)
-  ;;   ;; (define rkt-stx (cry-ast-to-rkt-stx cry-ast))
-  ;;   ;; (pretty-print (syntax->datum rkt-stx))
-  ;;   ;; rkt-stx
-  ;;   cry-ast
-  ;;   )
 
 (define (create-test-top cmplr)
   (λ (stxs)
@@ -33,6 +25,7 @@
       (parameterize ([current-compiler cmplr])
         (compile-cry cry-asts)))
     (debug (printf "result:\n~a\n" res-stxs))
+    (pretty-print (unbox (cc-lifts ctxt)))
 
     (strip-context
      #`(module default racket
@@ -40,6 +33,7 @@
          ))))
 
 ;; maps to functions that take a list of stxs and return the final syntax for a file
-(define compiler-maps (make-hash `((test . ,(create-test-top test-compiler)))))
+(define compiler-maps (make-hash `((test . ,(create-test-top test-compiler))
+                                   (sham . ,(create-test-top sham-compiler)))))
 
 (define (get-compiler key) (hash-ref compiler-maps key))
