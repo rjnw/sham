@@ -20,9 +20,10 @@
 
 ;; TODO cs does not support ptr to non-atomic memory
 (define raw-type
-  (ll-type-ref #:md (set-type-md-special-rkt! (empty-type-md)
-                                           (make-ctype _uint64 rkt-raw-uintptr rkt-unraw-uintptr))
-            'i64))
+  (ll-type-ref
+   #:md (set-type-md-special-rkt! (empty-type-md)
+                                  (make-ctype _uint64 rkt-raw-uintptr rkt-unraw-uintptr))
+   'i64))
 
 (define (raw-val v)
   (unless (exact-positive-integer? v)
@@ -82,10 +83,10 @@
                 (match d
                   [(llvm:def:type _ t) (or (ref-type-md-special-rkt md)
                                              (rec t))]
-                  [(sham:def:struct #:md md _ _ _) (ref-type-md-special-rkt md)]))])]
+                  [(sham:def:struct #:md md _ (fn ft) ...) (ref-type-md-special-rkt md)]))])]
           [(llvm:type:pointer _) _pointer]
           [(llvm:type:array _ _) _pointer]
-          [(llvm:type:function args var-arg? ret)
+          [(llvm:type:function args ... var-arg? ret)
            (define arg-types (map rec args))
            (define ret-type (rec ret))
            (if (or (ormap false? arg-types) (false? ret-type))

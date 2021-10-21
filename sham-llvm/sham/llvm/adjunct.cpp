@@ -126,12 +126,12 @@ extern "C" {
     initializeTarget(Registry);
     // For codegen passes, only passes that do IR to IR transformation are
     // supported.
-    initializeScalarizeMaskedMemIntrinPass(Registry);
+    // initializeScalarizeMaskedMemIntrinPass(Registry);
     initializeCodeGenPreparePass(Registry);
     initializeAtomicExpandPass(Registry);
     initializeRewriteSymbolsLegacyPassPass(Registry);
     initializeWinEHPreparePass(Registry);
-    initializeDwarfEHPreparePass(Registry);
+    // initializeDwarfEHPreparePass(Registry);
     initializeSafeStackLegacyPassPass(Registry);
     initializeSjLjEHPreparePass(Registry);
     initializePreISelIntrinsicLoweringLegacyPassPass(Registry);

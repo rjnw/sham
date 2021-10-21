@@ -17,9 +17,10 @@
   (make-def-function
      (format "pow-~a" n)
      (ll-type-function i64 #f i64)
-     (stmt-return (for/fold ([result (ui64 1)])
-                            ([i n])
-                    (op-mul (expr-ref 0) result)))))
+     (stmt-return
+      (for/fold ([result (ui64 1)])
+                ([i n])
+        (op-mul (expr-ref 0) result)))))
 
 (define pow-2 (gen-pow-f 2))
 
@@ -27,7 +28,8 @@
   (require rackunit
            sham/parameters)
   (define t-module
-    (make-def-module 'raw-sham-function-test-module (list identity-f pow-f pow-2)))
+    (def-module 'raw-sham-function-test-module
+      identity-f pow-f pow-2))
   (define s-env (parameterize ([debug-sham-builder #t]) (build-sham-env t-module)))
   (sham-dump-llvm-ir s-env)
   (test-true "sham:verify:raw-functions" (sham-verify-llvm-ir s-env)))

@@ -1,6 +1,7 @@
 #lang racket
 
 (require sham
+         sham/ir/open
          (prefix-in rkt- sham/rkt))
 
 (define-current-sham-env test-env)

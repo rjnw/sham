@@ -100,11 +100,13 @@
         [(? llvm:instruction:op?)
          (add-instruction! current-block expr)
          (values (inst-op-result expr) current-block)]
+        [(sham:expr:ref (? number? n))
+         (values (val-param n) current-block)]
         [(sham:expr:ref sym)
          (define expr-value (gensym 'base-ref))
          (add-instruction! current-block (op-load expr-value (sym)))
          (values expr-value current-block)]
-        [(sham:expr:op rator flags args ...)
+        [(sham:expr:op #:md md rator args ...)
          (define expr-value (gensym 'op))
          (define arg-vals
            (for/list ([arg args])
@@ -135,7 +137,7 @@
                                   external-name))
                       current-block)]
              [else (error 'sham:ir:builder "unknown rator ~a" rator)]))
-         (add-instruction! new-block (make-inst-op expr-value llvm-rator flags arg-vals))
+         (add-instruction! new-block (make-inst-op expr-value llvm-rator '() arg-vals))
          (values expr-value new-block)]
         [(sham:expr:access struct-field value)
          (match-define (cons struct-name field-name) struct-field)

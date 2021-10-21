@@ -65,7 +65,9 @@
       [(cons k v) (printf "\t~a: ~a\n" k v)])))
 
 (define (default-metadata . specs)
-  (ormap (curry info-1value 'default-metadata) specs))
+  (cond
+    [(ormap (curry info-1value 'default-metadata) specs) => car]
+    [else #f]))
 
 (define-syntax (kw-info stx)
   (define (do-val v)
