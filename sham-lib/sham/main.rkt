@@ -1,7 +1,7 @@
 #lang racket/base
 
 (require "init.rkt"
-         "jit.rkt"
+         ;; "jit.rkt"
          "ast.rkt"
          "env.rkt"
          "utils.rkt"
@@ -13,7 +13,7 @@
 (provide
  (all-from-out
   "ast.rkt"
-  "jit.rkt"
+  ;; "jit.rkt"
   "utils.rkt"
   "higher.rkt"
   "parameters.rkt"
