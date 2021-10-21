@@ -12,23 +12,23 @@
 (struct env-prelude-var env-var [] #:transparent)     ;; prelude value
 (struct env-special-var env-var [type oname otype pargs] #:transparent) ;; lazy compile returns a specialized value for specific pargs and gensym'd name
 
-(define (maybe-first-env-vars env-vars)
+(define (maybe-first-env-vars env-vars (getter env-var-val))
   (match env-vars
     ['() #f]
-    [(cons fst rst) (env-var-val fst)]))
+    [(cons fst rst) (getter fst)]))
 
 (define (lookup-env-vars evs name)
   (define (is-val? v)
-    (id-free=? (env-var-name v) name))
+    (id-datum=? (env-var-name v) name))
   (filter is-val? evs))
 
-(define ((lookup-in-env f) c/e name)
+(define ((lookup-in-env f (getter env-var-val)) c/e name)
   (define env (cond
                 [(cc? c/e) (cc-env c/e)]
                 [(env? c/e) c/e]
                 [else (error 'sham/cryptol "unknown ctxt/env ~a" c/e)]))
   ;; (debug (printf "looking-in-env: ~a ~a\n" f name) (print-env env))
-  (maybe-first-env-vars (lookup-env-vars (f env) name)))
+  (maybe-first-env-vars (lookup-env-vars (f env) name) getter))
 
 (define (print-ev ev)
   (match ev
@@ -63,6 +63,7 @@
   (printf "  tvars:\n") (print-evs tvs)
   e)
 
+(define lookup-val-env (lookup-in-env env-val identity))
 (define lookup-val (lookup-in-env env-val))
 (define lookup-typeof (lookup-in-env env-typeof))
 (define lookup-type (lookup-in-env env-type))
@@ -87,31 +88,32 @@
         [else (doe (empty-env))]))
 
 ;; context keeps track of current type, poly type vars currently active, result value and lifts
-(struct cc [type env pvars res lifts]
+(struct cc [type env pvars res cctxt lifts]
   #:methods gen:custom-write
   [(define (write-proc val port mode)
      (fprintf port "<ctxt>")
      #;(parameterize ([current-output-port port])
        (print-cc val)))])
 (define (print-cc c)
-  (match-define (cc t env pvars res lifts) c)
+  (match-define (cc t env pvars res icc lifts) c)
   (printf "ctxt:\n type: ~a\n pvars: ~a\n res: ~a\n #lifts: ~a\n" t pvars res (length (unbox lifts)))
   (printf " env:\n")
   (print-env env)
   c)
-(define (empty-context) (cc #f (empty-env) '() #f (box '())))
+(define (empty-context) (cc #f (empty-env) '() #f #f (box '())))
 (define (update-context! (from #f)
                          #:type (type #f)
                          #:env (env #f)
                          #:lifts (lifts '())
                          #:pvars (pvars #f)
-                         #:res (res #f))
+                         #:res (res #f)
+                         #:cc (cctxt #f))
   (cond
     [(cc? from)
-     (match-define (cc t oe op os ol) from)
+     (match-define (cc t oe op os oc ol) from)
      (unless (empty? lifts) (set-box! ol (append lifts (unbox ol))))
-     (cc (or type t) (or env oe) (or pvars op) (or res os) ol)]
-    [else (cc type env pvars res (if (box? lifts) lifts (box lifts)))]))
+     (cc (or type t) (or env oe) (or pvars op) (or res os) (or oc cctxt) ol)]
+    [else (cc type env pvars res cctxt (if (box? lifts) lifts (box lifts)))]))
 
 (define (add-lifts! c . lfs)
   (define lifts (flatten lfs))

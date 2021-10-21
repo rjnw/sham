@@ -78,9 +78,10 @@
   (define-values (pargs-evs up-type) (specialize-poly-type type pargs vargs app-ctxt))
   (let* ([new-name (ast-id-gen name)]
          [new-env (update-env (cc-env orig-ctxt) #:tvar pargs-evs)]
-         [new-ctxt (update-context! orig-ctxt #:type up-type #:env new-env)]
+         [cctxt (compile-internal-def-context name type orig-ctxt)]
+         [new-ctxt (update-context! orig-ctxt #:type up-type #:env new-env #:cc cctxt)]
          [cval (do-cry val new-ctxt)]
-         [cdef (compile-def-val name new-name up-type type pargs-evs cval new-ctxt)]
+         [cdef (compile-def-val name new-name up-type type pargs-evs cval cctxt new-ctxt)]
          [svar (env-special-var new-name cdef up-type name type pargs-evs)])
     (add-lifts! orig-ctxt svar)
     svar))
@@ -91,7 +92,15 @@
         ;; [(val name body)
         ;;  (let ([val-ctxt (update-ctxt-for-def-val name body ctxt)])
         ;;    (do-def-val name body val-ctxt))]
-        [(test name (^ e1) (^ e2)) (compile-def-test name e1 e2 ctxt)])
+        [(test name e1 e2)
+         (define type (cdr (maybe-calc-type e1 (cdr (maybe-calc-type e2 #f ctxt)) ctxt)))
+         (define tc (compile-internal-def-context name type ctxt))
+         (match-define (cons re1 re2) (compile-def-test-results type (update-context! ctxt #:cc tc)))
+         (compile-def-test name
+                           type
+                           (cexpr e1 (update-context! ctxt #:res re1 #:cc tc))
+                           (cexpr e2 (update-context! ctxt #:res re2 #:cc tc))
+                           ctxt)])
 
   (cexpr (expr -> any)
          [(bind (p ...) res)
@@ -100,7 +109,10 @@
          [(app rator (targs ...) vargs ...)
           (printf "cexpr-app: ~a\n" (pretty-cry this-ast))
           ;; (debug (printf "app: ~a ~a ~a\n" (cons rator (lookup-val ctxt (expr-var-name rator))) targs vargs))
-          (let ([rator-val (car (lookup-env-vars (env-val (cc-env ctxt)) (expr-var-name rator)))])
+          (let ([rator-val
+                 (lookup-val-env ctxt (expr-var-name rator))
+                 ;; (car (lookup-env-vars (env-val (cc-env ctxt)) (expr-var-name rator)))
+                 ])
             (match rator-val
               [(env-primitive-var rator-name rator-pval)
                (define-values (pvar-args rator-up-type)
@@ -115,10 +127,10 @@
                       [compiled-vargs
                        (for/list ([varg vargs]
                                   [vargt (get-farg-types new-rator-type)])
-                         (cexpr varg (update-context! ctxt #:type vargt)))])
-                 (compile-expr-app (env-var-name compiled-rator) compiled-vargs ctxt))]))]
+                         (cexpr varg (update-context! ctxt #:res #f #:type vargt)))])
+                 (compile-expr-app compiled-rator compiled-vargs ctxt))]))]
          [(cond ((^ chk) (^ thn)) ... (^ els)) (compile-expr-cond chk thn els ctxt)]
-         [(var name) (compile-expr-var name (lookup-val ctxt name) ctxt)]
+         [(var name) (compile-expr-var name (lookup-val-env ctxt name) ctxt)]
          [(tvar name) (compile-expr-tvar name (lookup-type ctxt name) ctxt)]
          [(annot e t) (cexpr e (update-context! ctxt #:type t))]
          [(where (^ body)) body]
@@ -153,6 +165,12 @@
   (define prim-env (append (append-map do-prim (def-combined-types prims)) (append-map do-prim (def-combined-tos prims))))
   (define-values (combined-prelude prelude-val-env prelude-type-env) (gensym-names-defs prelude-defs-asts))
   (define-values (combined-input inp-val-env inp-type-env) (gensym-names-defs asts))
+  (debug (printf "prelude:\n")
+         (pretty-print (pretty-cry combined-prelude))
+         (printf "primitives:\n") (pretty-print (pretty-cry prims))
+         (pretty-print prim-env)
+         (printf "compiling:\n")
+         (pretty-print (pretty-cry combined-input)))
   (define ctxt
     (update-ctxt-for-cdef
      combined-input

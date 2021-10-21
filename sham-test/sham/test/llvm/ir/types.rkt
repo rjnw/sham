@@ -1,7 +1,8 @@
 #lang racket
 
 (require sham/md
-         sham/llvm/ir)
+         sham/llvm/ir
+         (prefix-in op- (submod sham/llvm/ir/specific ops)))
 
 (provide (all-defined-out))
 

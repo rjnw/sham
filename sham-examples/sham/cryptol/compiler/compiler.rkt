@@ -5,8 +5,11 @@
 
 (define-for-syntax compiler-functions
   #`(
+     internal-def-context
+
      def-val
      def-test
+     def-test-results
 
      tests
 
@@ -61,7 +64,7 @@
                (cond
                  [(assoc (syntax->datum f) given-fs)
                   =>
-                  (λ (given)  #`(λ #,(cadr given) #,@(caddr given)))]
+                  (λ (given) (quasisyntax/loc f (λ #,(cadr given) #,@(caddr given))))]
                  [else #`(λ (ctxt . args) `(TODO #,f ,@args))]))))]))
 
 ;; (define test-compiler (create-test-compiler))

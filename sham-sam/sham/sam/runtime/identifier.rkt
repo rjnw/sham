@@ -37,6 +37,7 @@
         [(syntax? aid) aid]
         [(symbol? aid) (datum->syntax #f aid)]
         [else (error 'sham/sam/id "unknown identifier ~a" aid)]))
+(define (ast-id-datum aid) (syntax-e (ast-id-stxid aid)))
 (define (ast-id-gen aid)
   (match aid
     [(ast:id:ref md stxid defs) (ast:id:ref md (car (generate-temporaries (list stxid))) defs)]
@@ -55,6 +56,7 @@
   ref)
 
 (define (id-free=? i1 i2) (free-identifier=? (ast-id-stxid i1) (ast-id-stxid i2)))
+(define (id-datum=? i1 i2) (equal? (ast-id-datum i1) (ast-id-datum i2)))
 
 (define (id-orig=? i1 i2) (or (equal? (ast-id-stxid i1) (ast-id-stxid i2)) (id-free=? i1 i2)))
 

@@ -1,6 +1,7 @@
 #lang racket
 
 (require sham/llvm/ir
+         (prefix-in op- (submod sham/llvm/ir/specific ops))
          sham/md)
 
 (require "types.rkt")
