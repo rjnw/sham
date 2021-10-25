@@ -8,12 +8,15 @@
          "ctxt.rkt"
          "../ast.rkt"
          "types.rkt")
-(provide sham-compiler)
+
+(provide sham-compiler
+         require-syntax
+         extra-syntax)
 (define (cons-box! val blst)
   (set-box! blst (cons val (unbox blst))))
 (define (to-sham-type cry-type)
   (match cry-type
-    [(type-bit) #`ll-i1]
+    [(type-bit) #`i1]
     [else #`TODO-sham-type]))
 (define (add-ptr-type sham-type) #`(ll-type-pointer #,sham-type))
 
@@ -55,10 +58,10 @@
    (cons (sham-alloca-type ctxt type) (sham-alloca-type ctxt type))]
   [(def-test ctxt name type val1 val2)
    (with-syntax ([name-str (format "~a" (syntax-e (ast-id-stxid name)))])
-     #`(stmt-if (compare-for-type #,type #,val1 #,val2) (print-yay name-str) (print-nay name-str)))]
+     #`(stmt-if (compare-for-type #,type #,val1 #,val2) (print-yay (ll-val-string name-str)) (print-nay (ll-val-string name-str))))]
 
   [(tests ctxt ts)
-   #`(make-def-function 'run-tests (list) #f (ll-type-void)
+   #`(make-def-function 'run-tests (list) #f (ll-void)
                         (stmt-block #,@ts
                                     (stmt-return-void)))]
 
@@ -85,3 +88,19 @@
 
 
   [(sequence-str ctxt str) #`(result-string #,str #,(cc-res ctxt))])
+
+(define require-syntax
+  #`(
+     (require sham/ir
+              sham/jit
+              sham/md
+              (prefix-in ll- sham/llvm/ir))))
+
+(define extra-syntax
+  #`(
+     (define built-sham-env (build-sham-env cryptol-module))
+     (sham-print-llvm-ir built-sham-env)
+     (sham-verify-llvm-ir built-sham-env)
+     (define built-jit-env (initialize-jit built-sham-env))
+     (define test-runner (jit-lookup-function built-jit-env 'run-tests))
+     (module+ test (test-runner))))

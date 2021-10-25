@@ -3,15 +3,17 @@
 (require syntax/parse/define)
 
 (require sham/llvm/ir
+         sham/sam/runtime
+         sham/md
          sham/llvm/ir/simple
          (prefix-in op- (submod sham/llvm/ir/specific ops))
          sham/llvm/ir/env
          sham/ir/ast
          sham/ir/env
          sham/ir/dump
-         sham/parameters
          sham/rkt/ffi
-         sham/rkt/conv)
+         sham/rkt/conv
+         sham/parameters)
 
 (require sham/private/box)
 
@@ -45,7 +47,7 @@
   (define external-map (make-hash))
   (define (collect-jit-rkt-external! llvm-def sham-def)
     (match-define (sham:def:racket name value type rkt-type) sham-def)
-    (collect-external! (external-mapping name (raw-uintptr value rkt-type))))
+    (collect-external! (external-mapping name (func-uintptr value rkt-type))))
   (define (collect-jit-lib-external! llvm-def sham-rator)
     (match-define (sham:rator:external lib-id id type var-arg?) sham-rator)
     (match-define (llvm:def:external name llvm-type) llvm-def)
@@ -130,7 +132,7 @@
              [(sham:rator:external #:md md lib-id id type var-arg?)
               (values (hash-ref! external-map rator
                                  (thunk
-                                  (define external-name (gensym (string->symbol (format "~a-~a" lib-id id))))
+                                  (define external-name (gensym (string->symbol (format "~a-~a" id (or lib-id "")))))
                                   (define llvm-def (llvm:def:external #:md md external-name (translate-type type)))
                                   (collect-def! llvm-def)
                                   (collect-jit-lib-external! llvm-def rator)
@@ -294,6 +296,11 @@
       [(? sham:def:racket?) (collect-sham-racket! def)]))
 
   (map translate&collect-def! module-defs)
+  (define mmd (llvm-metadata module-md))
+  (define new-module-md
+    (ast:metadata
+     (ast:metadata-locs module-md)
+     (set-module-md-jit-external-mappings! mmd (append (or (ref-module-md-jit-external-mappings mmd) '()) (unbox externals)))))
   (sham-module module-ast
-               (make-llvm:def:module #:md module-md module-name (reverse (unbox defs)))
+               (make-llvm:def:module #:md new-module-md module-name (reverse (unbox defs)))
                (unbox externals)))

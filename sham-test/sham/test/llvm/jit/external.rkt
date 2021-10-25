@@ -12,23 +12,24 @@
       (inst-op 'ret 'ex-rkt #f (0))
       (inst-ret 'ret))))
 
+(define ex-rkt
+  (external-mapping
+   'ex-rkt
+   (cast
+    (function-ptr rkt-f (_fun _uint64 -> _uint64))
+    _pointer
+    _uintptr)))
+
 (module+ test
   (require rackunit
            ffi/unsafe)
   (define rkt-f add1)
-  (define ex-rkt
-    (external-mapping
-     'ex-rkt
-     (cast
-      (function-ptr rkt-f (_fun _uint64 -> _uint64))
-      _pointer
-      _uintptr)))
+
   (define t-module
     (def-module
       #:md (set-module-md-jit-external-mappings!
             (empty-module-md)
-            (list
-             ex-rkt))
+            (list ex-rkt))
       'external-jit-test-module
       (def-external 'ex-rkt (type-function i64 #f i64))
       call-rkt-f))

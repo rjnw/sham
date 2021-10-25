@@ -49,9 +49,7 @@
        (assoc-env-extend decl-env name (llvm-value value-ref type-ref))]
       [(llvm:def:external name type)
        (define type-ref (compile-type type internal-env decl-env))
-       (define value-ref (LLVMAddGlobal llvm-module
-                                        type-ref
-                                        (to-string name)))
+       (define value-ref (LLVMAddGlobal llvm-module type-ref (to-string name)))
        (assoc-env-extend decl-env name (llvm-external value-ref type-ref))]
       [(llvm:def:intrinsic id name type)
        (define type-ref (compile-type type internal-env decl-env))
@@ -129,11 +127,11 @@
       (define (build-block! b)
         (define (compile-value v)
           (match v
-            [(? (curry assoc-env-contains? decl-env)) (assoc-env-lookup decl-env v)]
+            [(? (curry assoc-env-contains? decl-env)) (llvm-value-ref (assoc-env-lookup decl-env v))]
             [(? symbol?) (local-var-ref v)]
             [(? exact-nonnegative-integer?) (LLVMGetParam function-ref v)]
             [(llvm:value:ref sym)
-             (if (assoc-env-contains? decl-env sym) (assoc-env-lookup decl-env sym) (local-var-ref sym))]
+             (if (assoc-env-contains? decl-env sym) (llvm-value-ref (assoc-env-lookup decl-env sym)) (local-var-ref sym))]
             [(llvm:value:param i) (LLVMGetParam function-ref i)]
             [(? llvm:value?) (compile-constant v internal-env decl-env
                                                    (λ (v ie de) (compile-value v)))]

@@ -29,6 +29,7 @@
   (when external-mappings
     (for ([m external-mappings])
       (match-define (external-mapping name uintptr) m)
+      ;; (error 'sham/TODO "external-mapping: ~a\n" uintptr)
       (match-define (llvm-external value-ref type-ref) (llvm-env-lookup-value env name))
       (LLVMAddGlobalMapping mcjit-ref value-ref uintptr))))
 
