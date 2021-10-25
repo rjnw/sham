@@ -106,14 +106,14 @@
                          #:env (env #f)
                          #:lifts (lifts '())
                          #:pvars (pvars #f)
-                         #:res (res #f)
+                         #:res (res (void))
                          #:cc (cctxt #f))
   (cond
     [(cc? from)
      (match-define (cc t oe op os oc ol) from)
      (unless (empty? lifts) (set-box! ol (append lifts (unbox ol))))
-     (cc (or type t) (or env oe) (or pvars op) (or res os) (or oc cctxt) ol)]
-    [else (cc type env pvars res cctxt (if (box? lifts) lifts (box lifts)))]))
+     (cc (or type t) (or env oe) (or pvars op) (if (void? res) os res) (or oc cctxt) ol)]
+    [else (cc type env pvars (if (void? res) #f res) cctxt (if (box? lifts) lifts (box lifts)))]))
 
 (define (add-lifts! c . lfs)
   (define lifts (flatten lfs))

@@ -48,8 +48,10 @@
        #`(module default racket
            #,@require-syntax
            (define cryptol-module
-             (list #,res-stxs
-                   #,@(map env-var-val (unbox (cc-lifts ctxt)))))
+             (def-module 'cryptol-module
+               #,@primitive-defs
+               #,res-stxs
+               #,@(map env-var-val (unbox (cc-lifts ctxt)))))
            #,@extra-syntax
            )))
     (debug (pretty-print (syntax->datum result-syntax)))

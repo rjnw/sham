@@ -99,8 +99,10 @@
          (compile-def-test name
                            type
                            (cexpr e1 (update-context! ctxt #:res re1 #:cc tc))
+                           re1
                            (cexpr e2 (update-context! ctxt #:res re2 #:cc tc))
-                           ctxt)])
+                           re2
+                           (update-context! ctxt #:cc tc))])
 
   (cexpr (expr -> any)
          [(bind (p ...) res)
@@ -118,7 +120,7 @@
                (define-values (pvar-args rator-up-type)
                  (specialize-poly-type (lookup-typeof ctxt rator-name) targs vargs ctxt))
                (define compiled-vargs
-                 (map (λ (v t) (cexpr v (update-context! ctxt #:type t)))
+                 (map (λ (v t) (cexpr v (update-context! ctxt #:res #f #:type t)))
                       vargs (drop-right (get-farg-types rator-up-type) 1)))
                (compile-expr-app-primitive rator-name rator-pval pvar-args compiled-vargs ctxt)]
               [(env-lazy-var name valf ast)

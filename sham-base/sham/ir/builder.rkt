@@ -266,7 +266,8 @@
          (errored-terminate block* "expr" "return")
          (terminate-block! block* (inst-ret val-val))]
         [(sham:stmt:return-void)
-         (terminate-block! current-block (inst-retv))]))
+         (terminate-block! current-block (inst-retv))]
+        [s (error 'sham "invalid sham statement: ~a" s)]))
     (match body
       [(list llvm-blocks ... base-stmt)
        (map collect-block! llvm-blocks)
