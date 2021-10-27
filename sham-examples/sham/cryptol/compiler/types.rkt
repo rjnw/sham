@@ -89,6 +89,7 @@
    (match t
      [(type-var n) (unknown-type? (lookup-tvar ctxt n) ctxt)]
      [(type-unknown) #t]
+     ;; [(type-integer) #t]
      [#f #t]
      [else #f]))
  (define (add-type-var name tu ctxt)
@@ -114,22 +115,25 @@
    [((type-var n1) t2)
     #:when (not (unknown-type? t2))
     (match (type-from-name ctxt n1)
-      [#f (if t2 (add-type-var n1 t2 ctxt) t2)]
+      [#f (if t2 (add-type-var n1 t2 ctxt) (cons '() #f))]
+      [(type-integer) (add-type-var n1 (unify-type (type-sequence #f (type-bit)) t2 ctxt) ctxt)]
       [nt1 (unify-type nt1 t2 ctxt)])]
    [(t1 (type-var n2))
     #:when (not (unknown-type? t1))
-    (match (type-from-name ctxt n2)
+    (unify-type t2 t1 ctxt)
+    #;(match (type-from-name ctxt n2)
       [#f (if t1 (add-type-var n2 t1 ctxt) t1)]
       [nt2 (unify-type t1 nt2 ctxt)])]
    [((? unk?) t2) (no-vars t2)]
    [(t1 (? unk?)) (no-vars t1)]
    [((type-bit) _)  (no-vars t1)]
    [((type-integer) (type-integer)) (no-vars t1)]
-   [((type-integer) (type-sequence d (type-bit))) (no-vars (type-sequence d (type-bit)))]
+   [((type-integer) (type-sequence d (type-bit))) (no-vars (type-sequence (or (maybe-full-type d ctxt) d) (type-bit)))]
    [((type-integer) (type-sequence d v))
     (apply-uts make-type-sequence (unify-type #f d ctxt) (unify-type (type-bit) v ctxt))
     ;; #:when (unknown-type? v) (no-vars (type-sequence d (type-bit)))
     ]
+   [((type-sequence d v) (type-integer)) (unify-type t2 t1 ctxt)]
    [((type-tuple t1s ...) (type-tuple t2s ...))
     (define t12u (map (curryr unify-type ctxt) t1s t2s))
     (cons (append-map car t12u)
@@ -145,18 +149,10 @@
           utype)]
    [((type-constraint (cs ...) ct1) t2) (unify-type ct1 t2 ctxt)]
    [((type-func ft1 tt1) (type-func ft2 tt2))
-    (apply-uts make-type-func (unify-type ft1 ft2 ctxt) (unify-type ft1 ft2 ctxt))
-    ;; (define ftu (unify-type ft1 ft2 ctxt))
-    ;; (define ttu (unify-type tt1 tt2 ctxt))
-    ;; (cons (append (car ftu) (car ttu)) (type-func (cdr ftu) (cdr ttu)))
-    ]
+    (apply-uts make-type-func (unify-type ft1 ft2 ctxt) (unify-type ft1 ft2 ctxt))]
    ;; [((type-func ft1 ft2) t2) (unify-type t2 t1 ctxt)]
    [((type-sequence d1 t1) (type-sequence d2 t2))
-    (apply-uts make-type-sequence (unify-type d1 d2 ctxt) (unify-type t1 t2 ctxt))
-    ;; (define dtu (unify-type d1 d2 ctxt))
-    ;; (define ttu (unify-type t1 t2 ctxt))
-    ;; (cons (append (car dtu) (cdr ttu)) (type-sequence (cdr dtu) (cdr ttu)))
-    ]
+    (apply-uts make-type-sequence (unify-type d1 d2 ctxt) (unify-type t1 t2 ctxt))]
    [((dim-var n1) (dim-int i)) (add-type-var n1 (unify-type t2 (type-from-name ctxt n1) ctxt) ctxt)]
    [((dim-var n1) t2)
     ;; (printf "lt: ~a\n" (type-from-name ctxt n1))
@@ -254,7 +250,10 @@
                    [(maybe-full-type (cdr tfa) ctxt) => (λ (t) (cons (append (car ut) (car tfa)) t))]
                    [else (cons (append (car ut) (car tfa)) (cdr tfa))]))]))])]
       [(expr-tvar name) (unify-type (type-from-name ctxt name) maybe-type ctxt)]
-      [(expr-annot e t) (maybe-calc-type e (unify-type t maybe-type ctxt) ctxt)]
+      [(expr-annot e t)
+       (define ut (unify-type t maybe-type ctxt))
+       (match-define (cons evs ct) (maybe-calc-type e (cdr ut) ctxt))
+       (cons (append (car ut) evs) ct)]
       [(expr-lit i) (unify-type (type-integer) maybe-type ctxt)]
       [(expr-char c) (unify-type (type-sequence (dim-int 8) (type-bit)) maybe-type ctxt)]
       [(expr-tuple vs ...)

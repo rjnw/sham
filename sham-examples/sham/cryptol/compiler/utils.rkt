@@ -92,7 +92,8 @@
   (cdim (dim -> any)
         [(int v) v]
         [(app op (^ args) ...) `(,(syntax->datum op) ,@args)]
-        [(var n) `(dim ,n)]))
+        [(var n) `(dim ,n)]
+        [d `(unk-dim ,d)]))
 
 (define (pretty-cry v) (if (struct-cry-ast? v) (pretty-cry-ast v) v))
 (define (new-name-def old) (ast-id-gen old))

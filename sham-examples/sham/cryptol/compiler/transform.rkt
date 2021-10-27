@@ -177,7 +177,7 @@
   (define prim-env (append (append-map do-prim (def-combined-types prims)) (append-map do-prim (def-combined-tos prims))))
   (define-values (combined-prelude prelude-val-env prelude-type-env) (gensym-names-defs prelude-defs-asts))
   (define-values (combined-input inp-val-env inp-type-env) (gensym-names-defs asts))
-  (debug (printf "prelude:\n")
+  #;(debug (printf "prelude:\n")
          (pretty-print (pretty-cry combined-prelude))
          (printf "primitives:\n") (pretty-print (pretty-cry prims))
          (pretty-print prim-env)

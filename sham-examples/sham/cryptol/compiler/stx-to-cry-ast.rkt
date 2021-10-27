@@ -30,7 +30,7 @@
        [[ps:pat ...] (make sequence ps)])
 
   (cexpr (stx -> expr)
-         [[v:cexpr (~seq '\| (~seq p:pat '<- pv:cexpr) ...) ...] (make sequence:comp v p pv)]
+         [[v:cexpr (~between (~seq '\| (~seq p:pat '<- pv:cexpr) ...) 1 +inf.0) ...] (make sequence:comp v p pv)]
          [[v1:cexpr '.. v2:cexpr] (make sequence:enum v1 (make lit 1) v2)]
          [[es:cexpr ...] (make sequence:basic es)]
          [s:string (make sequence:str (syntax-e s))]
