@@ -4,7 +4,7 @@
 
 (require "stx-to-cry-ast.rkt")
 (require "../ast.rkt"
-         "../prelude.rkt"
+         "../prelude/cryptol.rkt"
          "utils.rkt"
          "ctxt.rkt"
          "types.rkt"

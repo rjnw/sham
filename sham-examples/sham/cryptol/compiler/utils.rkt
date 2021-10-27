@@ -223,7 +223,7 @@
 
 (module+ test
   (require "stx-to-cry-ast.rkt"
-           "../prelude.rkt")
+           "../prelude/cryptol.rkt")
   ;; (gensym-names-defs
   ;;  (append (remove-gen-defs (stx-to-cry-ast primitive-typeofs-stx))
   ;;          (remove-gen-defs (stx-to-cry-ast prelude-defs-stx))
