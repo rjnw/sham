@@ -10,10 +10,12 @@
 (define primitive-false (ui1 0))
 (define test-function-type (ll-type-function #f ll-void))
 (define (basic-function-type . args) (ll-make-type-function args #f i64))
-(define (basic-function-body body-stmt) (stmt-block body-stmt (stmt-return (ui64 0))))
+(define-syntax (basic-function-body stx)
+  (syntax-case stx ()
+    [(_ bodys ...) #`(stmt-block bodys ... (stmt-return (ui64 0)))]))
 
-(define (store-basic-val! val result)
-  (stmt-expr (op-store! val result)))
+(define (store-basic-val! val ptr)
+  (stmt-expr (op-store! val ptr)))
 
 ;; (define (basic-function-type args result)
 ;;   (ll-make-type-function (append args (list (ll-type-pointer result))) #f i64))

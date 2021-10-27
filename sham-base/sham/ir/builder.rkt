@@ -26,10 +26,11 @@
 (define (build-sham-env module-ast
                         [sham-context (sham-global-context)]
                         [llvm-target-triple #f]
-                        [llvm-data-layout #f])
+                        [llvm-data-layout #f]
+                        #:debug (debug-flag #f))
   (define s-mod (build-sham-module module-ast sham-context llvm-target-triple llvm-data-layout))
   (match-define (sham-module ast l-ast extrs) s-mod)
-  (when (debug-sham-builder) (sham-dump-llvm s-mod))
+  (when (or debug-flag (debug-sham-builder)) (sham-dump-llvm s-mod))
   (sham-env s-mod (build-llvm-env l-ast) (make-hash)))
 
 (define (build-sham-module module-ast

@@ -16,6 +16,8 @@
      function-arg
      function-result
 
+     expr-result
+
      expr-app
      expr-app-primitive
      expr-cond

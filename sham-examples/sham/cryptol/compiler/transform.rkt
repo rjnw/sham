@@ -98,9 +98,9 @@
          (match-define (cons re1 re2) (compile-def-test-results type (update-context! ctxt #:cc tc)))
          (compile-def-test name
                            type
-                           (cexpr e1 (update-context! ctxt #:res re1 #:cc tc))
+                           (cexpr e1 (update-context! ctxt #:res re1 #:cc tc #:type type))
                            re1
-                           (cexpr e2 (update-context! ctxt #:res re2 #:cc tc))
+                           (cexpr e2 (update-context! ctxt #:res re2 #:cc tc #:type type))
                            re2
                            (update-context! ctxt #:cc tc))])
 
@@ -115,21 +115,22 @@
                  (lookup-val-env ctxt (expr-var-name rator))
                  ;; (car (lookup-env-vars (env-val (cc-env ctxt)) (expr-var-name rator)))
                  ])
+            (define (compile-args args up-type)
+              (for/list ([arg args]
+                         [argt (drop-right (get-farg-types up-type) 1)]
+                         [i (length args)])
+                (define app-arg-result (compile-expr-result argt #f ctxt))
+                (cons app-arg-result (cexpr arg (update-context! ctxt #:res app-arg-result #:type argt)))))
             (match rator-val
               [(env-primitive-var rator-name rator-pval)
                (define-values (pvar-args rator-up-type)
                  (specialize-poly-type (lookup-typeof ctxt rator-name) targs vargs ctxt))
-               (define compiled-vargs
-                 (map (λ (v t) (cexpr v (update-context! ctxt #:res #f #:type t)))
-                      vargs (drop-right (get-farg-types rator-up-type) 1)))
+               (define compiled-vargs (compile-args vargs rator-up-type))
                (compile-expr-app-primitive rator-name rator-pval pvar-args compiled-vargs ctxt)]
               [(env-lazy-var name valf ast)
                (let* ([compiled-rator (valf targs vargs ctxt)]
                       [new-rator-type (env-special-var-type compiled-rator)]
-                      [compiled-vargs
-                       (for/list ([varg vargs]
-                                  [vargt (get-farg-types new-rator-type)])
-                         (cexpr varg (update-context! ctxt #:res #f #:type vargt)))])
+                      [compiled-vargs (compile-args vargs new-rator-type)])
                  (compile-expr-app compiled-rator compiled-vargs ctxt))]))]
          [(cond ((^ chk) (^ thn)) ... (^ els)) (compile-expr-cond chk thn els ctxt)]
          [(var name) (compile-expr-var name (lookup-val-env ctxt name) ctxt)]
@@ -139,7 +140,16 @@
          [(where body ds) (cexpr body (update-ctxt-for-cdef ds ctxt))]
          [(error msg) (compile-error-msg msg ctxt)]
 
-         [(tuple (^ vs) ...) (compile-tuple-literal vs ctxt)]
+         [(tuple vs ...)
+          (printf "tuple: ~a ~a\n" (pretty-cry this-ast) (pretty-cry (cc-type ctxt)))
+          (let* ([type (cc-type ctxt)]  ;; if needed maybe-calc-type
+                 [orig-result (cc-res ctxt)]
+                 [cvs (for/list ([v vs] [i (length vs)])
+                        (define arg-type (maybe-tuple-type-i type i))
+                        (define result (compile-expr-result arg-type (and orig-result (compile-tuple-index orig-result type i ctxt)) ctxt))
+                        (printf "tuple-fields: ~a ~a ~a\n" (pretty-cry v) (pretty-cry arg-type) result)
+                        (cexpr v (update-context! ctxt #:type arg-type #:res result)))])
+            (compile-tuple-literal cvs ctxt))]
          [(lit i) (compile-integer-literal i ctxt)]
          [(char c) (compile-char-literal c ctxt)])
 
