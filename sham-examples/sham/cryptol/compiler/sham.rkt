@@ -52,6 +52,7 @@
 (define (add-ptr-type sham-type (ptr-box? #t)) (if ptr-box? #`(ll-type-pointer #,sham-type) sham-type))
 (define (small-int-type? cry-type)
   (match cry-type
+    [n #t]
     [(type-sequence d (type-bit)) (<= (maybe-dim-i d) 64)]
     [else #f]))
 (define (to-sham-type cry-type (ptr-box? #f))
@@ -63,8 +64,9 @@
      (define len (maybe-dim-i dim))
      (if (<= len 64)
          #`i64
-         ;; #`(ll-type-ref #,len)
-         (error 'todo "larger than 64 bit numbers ~a" len))]
+         #`(ll-type-ref #,len)
+         ;; (error 'todo "larger than 64 bit numbers ~a" len)
+         )]
     [(type-sequence dim t) #`basic-sequence-type]
     [else #`TODO-sham-type]))
 (define (sham-function-arg-types up-type p-type ctxt)
@@ -92,10 +94,10 @@
     [(ref v) #`(store-basic-val! #,val #,(load-if-ref v))]))
 (define (sham-store-integer! i type result ctxt)
   (match type
-    [(? small-int-type?) (sham-store! #`(ui64 #,i) result)]
+    [(? small-int-type?) (sham-store! (sham-integer-literal i type) result)]
     [else (error 'todo-sham "big integer ~a" type)]))
 (define (sham-integer-literal i type)
-  (cond [(small-int-type? type) #`(ui64 #,i)]
+  (cond [(small-int-type? type) #`(ll-val-ui #,(number->string i) #,(to-sham-type type))]
         [else (error 'todo-sham "big integer ~a" type)]))
 (define (add-internal-alloca! ctxt alloc type)
   (match type
@@ -107,8 +109,9 @@
          ;; peel one ref for both as we are storing the address of sub tuple
          (add-allocative! ctxt (sham-store! (ref-v ia) (ref-v (sham-tuple-index type i alloc))))))]
     [(type-sequence dim (type-bit))
-     (define len (maybe-dim-i dim))
-     (if (<= len 64) (void) (error 'todo "larger than 64 bit numbers"))]
+     (void)
+     ;; (if (small-int-type? type) (void) (error 'todo "larger than 64 bit numbers"))
+     ]
     [(type-sequence dim t)
      (define ptr-name #`'#,(gensym 'sptr))
      (add-array-allocation! ctxt ptr-name (to-sham-type t #f) (maybe-dim-i dim))
@@ -160,7 +163,7 @@
          [(cons fst rst) #`(op-and #,fst #,(rec rst))]
          ['() #`primitive-true]))]
     [(type-sequence (dim-int i) (type-bit))
-     #:when (<= i 64)
+     #:when (small-int-type? type)
      #`(op-icmp-eq #,(load-if-ref val1) #,(load-if-ref val2))]
     [else (error 'sham/cryptol "TODO compare for: ~a" (pretty-cry type))]))
 

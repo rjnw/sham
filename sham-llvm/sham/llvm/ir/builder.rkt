@@ -61,6 +61,7 @@
   ;; llvm:type env -> LLVMTypeRef
   (define (compile-type type internal-env decl-env)
     (match type
+      [(llvm:type:ref (? exact-positive-integer? n)) (LLVMIntType n)]
       [(llvm:type:ref t)
        (if (assoc-env-contains? decl-env t)
            (assoc-env-lookup decl-env t)
@@ -84,6 +85,10 @@
        (LLVMConstReal (compile-type t internal-env decl-env) value)]
       [(llvm:value:si value t)
        (LLVMConstInt (compile-type t internal-env decl-env) (cast value _sint64 _uint64) #f)]
+      [(llvm:value:ui (? string? s) t)
+       (LLVMConstIntOfStringAndSize (compile-type t internal-env decl-env) s (string-length s) 10)]
+      [(llvm:value:ui (cons (? string? s) (? exact-positive-integer? r)) t)
+       (LLVMConstIntOfStringAndSize (compile-type t internal-env decl-env) s (string-length s) r)]
       [(llvm:value:ui value t)
        (LLVMConstInt (compile-type t internal-env decl-env) value #f)]
       [(llvm:value:llvm v) v]

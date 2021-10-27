@@ -66,6 +66,7 @@
     ['f32 _float]
     ['f64 _double]
     ['void _void]
+    [(? exact-positive-integer? n) _uint64]
     [else (error 'sham:rkt:type "error unknown type reference ~a" sym)]))
 
 (define (to-rkt-type t-ast (def-map #f))
