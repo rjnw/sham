@@ -117,7 +117,7 @@
     (match (type-from-name ctxt n1)
       [#f (if t2 (add-type-var n1 t2 ctxt) (cons '() #f))]
       [(type-integer) (add-type-var n1 (unify-type (type-sequence #f (type-bit)) t2 ctxt) ctxt)]
-      [nt1 (unify-type nt1 t2 ctxt)])]
+      [nt1 (add-type-var n1 (unify-type nt1 t2 ctxt) ctxt)])]
    [(t1 (type-var n2))
     #:when (not (unknown-type? t1))
     (unify-type t2 t1 ctxt)

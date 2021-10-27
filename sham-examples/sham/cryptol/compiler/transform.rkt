@@ -154,7 +154,16 @@
          [(char c) (compile-char-literal c ctxt)])
 
   (cseq (sequence -> any)
-        [(basic (^ vs) ...) (compile-sequence-basic vs ctxt)]
+        [(basic vs ...)
+         (printf "seq: ~a ~a ~a\n" (pretty-cry this-ast) (pretty-cry (cc-type ctxt)) (cc-res ctxt))
+         (let* ([type (cc-type ctxt)]  ;; if needed maybe-calc-type
+                [orig-result (cc-res ctxt)]
+                [cvs (for/list ([v vs] [i (length vs)])
+                       (define arg-type (maybe-sequence-elem-type type))
+                       (define result (compile-expr-result arg-type (and orig-result (compile-sequence-index orig-result type i ctxt)) ctxt))
+                       (printf "basic-sequence-val: ~a ~a ~a ~a\n" (pretty-cry v) (pretty-cry arg-type) orig-result result)
+                       (cexpr v (update-context! ctxt #:type arg-type #:res result)))])
+           (compile-sequence-basic cvs ctxt))]
         [(enum (^ from) (^ step) (^ to)) (compile-sequence-enum from step to)]
         [(str s) (compile-sequence-string s)]
         [(comp body [(vars (^ vals #:ctxt (update-context! ctxt #:type #f)))] ...)
