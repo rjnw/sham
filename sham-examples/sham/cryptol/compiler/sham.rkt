@@ -94,9 +94,8 @@
 (define (sham-tuple-index type index val)
   (define addr
     #`(op-gep
-       #,(load-if-ref
-          (match val                    ;; peel one ref as gep itself needs a pointer
-            [(ref val) val]))
+       ;; peel one ref as gep itself needs a pointer
+       #,(load-if-ref (match val [(ref val) val]))
        (ui32 0)
        (ui32 #,index)))
   (if (use-ptr-type? (maybe-tuple-type-i type index)) (ref (ref addr)) (ref addr)))
@@ -106,11 +105,8 @@
     [(type-bit) #`(op-icmp-eq #,(load-if-ref val1) #,(load-if-ref val2))]
     [(type-tuple ts ...)
      (define tcs
-       (for/list ([t ts]
-                  [i (length ts)])
+       (for/list ([t ts] [i (length ts)])
          (define (geti val) (sham-tuple-index type i val))
-         ;; (define v1 (ref (sham-tuple-index type i val1)))
-         ;; (define v2 (ref (sham-tuple-index type i val2)))
          (compare-for-type t (geti val1) (geti val2))))
      (let rec ([c tcs])
        (match c
@@ -148,7 +144,6 @@
         ;;                 (expr-void)))
         ))]
   [(def-test-results ctxt type)
-   (printf "ctxt: ~a ~a\n" ctxt (cc-cctxt ctxt))
    (cons (sham-alloca-type! ctxt type) (sham-alloca-type! ctxt type))]
   [(def-test ctxt name type cr1 r1 cr2 r2)
    (define-values (stmt1 val1) (unwrap-result cr1))
@@ -160,8 +155,8 @@
          #,@(allocation-stmts (cc-cctxt ctxt))
          #,@stmt1 #,@rstmt1 #,@stmt2 #,@rstmt2
          (stmt-if #,(compare-for-type type (or val1 rval1) (or val2 rval2))
-                  (print-yay name-str)
-                  (print-nay name-str))))]
+                  (print-pass name-str)
+                  (print-fail name-str))))]
 
   [(tests ctxt ts)
    #`(make-def-function 'run-tests test-function-type (stmt-block #,@ts (stmt-return-void)))]
@@ -173,10 +168,8 @@
 
   [(expr-result ctxt arg-type has-result)
    (printf "expr-result-type: ~a\n" (pretty-cry arg-type))
-   (or has-result
-       (if (use-ptr-type? arg-type)
-           (sham-alloca-type! ctxt arg-type)
-           #f))]
+   ;; #f if result is an immediate and does not need a store op
+   (or has-result (and (use-ptr-type? arg-type) (sham-alloca-type! ctxt arg-type)))]
   [(expr-app ctxt rator rands)
    (printf "sham-expr-app: ~a ~a\n" rator rands)
    (define-values (rand-stmts rand-vals^) (do-result-stmts (map cdr rands)))
@@ -194,8 +187,9 @@
           [(? syntax? val) (error 'TODO "got stx for app result: ~a ~a\n" rator rands)]
           [#f (error 'TODO "no result, need allocation: ~a ~a" rator rands)]))
       (stm (append stmts rand-stmts (list #`(stmt-expr #,e))) #f)]
-     [(env-var name val) (error 'todo "app env-var ~a\n" rator) ;; #`(expr-op #,(ast-id-stxid name) #,@rand-vals)
-                         ])]
+     [(env-var name val)
+      ;; #`(expr-op #,(ast-id-stxid name) #,@rand-vals)
+      (error 'todo "app env-var ~a\n" rator)])]
   [(expr-bind ctxt value) value]
   [(expr-var ctxt name env-value)
    (define-values (stmts result) (unwrap-result (cc-res ctxt)))
@@ -232,16 +226,13 @@
   [(sequence-str ctxt str) #`(result-string #,str #,(cc-res ctxt))])
 
 (define require-syntax
-  #`(
-     (require sham/ir
+  #`((require sham
               sham/jit
-              sham/md
               sham/cryptol/prelude/sham
               (prefix-in ll- sham/llvm/ir))))
 
 (define extra-syntax
-  #`(
-     (module+ test
+  #`((module+ test
        (define built-sham-env (build-sham-env cryptol-module #:debug #t))
        (sham-print-llvm-ir built-sham-env)
        (printf "verifying-llvm-ir: ~a\n" (sham-verify-llvm-ir built-sham-env))
@@ -250,7 +241,8 @@
        (printf "verifying-opt-ir: ~a\n" (sham-verify-llvm-ir built-sham-env))
        (define built-jit-env (initialize-jit built-sham-env))
        (define test-runner (jit-lookup-function built-jit-env 'run-tests))
-       (printf "running-cryptol-tests:\n") (test-runner))))
+       (printf "running-cryptol-tests:\n")
+       (test-runner))))
 
 (define primitive-defs
   #`((ll-def-external 'printf (ll-type-function (ll-type-pointer i8) #t i64))))

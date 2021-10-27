@@ -3,6 +3,7 @@
 (require sham/ir
          sham/jit
          sham/md
+         syntax/parse/define
          (prefix-in ll- sham/llvm/ir))
 (provide (all-defined-out))
 
@@ -17,23 +18,14 @@
 (define (store-basic-val! val ptr)
   (stmt-expr (op-store! val ptr)))
 
-;; (define (basic-function-type args result)
-;;   (ll-make-type-function (append args (list (ll-type-pointer result))) #f i64))
+(define-syntax-parse-rule (cprintf str args ...)
+  (stmt-expr (expr-app 'printf (ll-val-string str) args ...)))
 
-(define (print-yay str)
-  (stmt-expr (expr-app 'printf (ll-val-string (format "test-passed-~a\n" str))))
-  ;; (stmt-void)
-  )
+(define (print-pass str) (cprintf (format "  test-~a: pass\n" str)))
+(define (print-fail str) (cprintf (format "  test-~a: fail\n" str)))
 
-(define (print-nay str)
-  (stmt-expr (expr-app 'printf (ll-val-string (format "test-failed-~a\n" str))))
-  ;; (stmt-void)
-  )
-
-(define-syntax (with-allocation stx)
-  (syntax-case stx ()
-    [(_ ((vars types) ...) body-stmt ...)
-     #`(stmt-expr
-        (expr-let ([vars (op-alloca (expr-etype types)) (ll-type-pointer types)] ...)
-                  (stmt-block body-stmt ...)
-                  (expr-void)))]))
+(define-syntax-parse-rule (with-allocation ((vars types) ...) body-stmt ...)
+  (stmt-expr
+   (expr-let ([vars (op-alloca (expr-etype types)) (ll-type-pointer types)] ...)
+             (stmt-block body-stmt ...)
+             (expr-void))))
