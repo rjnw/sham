@@ -246,7 +246,7 @@
            (define-values (tst-val tst*) (build-expr! tst entry-block continue-block after-block))
            (errored-terminate tst* "test" "while")
            (terminate-block! tst* (inst-br tst-val loop-block after-block))
-           (define body* (build-stmt! loop-block body entry-block after-block))
+           (define body* (build-stmt! body loop-block entry-block after-block))
            (if (block? body*)
                (terminate-block! body* (inst-bru entry-block))
                (warn "while body terminated! ~a" curr-stmt))
