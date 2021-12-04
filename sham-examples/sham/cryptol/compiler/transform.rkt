@@ -31,7 +31,7 @@
        (apply append
               (for/list ([p ps]
                          [i (length ps)])
-                (do-pat p (compile-sequence-index val i ctxt) (type-sequence-t typ))))]))
+                (do-pat p (compile-sequence-index val typ i ctxt) (type-sequence-t typ))))]))
   (define ctype (cc-type ctxt))
   (match-define (list farg-types ... res-type) (get-farg-types ctype))
   (define farg-vals (map (λ (ft i) (compile-function-arg ft i ctype ctxt))
@@ -165,7 +165,12 @@
                        (cexpr v (update-context! ctxt #:type arg-type #:res result)))])
            (compile-sequence-basic cvs ctxt))]
         [(enum (^ from) (^ step) (^ to)) (compile-sequence-enum from step to)]
-        [(str s) (compile-sequence-string s)]
+        [(str s)
+         (cexpr (make-expr-sequence-basic (map make-expr-lit (bytes->list (string->bytes/locale s))))
+                (update-context! ctxt #:type (type-sequence (dim-int (string-length s))
+                                                            (type-sequence (dim-int 8) (type-bit)))))
+         ;; (compile-sequence-string s)
+         ]
         [(comp body [(vars (^ vals #:ctxt (update-context! ctxt #:type #f)))] ...)
          (let* ([compiled-vvs
                  (for/list ([vr vars] [vl vals])

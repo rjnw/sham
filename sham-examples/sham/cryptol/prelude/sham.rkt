@@ -11,10 +11,12 @@
 (define primitive-false (ui1 0))
 (define test-function-type (ll-type-function #f ll-void))
 (define (basic-function-type . args) (ll-make-type-function args #f i64))
-(define basic-sequence-type (ll-type-struct i64 i8*))
-;; (define (allocate-sequence dim subtype))
-(define (store-basic-val! val ptr)
-  (stmt-expr (op-store! val ptr)))
+(define (ptr-type t) (ll-type-pointer t))
+(define (seq-type it) (ll-type-struct i64 (ll-type-pointer it)))
+(define (basic-alloc t) (op-alloca (expr-etype t)))
+(define (basic-arr-alloc t len) (op-array-alloca (expr-etype t) len))
+
+(define (store-val! val ptr) (stmt-expr (op-store! val ptr)))
 
 (define-syntax-parse-rule (cprintf str args ...)
   (stmt-expr (expr-app 'printf (ll-val-string str) args ...)))
@@ -29,9 +31,10 @@
              (expr-void))))
 
 (define-syntax-parse-rule (basic-function-body vvt body-stmts ...)
-  (stmt-let vvt body-stmts ... (stmt-return (ui64 0)))
-  ;; (stmt-expr
-  ;;  (expr-let ([vars vals types] ...)
-  ;;            (stmt-block body-stmts ... (stmt-return (ui64 0)))
-  ;;            (expr-void)))
-  )
+  (stmt-let vvt body-stmts ... (stmt-return (ui64 0))))
+
+(define-syntax-parse-rule (basic-i64-loop [itr start end] stmts ...)
+  (stmt-let [(itr start i64)]
+            (stmt-while (op-icmp-ule (expr-ref itr) end)
+                        stmts ...
+                        (stmt-set! itr (op-add itr (ui64 1))))))

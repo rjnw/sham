@@ -10,3 +10,12 @@
 ;; (test c1-bit-fail (== (const1 (: 42 [64])) [41]))
 
 (test c1-bbit (== (const1 (: [42] [1 [64]])) [[42]]))
+(test c1-bit (== (const1 (: 42 [64])) [42]))
+(test c1-bbit (== (const1 (: [42] [1 [64]])) [[42]]))
+
+(def
+  [proj1 : {a} [1 a] -> a]
+  [proj1 [v] = v])
+
+(test p1-bit (== (proj1 (: [42] [1 [64]])) 42))
+(test p1-bbit (== (proj1 [(: [42] [1 [64]])]) (: [42] [1 [64]])))

@@ -72,12 +72,13 @@
          )]
     [(type-sequence dim t)
      ;; #`basic-sequence-type
-     (add-ptr-type #`(ll-type-struct i64 (ll-type-pointer #,(to-sham-type t #f))) ptr-box?)]
+     ;; #`(ll-type-struct i64 (ll-type-pointer #,(to-sham-type t #t)))
+     (add-ptr-type #`(seq-type #,(to-sham-type t #f)) ptr-box?)]
     [else #`TODO-sham-type]))
 
 (define (sham-function-arg-types up-type p-type ctxt)
   (match-define (list argts ... rst) (get-farg-types up-type))
-  `(,@(map (curryr to-sham-type #t) argts) ,(add-ptr-type (to-sham-type rst))))
+  `(,@(map (λ (t) (to-sham-type t (use-ptr-type? t))) argts) ,(add-ptr-type (to-sham-type rst))))
 
 (define (empty-internal-context) (list (box '()) (box '())))
 
@@ -96,12 +97,17 @@
 (define (allocated-vars ictxt) (unbox (first ictxt)))
 (define (allocation-stmts ictxt) (unbox (second ictxt)))
 
-(define (sham-store! val ptr)
+(define (sham-dim-i dim ctxt)
+  (match dim
+    [(dim-int i) #`(ui32 #,i)]
+    [else (error 'sham/cry "todo dim based on poly variables ~a" (pretty-cry dim))]))
+
+(define (sham-store val ptr)
   (match ptr
-    [(ref v) #`(store-basic-val! #,val #,(load-if-ref v))]))
+    [(ref v) #`(store-val! #,val #,(load-if-ref v))]))
 (define (sham-store-integer! i type result ctxt)
   (match type
-    [(? small-int-type?) (sham-store! (sham-integer-literal i type) result)]
+    [(? small-int-type?) (sham-store (sham-integer-literal i type) result)]
     [else (error 'todo-sham "big integer ~a" type)]))
 (define (sham-integer-literal i type)
   (cond [(small-int-type? type) #`(ll-val-ui #,(number->string i) #,(to-sham-type type))]
@@ -203,13 +209,79 @@
   ;; alloc
   )
 
+;; internal-allocation: -> (cons (list name val type) stmts)
+(define (internal-allocation ctxt type)
+  (define stype (to-sham-type type #f))
+  (define rtype #`(ptr-type #,stype))
+  (define rval #`(basic-alloc #,stype))
+  (match type
+    [(type-tuple ts ...)
+     (define rname #`'#,(gensym 'tup))
+     (define stmts
+       (for/list ([t ts]
+                  [i (length ts)]
+                  #:when (use-ptr-type? t))
+         (match-define (cons (list t-name t-val t-type) t-stmts) (internal-allocation ctxt t))
+         #`(stmt-let ([#,t-name #,t-val #,t-type])
+                     #,@t-stmts
+                     #,(sham-store #`(expr-ref #,t-name)
+                                   (ref-v (sham-tuple-index type i (ref #`(expr-ref #,rname))))))))
+     (cons (list rname rval rtype) stmts)]
+    [(type-sequence dim (type-bit))
+     (cons (list #`'#,(gensym 'int) rval rtype) '())
+     ;; (if (small-int-type? type) (void) (error 'todo "larger than 64 bit numbers"))
+     ]
+    [(type-sequence dim t)
+     (define rname #`'#,(gensym 'seq))
+     (define es-type (to-sham-type t))
+     (define ptr-name (gensym 'sptr))
+     (define arr-length (sham-dim-i dim ctxt))
+     (define seq-ptr-val #`(basic-arr-alloc #,es-type #,arr-length))
+     (define seq-ptr-ref (sham-sequence-ptr (ref #`(expr-ref #,rname))))
+     (define store-ptr-stmt (sham-store seq-ptr-val seq-ptr-ref))
+     (define (istmt)
+       (define itr-name (format-id #f "i-~a" ptr-name))
+       (match-define (cons (list t-name t-val t-type) t-stmts) (internal-allocation ctxt t))
+       (define ptr-val (ref-v seq-ptr-ref))
+       (define store-stmt (sham-store #`(expr-ref #,t-name)
+                                      (ref #`(op-gep (expr-ref '#,ptr-name) (expr-ref '#,itr-name)))))
+       #`(stmt-let (['#,itr-name (ui32 0) i32]
+                    ['#,ptr-name #,ptr-val #,t-type])
+                   (stmt-while (op-icmp-ult (expr-ref '#,itr-name) #,arr-length)
+                               (stmt-let ([#,t-name #,t-val #,t-type])
+                                         #,@t-stmts
+                                         #,store-stmt
+                                         (stmt-set! (expr-ref '#,itr-name)
+                                                    (op-add (expr-ref '#,itr-name) (ui32 1)))))))
+     ;; (add-array-allocation! ctxt ptr-name (to-sham-type t #f) (maybe-dim-i dim))
+     ;; (add-allocative! ctxt (sham-store #`(ui32 #,(maybe-dim-i dim)) (sham-sequence-dim alloc)))
+     (cons (list rname rval rtype) (cons store-ptr-stmt (if (use-ptr-type? t) (list (istmt)) '())))]
+    [else
+     (define rname #`'#,(gensym 'val))
+     (cons (list rname rval rtype) '())]))
+
+(define (sham-alloca-type! ctxt type)
+  (printf "alloca-type: ~a\n" type)
+  (match-define (cons (list sname sval stype) sstmts) (internal-allocation ctxt type))
+  (add-allocation! ctxt sname sval stype)
+  (unless (empty? sstmts)
+    (add-allocative! ctxt #`(stmt-block #,@sstmts)))
+  ;; (define alloca-name #`'#,(gensym 'val))
+  ;; (define sham-type (to-sham-type type #f))
+  ;; (add-basic-allocation! ctxt alloca-name sham-type)
+  (define alloc (ref #`(expr-ref #,sname)))
+  ;; (add-internal-alloca! ctxt alloc type)
+  alloc)
+
 (define (sham-sequence-dim val)
   (ref #`(op-gep #,(load-if-ref (ref-v val)) (ui32 0) (ui32 0))))
 (define (sham-sequence-ptr val)
-  (ref (ref #`(op-gep #,(load-if-ref (ref-v val)) (ui32 0) (ui32 1)))))
+  (ref #`(op-gep #,(load-if-ref (ref-v val)) (ui32 0) (ui32 1))))
 (define (sham-sequence-index type i val)
   (define addr #`(op-gep #,(load-if-ref (ref-v (sham-sequence-ptr val))) (ui32 #,i)))
-  (if (use-ptr-type? (maybe-sequence-elem-type type)) (ref (ref addr)) (ref addr)))
+  (if (use-ptr-type? (maybe-sequence-elem-type type)) (ref (ref addr)) (ref addr))
+  (ref (ref addr))
+  )
 ;; just returns the pointer no load
 (define (sham-tuple-index type index val)
   (define addr
@@ -293,7 +365,7 @@
   [(function-result ctxt res-type func-type) (ret #`(expr-ref #,(sub1 (length (get-farg-types func-type)))))]
 
   [(expr-result ctxt arg-type has-result)
-   (printf "expr-result-type: ~a\n" (pretty-cry arg-type))
+   (printf "expr-result-type: ~a ~a ~a\n" (pretty-cry arg-type) has-result (use-ptr-type? arg-type))
    ;; #f if result is an immediate and does not need a store op
    (or has-result (and (use-ptr-type? arg-type) (sham-alloca-type! ctxt arg-type)))]
   [(expr-app ctxt rator rands)
@@ -328,7 +400,7 @@
         [(env-var name val) val]
         [else (error 'sham/cryptol "TODO-expr-var: ~a" env-value)])))
    (match result
-     [(ref ptr) (stm (append stmts (list (sham-store! immediate-value result))) #f)]
+     [(ref ptr) (stm (append stmts (list (sham-store immediate-value result))) #f)]
      [#f (maybe-stmts stmts immediate-value)])]
 
   [(tuple-literal ctxt args)
@@ -341,7 +413,7 @@
        (match val
          [#f #f]
          [(? syntax?)
-          (sham-store! val (sham-tuple-index t i res-name))
+          (sham-store val (sham-tuple-index t i res-name))
           ;; #`(stmt-expr (op-store! #,val #,(ref-v (sham-tuple-index t i res-name))))
           ])))
    (if res
@@ -373,11 +445,13 @@
        (printf "seq-store: ~a ~a\n" res-name val)
        (match val
          [#f #f]
-         [(? syntax?) (sham-store! val (sham-sequence-index t i res-name))])))
+         [(? syntax?) (sham-store val (sham-sequence-index t i res-name))])))
    (if res
        (maybe-stmts (append stmts arg-stmts (filter-not false? (stores res))) #f)
        (error 'sham/cryptol "basic-sequence needs allocated result ~a" args))]
-  [(sequence-str ctxt str) (error 'sham/cryptol "sequence-str ~a" str)])
+  [(sequence-str ctxt str)
+
+   (error 'sham/cryptol "sequence-str ~a" str)])
 
 (define require-syntax
   #`((require sham
