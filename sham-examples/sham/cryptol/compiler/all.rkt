@@ -54,7 +54,7 @@
                #,@(map env-var-val (unbox (cc-lifts ctxt)))))
            #,@extra-syntax
            )))
-    (debug (pretty-print (syntax->datum result-syntax)))
+    (debug (parameterize ([pretty-print-columns 120]) (pretty-print (syntax->datum result-syntax))))
     result-syntax))
 ;; maps to functions that take a list of stxs and return the final syntax for a file
 (define compiler-maps (make-hash `((test . ,(create-test-top test-compiler))

@@ -9,6 +9,7 @@
          "ctxt.rkt"
          "../ast.rkt"
          "utils.rkt"
+         "debug.rkt"
          "types.rkt")
 
 (provide sham-compiler
@@ -18,7 +19,7 @@
 
 
 (struct res [])
-(struct ref res [v])                    ;; stores a pointer to the actual value
+(struct ref res [v] #:transparent)                    ;; stores a pointer to the actual value
 (struct ret ref [])                     ;; special for function return value, it is always a reference
 (struct stm res [stmts res])
 
@@ -51,7 +52,7 @@
    (or (type-tuple? cry-type)
        (and (type-sequence? cry-type)
             (not (small-int-type? cry-type))))))
-(define (add-ptr-type sham-type (ptr-box? #t)) (if ptr-box? #`(ll-type-pointer #,sham-type) sham-type))
+(define (add-ptr-type sham-type (ptr-box? #t)) (if ptr-box? #`(ptr-type #,sham-type) sham-type))
 (define (small-int-type? cry-type)
   (match cry-type
     [(type-sequence d (type-bit)) #t]
@@ -60,9 +61,9 @@
 
 (define (to-sham-type cry-type (ptr-box? #f))
   (match cry-type
-    [(type-bit) #`i1]
+    [(type-bit) #`bit-type]
     [(type-tuple ts ...)
-     (add-ptr-type #`(ll-type-struct #,@(map (curryr to-sham-type #t) ts)) ptr-box?)]
+     (add-ptr-type #`(tuple-type #,@(map (curryr to-sham-type #t) ts)) ptr-box?)]
     [(type-sequence dim (type-bit))
      (define len (maybe-dim-i dim))
      (if (<= len 64)
@@ -79,23 +80,6 @@
 (define (sham-function-arg-types up-type p-type ctxt)
   (match-define (list argts ... rst) (get-farg-types up-type))
   `(,@(map (λ (t) (to-sham-type t (use-ptr-type? t))) argts) ,(add-ptr-type (to-sham-type rst))))
-
-(define (empty-internal-context) (list (box '()) (box '())))
-
-;; (define (add-allocation! ctxt var-name var-val var-type)
-;;   (snoc-box! #`(#,var-name #,var-val #,var-type) (car (cc-cctxt ctxt))))
-;; (define (add-basic-allocation! ctxt var-name var-type)
-;;   (add-allocation! ctxt var-name #`(op-alloca (expr-etype #,var-type)) #`(ll-type-pointer #,var-type)))
-;; (define (add-array-allocation! ctxt var-name var-type arr-length)
-;;   (add-allocation! ctxt var-name
-;;                    #`(op-array-alloca (expr-etype #,var-type) (ui32 #,arr-length))
-;;                    #`(ll-type-pointer #,var-type)))
-;; (define (add-allocative! ctxt stmt) (snoc-box! stmt (cdr (cc-cctxt ctxt))))
-
-(define (add-let-allocas! ctxt allocas) (append-box! (first (cc-cctxt ctxt)) allocas))
-(define (add-allocatives! ctxt stmts) (append-box! (second (cc-cctxt ctxt)) stmts))
-(define (allocated-vars ictxt) (unbox (first ictxt)))
-(define (allocation-stmts ictxt) (unbox (second ictxt)))
 
 (define (sham-dim-i dim ctxt)
   (match dim
@@ -116,162 +100,97 @@
   ;; TODO for variable dims
   #`(ui64 #,(maybe-dim-i dim)))
 
+;; alloca triplet for let binds
+(struct allocat [name val type] #:transparent)
+
+(define (allocat->let a) (match-define (allocat n v t) a) #`(#,n #,v #,t))
+(define (allocats->let allocats . stmts) #`(stmt-let #,(map allocat->let allocats) #,@(flatten stmts)))
+
 ;;  returns the let binds and stmts for internal allocation
-;; -> (values val (listof (list name alloca type)) (listof stmts))
+;; -> (values val (listof allocat/c) (listof stmts))
+;;  val: expr for the final allocated value, usually a ref to a name
+;;  allocat/c: let bound values for all internal allocations
+;;  stmts: assigining sub parts for internal allocations for complex types
 (define (allocate-type ctxt type)
   (define alloca-name #`'#,(gensym 'val))
   (define sham-type (to-sham-type type #f))
-  (define alloca-val #`(op-alloca (expr-etype #,sham-type)))
-  (define alloca-type #`(ll-type-pointer #,sham-type))
-  (define basic-alloca (list alloca-name alloca-val alloca-type))
+  (define alloca-val #`(alloca #,sham-type))
+  (define alloca-type #`(ptr-type #,sham-type))
+  (define basic-alloca (allocat alloca-name alloca-val alloca-type))
   (define alloca-ref (ref #`(expr-ref #,alloca-name)))
-  (define-values (i-allocas i-stmts)
-    (match type
+
+  ;; -> allocative stmts
+  (define (allocate-in val itype)
+    (match itype
       [(type-tuple ts ...)
-       (for/fold ([ia '()]
-                  [is '()])
+       (for/fold ([istmts '()])
                  ([t ts]
                   [i (length ts)]
                   #:when (use-ptr-type? t))
-         (define-values (val allocas stmts) (allocate-type ctxt t))
+         (define-values (ival allocats stmts) (allocate-type ctxt t))
          ;; peel one ref for both as we are storing the address of sub tuple
-         (define set-stmt (sham-store! (ref-v val) (ref-v (sham-tuple-index type i alloca-ref))))
-         (values (append ia allocas) (append is stmts (list set-stmt))))]
-      [(type-sequence dim (type-bit)) (values '() '())]
-      [(type-sequence dim t)
-       (define st (to-sham-type t #f))
-       (define dim-val (sham-dim-value ctxt dim))
-       (define ptr-name #`'#,(gensym 'sptr))
-       (define ptr-ref #`(expr-ref #,ptr-name))
-       (define ptr-val #`(op-array-alloca (expr-etype #,st) #,dim-val))
-       (define ptr-type #`(ll-type-pointer #,st))
-       (define ptr-alloca (list ptr-name ptr-val ptr-type))
-       (define ptr-stmt (sham-store! #`(expr-ref #,ptr-name) (ref-v (sham-sequence-ptr alloca-ref))))
-       (define dim-stmt (sham-store! dim-val (sham-sequence-dim alloca-ref)))
+         (define set-stmt (sham-store (ref-v ival) (ref-v (sham-tuple-index itype i val))))
+         (append istmts (list (allocats->let allocats (append stmts (list set-stmt))))))]
 
-       (define-values (iallcs istmts)
+      [(type-sequence dim t)
+       #:when (not (type-bit? t))
+       ;; sequence are boxed c array blocks with dimension value stored
+       (define elem-type (to-sham-type t #f))
+       (define dim-val (sham-dim-value ctxt dim))
+
+       ;; sub array ptr
+       (define ptr-name #`'#,(gensym 'sptr))
+       (define ptr-val #`(op-array-alloca (expr-etype #,elem-type) #,dim-val))
+       (define ptr-type #`(ptr-type #,elem-type))
+       (define ptr-alloca (allocat ptr-name ptr-val ptr-type))
+       (define ptr-ref #`(expr-ref #,ptr-name))
+
+       (define ptr-stmt (sham-store #`(expr-ref #,ptr-name) (ref-v (sham-sequence-ptr val))))
+       (define dim-stmt (sham-store dim-val (sham-sequence-dim val)))
+
+       (define istmts
          (if (use-ptr-type? t)
              (let* ([idx-name #`'#,(gensym 'sqi)]
                     [idx-ref #`(expr-ref #,idx-name)]
                     [idx-val #`(ui64 0)]
-                    [idx-type #`i64]
-                    [idx-let (list idx-name idx-val idx-type)])
-               (define-values (val allocas stmts) (allocate-type ctxt t))
-               (define while-stmt
-                 #`(stmt-while (op-icmp-ult #,idx-ref #,dim-val)
-                               (stmt-let
-                                #,allocas
-                                #,@stmts
-                                #,(sham-store! (ref-v val) (ref #`(op-gep #,ptr-ref #,idx-ref)))
-                                (stmt-set! #,idx-ref (op-add #,idx-ref (ui64 1))))))
-               (values (list idx-let) (list while-stmt)))
-             (values '() '())))
-       (values (append (list ptr-alloca) iallcs)
-               (append (list ptr-stmt dim-stmt) istmts))]
-      [else (values '() '())]))
-  (values alloca-ref (cons basic-alloca i-allocas) i-stmts))
+                    [idx-type #`i64])
+               (define set-sub
+                 #`(stmt-let
+                    ([#,idx-name #,idx-val #,idx-type])
+                    (stmt-while
+                     (op-icmp-ult #,idx-ref #,dim-val)
+                     (stmt-block
+                      #,@(allocate-in (ref #`(op-gep #,ptr-ref #,idx-ref)) t)
+                      (stmt-set! #,idx-ref (op-add #,idx-ref (ui64 1)))))))
 
-;; (define (add-internal-alloca! ctxt alloc type)
-;;   (match type
-;;     [(type-tuple ts ...)
-;;      (for ([t ts]
-;;            [i (length ts)])
-;;        (when (use-ptr-type? t)
-;;          (define ia (sham-alloca-type! ctxt t))
-;;          ;; peel one ref for both as we are storing the address of sub tuple
-;;          (add-allocative! ctxt (sham-store! (ref-v ia) (ref-v (sham-tuple-index type i alloc))))))]
-;;     [(type-sequence dim (type-bit))
-;;      (void)
-;;      ;; (if (small-int-type? type) (void) (error 'todo "larger than 64 bit numbers"))
-;;      ]
-;;     [(type-sequence dim t)
-;;      (define ptr-name #`'#,(gensym 'sptr))
-;;      (add-array-allocation! ctxt ptr-name (to-sham-type t #f) (maybe-dim-i dim))
-;;      (add-allocative!
-;;       ctxt
-;;       (sham-store! #`(expr-ref #,ptr-name) (ref-v (sham-sequence-ptr alloc))))
-;;      (add-allocative! ctxt (sham-store! #`(ui64 #,(maybe-dim-i dim)) (sham-sequence-dim alloc)))
-;;      (when (use-ptr-type? t)
-;;        (error 'todo "allocate deeper sequences ~a" (pretty-cry type)))]
-;;     [else (void)]))
+               (list set-sub))
+             '()))
+       (list (allocats->let (list ptr-alloca) ptr-stmt dim-stmt istmts))]
+      [it (list (sham-store #`(alloca #,(to-sham-type itype #f)) val))]))
 
-(define (sham-alloca-type! ctxt type)
-  (define-values (val allocas stmts) (allocate-type ctxt type))
-  (add-let-allocas! ctxt allocas)
+  ;; sub allocation for internal values
+  (define istmts (if (use-ptr-type? type) (allocate-in alloca-ref type) '()))
+
+  (values alloca-ref (list basic-alloca) istmts))
+
+;; internal context
+(struct ic [allocats allocatives] #:transparent)
+(define (empty-internal-context) (ic (box '()) (box '())))
+(define (get-ic c) (cond [(ic? c) c]
+                         [(cc? c) (cc-cctxt c)]
+                         [else (error 'cryptol/sham "unknown ctxt ~a" c)]))
+
+(define (add-allocats! ctxt allocats) (append-box! (ic-allocats (get-ic ctxt)) allocats))
+(define (add-allocatives! ctxt stmts) (append-box! (ic-allocatives (get-ic ctxt)) stmts))
+(define (allocats ictxt) (unbox (ic-allocats (get-ic ictxt))))
+(define (allocatives ictxt) (unbox (ic-allocatives (get-ic ictxt))))
+
+;; generate allocations and store them in ctxt
+(define (sham-allocate-type! ctxt type)
+  (define-values (val allocats stmts) (allocate-type ctxt type))
+  (add-allocats! ctxt allocats)
   (add-allocatives! ctxt stmts)
-  val
-  ;; (printf "alloca-type: ~a\n" type)
-  ;; (define alloca-name #`'#,(gensym 'val))
-  ;; (define sham-type (to-sham-type type #f))
-  ;; (add-basic-allocation! ctxt alloca-name sham-type)
-  ;; (define alloc (ref #`(expr-ref #,alloca-name)))
-  ;; (add-internal-alloca! ctxt alloc type)
-  ;; alloc
-  )
-
-;; internal-allocation: -> (cons (list name val type) stmts)
-(define (internal-allocation ctxt type)
-  (define stype (to-sham-type type #f))
-  (define rtype #`(ptr-type #,stype))
-  (define rval #`(basic-alloc #,stype))
-  (match type
-    [(type-tuple ts ...)
-     (define rname #`'#,(gensym 'tup))
-     (define stmts
-       (for/list ([t ts]
-                  [i (length ts)]
-                  #:when (use-ptr-type? t))
-         (match-define (cons (list t-name t-val t-type) t-stmts) (internal-allocation ctxt t))
-         #`(stmt-let ([#,t-name #,t-val #,t-type])
-                     #,@t-stmts
-                     #,(sham-store #`(expr-ref #,t-name)
-                                   (ref-v (sham-tuple-index type i (ref #`(expr-ref #,rname))))))))
-     (cons (list rname rval rtype) stmts)]
-    [(type-sequence dim (type-bit))
-     (cons (list #`'#,(gensym 'int) rval rtype) '())
-     ;; (if (small-int-type? type) (void) (error 'todo "larger than 64 bit numbers"))
-     ]
-    [(type-sequence dim t)
-     (define rname #`'#,(gensym 'seq))
-     (define es-type (to-sham-type t))
-     (define ptr-name (gensym 'sptr))
-     (define arr-length (sham-dim-i dim ctxt))
-     (define seq-ptr-val #`(basic-arr-alloc #,es-type #,arr-length))
-     (define seq-ptr-ref (sham-sequence-ptr (ref #`(expr-ref #,rname))))
-     (define store-ptr-stmt (sham-store seq-ptr-val (ref-v seq-ptr-ref)))
-     (define (istmt)
-       (define itr-name (format-id #f "i-~a" ptr-name))
-       (match-define (cons (list t-name t-val t-type) t-stmts) (internal-allocation ctxt t))
-       (define ptr-val (ref-v (ref-v seq-ptr-ref)))
-       (define store-stmt (sham-store #`(expr-ref #,t-name)
-                                      (ref #`(op-gep (expr-ref '#,ptr-name) (expr-ref '#,itr-name)))))
-       #`(stmt-let (['#,itr-name (ui32 0) i32]
-                    ['#,ptr-name #,ptr-val #,t-type])
-                   (stmt-while (op-icmp-ult (expr-ref '#,itr-name) #,arr-length)
-                               (stmt-let ([#,t-name #,t-val #,t-type])
-                                         #,@t-stmts
-                                         #,store-stmt
-                                         (stmt-set! (expr-ref '#,itr-name)
-                                                    (op-add (expr-ref '#,itr-name) (ui32 1)))))))
-     ;; (add-array-allocation! ctxt ptr-name (to-sham-type t #f) (maybe-dim-i dim))
-     ;; (add-allocative! ctxt (sham-store #`(ui32 #,(maybe-dim-i dim)) (sham-sequence-dim alloc)))
-     (cons (list rname rval rtype) (cons store-ptr-stmt (if (use-ptr-type? t) (list (istmt)) '())))]
-    [else
-     (define rname #`'#,(gensym 'val))
-     (cons (list rname rval rtype) '())]))
-
-(define (sham-alloca-type! ctxt type)
-  (printf "alloca-type: ~a\n" type)
-  (match-define (cons (list sname sval stype) sstmts) (internal-allocation ctxt type))
-  (add-allocation! ctxt sname sval stype)
-  (unless (empty? sstmts)
-    (add-allocative! ctxt #`(stmt-block #,@sstmts)))
-  ;; (define alloca-name #`'#,(gensym 'val))
-  ;; (define sham-type (to-sham-type type #f))
-  ;; (add-basic-allocation! ctxt alloca-name sham-type)
-  (define alloc (ref #`(expr-ref #,sname)))
-  ;; (add-internal-alloca! ctxt alloc type)
-  alloc)
+  val)
 
 (define (sham-sequence-dim val)
   (ref #`(op-gep #,(load-if-ref (ref-v val)) (ui32 0) (ui32 0))))
@@ -280,8 +199,7 @@
 (define (sham-sequence-index type i val)
   (define addr #`(op-gep #,(load-if-ref (ref-v (sham-sequence-ptr val))) (ui32 #,i)))
   (if (use-ptr-type? (maybe-sequence-elem-type type)) (ref (ref addr)) (ref addr))
-  (ref addr)
-  )
+  (ref addr))
 ;; just returns the pointer no load
 (define (sham-tuple-index type index val)
   (define addr
@@ -335,26 +253,23 @@
       [(bodys ...) (stm-stmts cval)])
      #`(make-def-function
         'name-stxid (basic-function-type arg-types ...)
-        (basic-function-body #,(allocated-vars internal-ctxt) #,@(allocation-stmts internal-ctxt) bodys ...)
-        ;; (stmt-expr
-        ;;  (make-expr-let `(tvar-args ...) (list tvar-vals ...) (list tvar-types ...)
-        ;;                 body-stx
-        ;;                 (expr-void)))
-        ))]
+        (basic-function-body #,(map allocat->let (allocats internal-ctxt)) #,@(allocatives internal-ctxt) bodys ...)))]
   [(def-test-results ctxt type)
-   (cons (sham-alloca-type! ctxt type) (sham-alloca-type! ctxt type))]
+   ;; do them twice for gensym
+   (cons (sham-allocate-type! ctxt type) (sham-allocate-type! ctxt type))]
   [(def-test ctxt name type cr1 r1 cr2 r2)
    (define-values (stmt1 val1) (unwrap-result cr1))
    (define-values (rstmt1 rval1) (unwrap-result r1))
    (define-values (stmt2 val2) (unwrap-result cr2))
    (define-values (rstmt2 rval2) (unwrap-result r2))
+
    (with-syntax ([name-str (format "~a" (syntax-e (ast-id-stxid name)))])
-     #`(stmt-let #,(allocated-vars (cc-cctxt ctxt))
-         #,@(allocation-stmts (cc-cctxt ctxt))
-         #,@stmt1 #,@rstmt1 #,@stmt2 #,@rstmt2
-         (stmt-if #,(compare-for-type type (or val1 rval1) (or val2 rval2))
-                  (print-pass name-str)
-                  (print-fail name-str))))]
+     (allocats->let (allocats ctxt)
+                    (allocatives ctxt)
+                    stmt1 rstmt1 stmt2 rstmt2
+                    #`(stmt-if #,(compare-for-type type (or val1 rval1) (or val2 rval2))
+                               (print-pass name-str)
+                               (print-fail name-str))))]
 
   [(tests ctxt ts)
    #`(make-def-function 'run-tests test-function-type (stmt-block #,@ts (stmt-return-void)))]
@@ -367,7 +282,7 @@
   [(expr-result ctxt arg-type has-result)
    (printf "expr-result-type: ~a ~a ~a\n" (pretty-cry arg-type) has-result (use-ptr-type? arg-type))
    ;; #f if result is an immediate and does not need a store op
-   (or has-result (and (use-ptr-type? arg-type) (sham-alloca-type! ctxt arg-type)))]
+   (or has-result (and (use-ptr-type? arg-type) (sham-allocate-type! ctxt arg-type)))]
   [(expr-app ctxt rator rands)
    (printf "sham-expr-app: ~a ~a\n" rator rands)
    (define-values (rand-stmts rand-vals^) (do-result-stmts (map cdr rands)))

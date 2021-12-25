@@ -7,13 +7,15 @@
          (prefix-in ll- sham/llvm/ir))
 (provide (all-defined-out))
 
+(define bit-type i1)
 (define primitive-true (ui1 1))
 (define primitive-false (ui1 0))
 (define test-function-type (ll-type-function #f ll-void))
 (define (basic-function-type . args) (ll-make-type-function args #f i64))
 (define (ptr-type t) (ll-type-pointer t))
 (define (seq-type it) (ll-type-struct i64 (ll-type-pointer it)))
-(define (basic-alloc t) (op-alloca (expr-etype t)))
+(define (tuple-type . ts) (ll-make-type-struct ts))
+(define (alloca t) (op-alloca (expr-etype t)))
 (define (basic-arr-alloc t len) (op-array-alloca (expr-etype t) len))
 
 (define (store-val! val ptr) (stmt-expr (op-store! val ptr)))
@@ -23,6 +25,12 @@
 
 (define (print-pass str) (cprintf (format "  test-~a: pass\n" str)))
 (define (print-fail str) (cprintf (format "  test-~a: fail\n" str)))
+
+(define-syntax-parse-rule (alloca-let ((vars types) ...) body-stmts ...)
+  (stmt-expr
+   (expr-let ([vars (alloca types) (ptr-type types)] ...)
+             (stmt-block body-stmts ...)
+             (expr-void))))
 
 (define-syntax-parse-rule (stmt-let ((vars vals types) ...) body-stmts ...)
   (stmt-expr
