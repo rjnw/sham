@@ -9,7 +9,7 @@
 
 (define bit-type i1)
 (define primitive-true (ui1 1))
-(define primitive-false (ui1 0))
+(define primitive-false (ui))
 (define test-function-type (ll-type-function #f ll-void))
 (define (basic-function-type . args) (ll-make-type-function args #f i64))
 (define (ptr-type t) (ll-type-pointer t))

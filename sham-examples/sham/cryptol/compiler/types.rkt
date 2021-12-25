@@ -280,6 +280,7 @@
          (if (and (expr-lit? from) (expr-lit? step) (expr-lit? to))
              (dim-int (/ (add1 (- (expr-lit-v to) (expr-lit-v from))) (expr-lit-v step)))
              #f))
+       (printf "enum-dim: ~a\n" (list from step to sdim))
        (unify-type (type-sequence sdim (type-integer)) maybe-type ctxt)]
       [(expr-sequence-str s)
        (unify-type (type-sequence (dim-int (string-length s))

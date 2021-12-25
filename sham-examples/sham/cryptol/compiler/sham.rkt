@@ -89,13 +89,14 @@
 (define (sham-store val ptr)
   (match ptr
     [(ref v) #`(store-val! #,val #,(load-if-ref v))]))
+
 (define (sham-store-integer! i type result ctxt)
   (match type
     [(? small-int-type?) (sham-store (sham-integer-literal i type) result)]
-    [else (error 'todo-sham "big integer ~a" type)]))
+    [else (error 'todo-sham "storing big integer ~a ~a" i type)]))
 (define (sham-integer-literal i type)
   (cond [(small-int-type? type) #`(ll-val-ui #,(number->string i) #,(to-sham-type type))]
-        [else (error 'todo-sham "big integer ~a" type)]))
+        [else (error 'todo-sham "big integer ~a ~a" i type)]))
 (define (sham-dim-value ctxt dim)
   ;; TODO for variable dims
   #`(ui64 #,(maybe-dim-i dim)))
@@ -105,6 +106,16 @@
 
 (define (allocat->let a) (match-define (allocat n v t) a) #`(#,n #,v #,t))
 (define (allocats->let allocats . stmts) #`(stmt-let #,(map allocat->let allocats) #,@(flatten stmts)))
+
+(define (int-ult-loop bodyf start end (step #`(ui64 1)))
+  (define idx-sym #`'#,(gensym 'idx))
+  (define idx #`(expr-ref #,idx-sym))
+  #`(stmt-let
+     ([#,idx-sym #,start i64])
+     (stmt-while
+      (op-icmp-ult #,idx #,end)
+      (stmt-block #,@(bodyf idx)
+                  (stmt-set! #,idx (op-add #,idx #,step))))))
 
 ;;  returns the let binds and stmts for internal allocation
 ;; -> (values val (listof allocat/c) (listof stmts))
@@ -197,7 +208,8 @@
 (define (sham-sequence-ptr val)
   (ref (ref #`(op-gep #,(load-if-ref (ref-v val)) (ui32 0) (ui32 1)))))
 (define (sham-sequence-index type i val)
-  (define addr #`(op-gep #,(load-if-ref (ref-v (sham-sequence-ptr val))) (ui32 #,i)))
+  (define addr #`(op-gep #,(load-if-ref (ref-v (sham-sequence-ptr val)))
+                         #,(if (integer? i) #`(ui32 #,i) #`(op-int-cast #,i (expr-etype i32)))))
   (if (use-ptr-type? (maybe-sequence-elem-type type)) (ref (ref addr)) (ref addr))
   (ref addr))
 ;; just returns the pointer no load
@@ -364,6 +376,21 @@
    (if res
        (maybe-stmts (append stmts arg-stmts (filter-not false? (stores res))) #f)
        (error 'sham/cryptol "basic-sequence needs allocated result ~a" args))]
+  [(sequence-enum ctxt from step to)
+   (define (iv v) (expr-lit-v v))
+   (define type (cc-type ctxt))
+   (define elem-type (maybe-sequence-elem-type type))
+   (define-values (stmts res) (unwrap-result (cc-res ctxt)))
+   (define fi (iv from))
+   (define si (iv step))
+   (define ti (iv to))
+   (define len (/ (add1 (- ti fi)) si))
+   (maybe-stmts
+    (append stmts (list (int-ult-loop (λ (idx) (list (sham-store #`(op-mul #,(sham-integer-literal si elem-type)
+                                                                      (op-add #,(sham-integer-literal fi elem-type) #,idx))
+                                                            (sham-sequence-index type idx res))))
+                                      #`(ui64 0) #`(ui64 #,len))))
+    #f)]
   [(sequence-str ctxt str)
 
    (error 'sham/cryptol "sequence-str ~a" str)])

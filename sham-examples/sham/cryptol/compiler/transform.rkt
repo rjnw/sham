@@ -164,7 +164,7 @@
                        (printf "basic-sequence-val: ~a ~a ~a ~a\n" (pretty-cry v) (pretty-cry arg-type) orig-result result)
                        (cexpr v (update-context! ctxt #:type arg-type #:res result)))])
            (compile-sequence-basic cvs ctxt))]
-        [(enum (^ from) (^ step) (^ to)) (compile-sequence-enum from step to)]
+        [(enum from step to) (compile-sequence-enum from step to ctxt)] ;; compile from,step,to with correct type for complicated enums
         [(str s)
          (cexpr (make-expr-sequence-basic (map make-expr-lit (bytes->list (string->bytes/locale s))))
                 (update-context! ctxt #:type (type-sequence (dim-int (string-length s))
