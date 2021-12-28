@@ -164,8 +164,8 @@
    [((dim-int i1) (dim-int i2))
     #:when (equal? i1 i2)
     (no-vars t1)]
-   [((? dim-app?) t2)
-    (unify-type (calc-dim t1 ctxt) t2 ctxt)]
+   [((? dim-app?) t2) (unify-type (calc-dim t1 ctxt) t2 ctxt)]
+   [(t1 (? dim-app?)) (unify-type (calc-dim t2 ctxt) t1 ctxt)]
    [(t1 t2) #:when (equal? t1 t2) (no-vars t1)]
    ;; [(ut1 t2) #:when (unknown-type? ut1 ctxt) t2]
    ;; [(t1 ut2) #:when (unknown-type? ut2 ctxt) t1]

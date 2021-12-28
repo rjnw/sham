@@ -20,6 +20,7 @@
 
 (struct res [])
 (struct ref res [v] #:transparent)                    ;; stores a pointer to the actual value
+(struct laz res [] #:transparent)                     ;; lazy sequence, needs special care
 (struct ret ref [])                     ;; special for function return value, it is always a reference
 (struct stm res [stmts res] #:transparent)
 
@@ -483,8 +484,8 @@
   (define-values (front-dim back-dim elem-type) (values (get-val front) (get-val back) (get-val elem)))
   (define-values (front-type back-type) (values (type-sequence front-dim elem-type) (type-sequence back-dim elem-type)))
   (match-define (list fst snd) arg-exprs)
-  (define-values (fst-ref fst-allocs fst-alc-stmts) (allocate-type ctxt front-type))
-  (define-values (snd-ref snd-allocs snd-alc-stmts) (allocate-type ctxt back-type))
+  (define-values (fst-ref fst-allocs fst-alc-stmts) (allocate-type ctxt front-type #f))
+  (define-values (snd-ref snd-allocs snd-alc-stmts) (allocate-type ctxt back-type #f))
   (define-values (fst-stmts fst-val) (unwrap-result (fcompile fst front-type fst-ref)))
   (define-values (snd-stmts snd-val) (unwrap-result (fcompile snd back-type snd-ref)))
   (when (or fst-val snd-val) (error 'sham/cryptol "append should just store in result ~a ~a" fst-val snd-val))
@@ -507,10 +508,55 @@
 
                            fst-stmts
                            snd-stmts)))
-   #f)
-  ;; (error 'stop)
-  )
+   #f))
+
+(define (join-sequence ctxt prim-val poly-vars up-type arg-exprs fcompile)
+  (define-values (res-stmts res) (unwrap-result (cc-res ctxt)))
+  (match-define (type-poly (parts each elem) rst) (env-var-val prim-val))
+  (define (get-val v) (poly-var-value v poly-vars))
+  (define-values (parts-dim each-dim elem-type) (values (get-val parts) (get-val each) (get-val elem)))
+  (define sub-type (type-sequence parts-dim (type-sequence each-dim elem-type)))
+  (define-values (sub-ref sub-allocats sub-alo-stmts) (allocate-type ctxt sub-type))
+  (define loop-stmt
+    (int-ult-loop
+     (λ (idx)
+       (list
+        (sham-store #`(op-gep #,(load-if-ref (ref-v (sham-sequence-ptr res)))
+                              (op-mul #,idx #,(sham-dim-value ctxt each-dim)))
+                    (ref-v (sham-sequence-ptr (sham-sequence-index sub-type idx sub-ref))))))
+     #`(ui64 0)
+     (sham-dim-value ctxt parts-dim)))
+  (define-values (sub-stmts sub-val) (unwrap-result (fcompile (car arg-exprs) sub-type sub-ref)))
+  (when sub-val (error 'sham/cryptol "join: sub should just store in result: ~a ~a" arg-exprs poly-vars))
+  (maybe-stmts (list (allocats->let sub-allocats sub-alo-stmts loop-stmt sub-stmts)) #f))
+
+(define (split-sequence ctxt prim-val poly-vars up-type arg-exprs fcompile)
+  (define-values (res-stmts res) (unwrap-result (cc-res ctxt)))
+  (match-define (type-poly (parts each elem) rst) (env-var-val prim-val))
+  (define (get-val v) (poly-var-value v poly-vars))
+  (define-values (parts-dim each-dim elem-type) (values (get-val parts) (get-val each) (get-val elem)))
+  (define sub-type (type-sequence (dim-int (* (maybe-dim-i parts-dim) (maybe-dim-i each-dim))) elem-type))
+  (define-values (sub-ref sub-allocats sub-alo-stmts) (allocate-type ctxt sub-type))
+  (define-values (sub-stmts sub-val) (unwrap-result (fcompile (car arg-exprs) sub-type sub-ref)))
+  (define loop-stmt
+    (int-ult-loop
+     (λ (idx-each)
+       (list (int-ult-loop (λ (idx-part)
+                             (list (sham-store (load-if-ref (sham-sequence-index sub-type #`(op-add (op-mul #,idx-part #,(sham-dim-value ctxt each-dim)) #,idx-each) sub-ref))
+                                               (sham-sequence-index (type-sequence each-dim elem-type)
+                                                                    idx-each
+                                                                    (sham-sequence-index (type-sequence parts-dim (type-sequence each-dim elem-type))
+                                                                                         idx-part
+                                                                                         res)))))
+                           #`(ui64 0)
+                           (sham-dim-value ctxt parts-dim))))
+     #`(ui64 0)
+     (sham-dim-value ctxt each-dim)))
+  (when sub-val (error 'sham/cryptol "split: sub should just store"))
+  (maybe-stmts (list (allocats->let sub-allocats sub-alo-stmts sub-stmts loop-stmt)) #f))
 
 (define primitive-apps
   (hash '<> append-sequence
+        'join join-sequence
+        'split split-sequence
         ))
