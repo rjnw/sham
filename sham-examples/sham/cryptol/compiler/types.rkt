@@ -275,9 +275,10 @@
                    [(e es)]
            (match-define (cons vs nt) (maybe-calc-type e t ctxt))
            (values nt (append vs evs))))
-       (unless (empty? evs) (printf "TODO: throwing away: ~a\n" evs))
+       ;; (unless (empty? evs) (printf "TODO: throwing away: ~a\n" evs))
        (define sdim (dim-int (length es)))
-       (unify-type (type-sequence sdim elem-type) maybe-type ctxt)]
+       (define ut (unify-type (type-sequence sdim elem-type) maybe-type ctxt))
+       (make-unified-result (append evs (unified-vars ut)) (unified-type ut))]
       [(expr-sequence-enum from step to)
        (define sdim
          (if (and (expr-lit? from) (expr-lit? step) (expr-lit? to))

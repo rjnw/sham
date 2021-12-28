@@ -555,8 +555,29 @@
   (when sub-val (error 'sham/cryptol "split: sub should just store"))
   (maybe-stmts (list (allocats->let sub-allocats sub-alo-stmts sub-stmts loop-stmt)) #f))
 
+(define (index-sequence ctxt prim-val poly-vars up-type arg-exprs fcompile)
+  (define-values (res-stmts res) (unwrap-result (cc-res ctxt)))
+  (match-define (type-poly (n a ix) rst) (env-var-val prim-val))
+  (define (get-val v) (poly-var-value v poly-vars))
+  (define-values (n-dim a-type) (values (get-val n) (get-val a)))
+  (define-values (sub-stmts sub-val) (unwrap-result (fcompile (first arg-exprs) (type-sequence n-dim a-type) #f)))
+  (define-values (idx-stmts idx-val) (unwrap-result (fcompile (second arg-exprs) (type-sequence (dim-int 64) (type-bit)) #f)))
+  (maybe-stmts (apply append res-stmts sub-stmts idx-stmts) (sham-sequence-index (type-sequence n-dim a-type) idx-val sub-val)))
+
+(define (reverse-index-sequence ctxt prim-val poly-vars up-type arg-exprs fcompile)
+  (define-values (res-stmts res) (unwrap-result (cc-res ctxt)))
+  (match-define (type-poly (n a ix) rst) (env-var-val prim-val))
+  (define (get-val v) (poly-var-value v poly-vars))
+  (define-values (n-dim a-type) (values (get-val n) (get-val a)))
+  (define-values (sub-stmts sub-val) (unwrap-result (fcompile (first arg-exprs) (type-sequence n-dim a-type) #f)))
+  (define-values (idx-stmts idx-val) (unwrap-result (fcompile (second arg-exprs) (type-sequence (dim-int 64) (type-bit)) #f)))
+  (maybe-stmts (apply append res-stmts sub-stmts idx-stmts)
+               (sham-sequence-index (type-sequence n-dim a-type) #`(op-sub (op-sub #,(sham-dim-value ctxt n-dim) (ui64 1)) #,idx-val) sub-val)))
+
 (define primitive-apps
   (hash '<> append-sequence
         'join join-sequence
         'split split-sequence
+        '\@ index-sequence
+        '! reverse-index-sequence
         ))
