@@ -9,7 +9,7 @@
 
 (define bit-type i1)
 (define primitive-true (ui1 1))
-(define primitive-false (ui))
+(define primitive-false (ui1 0))
 (define test-function-type (ll-type-function #f ll-void))
 (define (basic-function-type . args) (ll-make-type-function args #f i64))
 (define (ptr-type t) (ll-type-pointer t))
@@ -46,3 +46,12 @@
             (stmt-while (op-icmp-ule (expr-ref itr) end)
                         stmts ...
                         (stmt-set! itr (op-add itr (ui64 1))))))
+
+;; sequence
+(define (sequence-array-ptr-ptr s) (op-gep s (ui32 0) (ui32 1)))
+(define (sequence-array-ptr s) (op-load (sequence-array-ptr-ptr s)))
+(define (sequence-len-ptr s) (op-gep s (ui32 0) (ui32 0)))
+(define (sequence-index-ptr s idx) (op-gep (sequence-array-ptr s) (op-int-cast idx (expr-etype i32))))
+
+;; tuple
+(define (tuple-index-ptr t i) (op-gep t (ui32 0) i))

@@ -42,7 +42,7 @@
        (define to^ (rec to))
        (and from^ to^ (type-func from^ to^))]
       [(type-bit) t]
-      [(type-integer) t]
+      [(type-integer) #f]
 
       [(dim i) t]
       [(dim-var name) (rec (lookup-tvar ctxt name))]
@@ -78,7 +78,19 @@
 (define make-unified-result cons)
 (define unified-vars car)
 (define unified-type cdr)
-
+(define (no-vars tu)
+   (cond [(and (cons? tu) (type? (cdr tu))) tu]
+         [(or (false? tu) (type? tu) (dim? tu)) (cons '() tu)]
+         [else (error 'cry/unify "weird-result: ~a" tu)]))
+(define (add-type-var name tu ctxt)
+  (cond [(and (cons? tu) (or (dim? (cdr tu))
+                             (type? (cdr tu))))
+         (make-unified-result
+          (cons (env-var name (unified-type tu)) (unified-vars tu))
+          (unified-type tu))]
+        [(or (type? tu) (dim? tu)) (cons (list (env-var name tu)) tu)]
+        [(false? tu) (no-vars tu)]
+        [else (error 'cry/unify "weird-result: ~a ~a" name tu)]))
 ;;  takes poly-type and maybe a concrete-type, tries to unify and also returns variable values figured
 ;; -> (cons new-type env-vars)
 (trace-define
@@ -92,20 +104,8 @@
      ;; [(type-integer) #t]
      [#f #t]
      [else #f]))
- (define (add-type-var name tu ctxt)
-   (cond [(and (cons? tu) (or (dim? (cdr tu))
-                              (type? (cdr tu))))
-          (make-unified-result
-           (cons (env-var name (unified-type tu)) (unified-vars tu))
-           (unified-type tu))]
-         [(or (type? tu) (dim? tu)) (cons (list (env-var name tu)) tu)]
-         [(false? tu) (no-vars tu)]
-         [else (error 'cry/unify "weird-result: ~a ~a" name tu)])
-   )
- (define (no-vars tu)
-   (cond [(and (cons? tu) (type? (cdr tu))) tu]
-         [(or (false? tu) (type? tu) (dim? tu)) (cons '() tu)]
-         [else (error 'cry/unify "weird-result: ~a" tu)]))
+
+
  (match* (t1 t2)
    [((type-var v1) (type-var v2))
     (define ut (unify-type (type-from-name ctxt v1) (type-from-name ctxt v2) ctxt))
@@ -242,13 +242,15 @@
          [(maybe-full-type type-from-ctxt ctxt) => (λ (t) (cons '() t))]
          [else
           (let ([ut (unified-with-given)])
-            (cond
-              [(maybe-full-type (cdr ut) ctxt) => (λ (t) (cons (car ut) t))]
-              [else
-               (let ([tfa (type-from-ast ut)])
-                 (cond
-                   [(maybe-full-type (cdr tfa) ctxt) => (λ (t) (cons (append (car ut) (car tfa)) t))]
-                   [else (cons (append (car ut) (car tfa)) (cdr tfa))]))]))])]
+            (add-type-var name
+                          (cond
+                            [(maybe-full-type (cdr ut) ctxt) => (λ (t) (cons (car ut) t))]
+                            [else
+                             (let ([tfa (type-from-ast ut)])
+                               (cond
+                                 [(maybe-full-type (cdr tfa) ctxt) => (λ (t) (cons (append (car ut) (car tfa)) t))]
+                                 [else (cons (append (car ut) (car tfa)) (cdr tfa))]))])
+                          ctxt))])]
       [(expr-tvar name) (unify-type (type-from-name ctxt name) maybe-type ctxt)]
       [(expr-annot e t)
        (define ut (unify-type t maybe-type ctxt))
@@ -261,8 +263,9 @@
          (map (λ (v t) (maybe-calc-type v t ctxt))
               vs
               (build-list (length vs) (λ (i) (maybe-tuple-type-i maybe-type i)))))
-       (debug (printf "throwing-away: ~a\n" (map car vtus)))
-       (unify-type (make-type-tuple (map cdr vtus)) maybe-type ctxt)]
+       ;; (debug (printf "throwing-away: ~a\n" (map car vtus)))
+       (define ut (unify-type (make-type-tuple (map cdr vtus)) maybe-type ctxt))
+       (make-unified-result (append (apply append (map unified-vars vtus)) (unified-vars ut)) (unified-type ut))]
       ;; [(expr-zero) (unify-type (type-integer) maybe-type ctxt)]
 
       [(expr-sequence-basic es ...)
@@ -280,7 +283,6 @@
          (if (and (expr-lit? from) (expr-lit? step) (expr-lit? to))
              (dim-int (/ (add1 (- (expr-lit-v to) (expr-lit-v from))) (expr-lit-v step)))
              #f))
-       (printf "enum-dim: ~a\n" (list from step to sdim))
        (unify-type (type-sequence sdim (type-integer)) maybe-type ctxt)]
       [(expr-sequence-str s)
        (unify-type (type-sequence (dim-int (string-length s))
@@ -299,7 +301,7 @@
                           (update-env ctxt
                                       ;; #:type val-tvars
                                       #:typeof (for/list ([vn var] [vt valts])
-                                                 (env-var vn (maybe-sequence-elem-type vt))))))
+                                                 (env-var (pat-var-name vn) (maybe-sequence-elem-type vt))))))
        (apply-uts make-type-sequence maybe-dim-type maybe-elem-type)]))
   (update-type-md! ast ;; (if (concrete-type? maybe-type ctxt) maybe-utype (calc-type)) ;; TODO do deep poly check for concrete-type?
                    (calc-type)

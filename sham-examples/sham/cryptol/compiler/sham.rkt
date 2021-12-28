@@ -21,7 +21,7 @@
 (struct res [])
 (struct ref res [v] #:transparent)                    ;; stores a pointer to the actual value
 (struct ret ref [])                     ;; special for function return value, it is always a reference
-(struct stm res [stmts res])
+(struct stm res [stmts res] #:transparent)
 
 (define (unwrap-result r)
   (match r
@@ -75,6 +75,7 @@
      ;; #`basic-sequence-type
      ;; #`(ll-type-struct i64 (ll-type-pointer #,(to-sham-type t #t)))
      (add-ptr-type #`(seq-type #,(to-sham-type t #f)) ptr-box?)]
+    [(type-integer) (printf "WARN: using generic integer type\n") (add-ptr-type #`i64 ptr-box?)]
     [else #`TODO-sham-type]))
 
 (define (sham-function-arg-types up-type p-type ctxt)
@@ -96,6 +97,7 @@
     [else (error 'todo-sham "storing big integer ~a ~a" i type)]))
 (define (sham-integer-literal i type)
   (cond [(small-int-type? type) #`(ll-val-ui #,(number->string i) #,(to-sham-type type))]
+        [(type-integer? type) (printf "WARN: using generic integer type: ~a\n" i) #`(ui64 #,i)]
         [else (error 'todo-sham "big integer ~a ~a" i type)]))
 (define (sham-dim-value ctxt dim)
   ;; TODO for variable dims
@@ -204,22 +206,34 @@
   val)
 
 (define (sham-sequence-dim val)
-  (ref #`(op-gep #,(load-if-ref (ref-v val)) (ui32 0) (ui32 0))))
+  (ref #`(sequence-len-ptr #,(load-if-ref (ref-v val))))
+  ;; (ref #`(op-gep #,(load-if-ref (ref-v val)) (ui32 0) (ui32 0)))
+  )
 (define (sham-sequence-ptr val)
-  (ref (ref #`(op-gep #,(load-if-ref (ref-v val)) (ui32 0) (ui32 1)))))
+  (ref (ref #`(sequence-array-ptr-ptr #,(load-if-ref (ref-v val)))))
+  ;; (ref (ref #`(op-gep #,(load-if-ref (ref-v val)) (ui32 0) (ui32 1))))
+  )
+
+(define (imed-i32 i) (if (integer? i) #`(ui32 #,i) (load-if-ref i)))
+
 (define (sham-sequence-index type i val)
-  (define addr #`(op-gep #,(load-if-ref (ref-v (sham-sequence-ptr val)))
-                         #,(if (integer? i) #`(ui32 #,i) #`(op-int-cast #,i (expr-etype i32)))))
+  (printf "ssi: ~a ~a ~a\n" type i val)
+  (unless (type-sequence? type) (error 'sham/cryptol "incorrect type for sequence ~a ~a ~a" type i val))
+  (define addr #`(sequence-index-ptr #,(load-if-ref (ref-v val)) #,(if (integer? i) #`(ui32 #,i) (load-if-ref i))))
+  ;; (define addr #`(op-gep #,(load-if-ref (ref-v (sham-sequence-ptr val))) #,(if (integer? i) #`(ui32 #,i) #`(op-int-cast #,i (expr-etype i32)))))
   (if (use-ptr-type? (maybe-sequence-elem-type type)) (ref (ref addr)) (ref addr))
   (ref addr))
+
 ;; just returns the pointer no load
 (define (sham-tuple-index type index val)
   (define addr
-    #`(op-gep
-       ;; peel one ref as gep itself needs a pointer
-       #,(load-if-ref (match val [(ref val) val]))
-       (ui32 0)
-       (ui32 #,index)))
+    #`(tuple-index-ptr #,(load-if-ref (ref-v val)) #,(imed-i32 index))
+    ;; #`(op-gep
+    ;;    ;; peel one ref as gep itself needs a pointer
+    ;;    #,(load-if-ref (match val [(ref val) val]))
+    ;;    (ui32 0)
+    ;;    (ui32 #,index))
+    )
   (if (use-ptr-type? (maybe-tuple-type-i type index)) (ref (ref addr)) (ref addr)))
 
 (define (compare-for-type type val1 val2)
@@ -240,14 +254,14 @@
      #`(op-icmp-eq #,(load-if-ref val1) #,(load-if-ref val2))]
     [(type-sequence (dim-int d) t)
      (andn (for/list ([i d])
-             (define (geti val) (sham-sequence-index t i val))
+             (define (geti val) (sham-sequence-index type i val))
              (compare-for-type t (geti val1) (geti val2))))]
     [else (error 'sham/cryptol "TODO compare for: ~a" (pretty-cry type))]))
 
 (define (do-result-stmts rs)
   (for/fold ([stmts '()]
              [vals '()]
-             #:result (values stmts (reverse vals)))
+             #:result (values (reverse stmts) (reverse vals)))
             ([r rs])
     (define-values (ss r^) (unwrap-result r))
     ;; if result is false then stmt is expr
@@ -361,39 +375,79 @@
 
   [(sequence-index ctxt value type index)
    (define-values (stmts r) (unwrap-result value))
+   (printf "seq-i: ~a ~a ~a\n" value type index)
    (maybe-stmts stmts (sham-sequence-index type index r))]
   [(sequence-basic ctxt args)
-   (define t (cc-type ctxt))
-   (define-values (stmts res) (unwrap-result (cc-res ctxt)))
+   (define type (cc-type ctxt))
+   (define-values (stmts res^) (unwrap-result (cc-res ctxt)))
+   (define res (or res^ (sham-allocate-type! ctxt type)))
    (define-values (arg-stmts arg-vals) (do-result-stmts args))
+   (printf "seq-b: ~a ~a ~a\n" args type res)
    (define (stores res-name)
      (for/list ([val arg-vals]
                 [i (length arg-vals)])
-       (printf "seq-store: ~a ~a\n" res-name val)
+       ;; (printf "seq-store: ~a ~a\n" res-name val)
        (match val
          [#f #f]
-         [(? syntax?) (sham-store val (sham-sequence-index t i res-name))])))
+         [(? syntax?) (sham-store val (sham-sequence-index type i res-name))])))
    (if res
-       (maybe-stmts (append stmts arg-stmts (filter-not false? (stores res))) #f)
+       (maybe-stmts (append stmts arg-stmts (filter-not false? (stores res))) (if res^ #f res))
        (error 'sham/cryptol "basic-sequence needs allocated result ~a" args))]
   [(sequence-enum ctxt from step to)
    (define (iv v) (expr-lit-v v))
    (define type (cc-type ctxt))
    (define elem-type (maybe-sequence-elem-type type))
-   (define-values (stmts res) (unwrap-result (cc-res ctxt)))
+   (define-values (stmts res^) (unwrap-result (cc-res ctxt)))
+   (define res (or res^ (sham-allocate-type! ctxt type)))
    (define fi (iv from))
    (define si (iv step))
    (define ti (iv to))
    (define len (/ (add1 (- ti fi)) si))
-   (maybe-stmts
-    (append stmts (list (int-ult-loop (λ (idx) (list (sham-store #`(op-mul #,(sham-integer-literal si elem-type)
-                                                                      (op-add #,(sham-integer-literal fi elem-type) #,idx))
-                                                            (sham-sequence-index type idx res))))
-                                      #`(ui64 0) #`(ui64 #,len))))
-    #f)]
-  [(sequence-str ctxt str)
+   (printf "seq-en: ~a ~a\n" type (list fi si ti))
+   (define loop-stmt
+     (int-ult-loop
+      (λ (idx) (list
+                (sham-store #`(op-mul #,(sham-integer-literal si elem-type)
+                                      (op-add #,(sham-integer-literal fi elem-type) #,idx))
+                            (sham-sequence-index type idx res))))
+      #`(ui64 0) #`(ui64 #,len)) )
+   (maybe-stmts (append stmts (list loop-stmt)) (if res^ #f res))]
 
-   (error 'sham/cryptol "sequence-str ~a" str)])
+  [(sequence-comp-index ctxt type)
+   (define idx-sym #`'#,(gensym 'sci))
+   #`(expr-ref #,idx-sym)]
+  [(sequence-comp-var ctxt vv idx)
+   (match-define (list var res val typ) vv)
+   (define-values (val-stmts val-res) (unwrap-result val))
+   (printf "seq-c-var: ~a ~a\n" vv idx)
+   (sham-sequence-index typ idx (or val-res res))]
+  [(sequence-comp-result ctxt idx type)
+   (define-values (stmts res) (unwrap-result (cc-res ctxt)))
+   (printf "seq-c-res: ~a ~a\n" idx type)
+   (maybe-stmts stmts (sham-sequence-index type idx res))]
+
+  [(sequence-comp ctxt body vvs idx body-res)
+   (define type (cc-type ctxt))
+   (define len (sham-dim-value ctxt (type-sequence-dim type)))
+   (define-values (body-stmts body-val) (unwrap-result body))
+   (define idx-sym (syntax-case idx () [(expr-ref is) #`is]))
+   (define vvs-stmts
+     (apply append
+            (for/list ([vv vvs])
+              (match-define (list var res val typ) vv)
+              (define-values (val-stmts val-res) (unwrap-result val))
+              val-stmts)))
+   (define loop-stmt
+     #`(stmt-let ([#,idx-sym (ui64 0) i64])
+               (stmt-while (op-icmp-ult #,idx #,len)
+                           (stmt-block
+                            #,@body-stmts
+                            #,@(if body-val (list (sham-store body-val body-res)) '())
+                            (stmt-set! #,idx (op-add #,idx (ui64 1)))))))
+   (maybe-stmts (append vvs-stmts (list loop-stmt)) #f)
+   ;; (error 'sham/cryptol "TODO sequence-comp ~a ~a" body vvs)
+   ]
+  [(sequence-str ctxt str) (error 'sham/cryptol "sequence-str ~a" str)])
 
 (define require-syntax
   #`((require sham

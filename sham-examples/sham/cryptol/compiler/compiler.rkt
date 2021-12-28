@@ -1,6 +1,7 @@
 #lang racket
 (require (for-syntax racket/syntax
                      syntax/parse))
+(require racket/trace)
 (provide (all-defined-out))
 
 (define-for-syntax compiler-functions
@@ -38,8 +39,11 @@
      sequence-basic
      sequence-enum
      sequence-string
+
+     sequence-comp-var
+     sequence-comp-result
+     sequence-comp-index
      sequence-comp
-     sequence-var
 
      type
      type-sequence
@@ -66,7 +70,7 @@
                (cond
                  [(assoc (syntax->datum f) given-fs)
                   =>
-                  (λ (given) (quasisyntax/loc f (λ #,(cadr given) #,@(caddr given))))]
+                  (λ (given) (quasisyntax/loc f (lambda #,(cadr given) #,@(caddr given))))]
                  [else #`(λ (ctxt . args) `(TODO #,f ,@args))]))))]))
 
 ;; (define test-compiler (create-test-compiler))

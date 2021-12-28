@@ -171,13 +171,25 @@
                                                             (type-sequence (dim-int 8) (type-bit)))))
          ;; (compile-sequence-string s)
          ]
-        [(comp body [(vars (^ vals #:ctxt (update-context! ctxt #:type #f)))] ...)
-         (let* ([compiled-vvs
+        [(comp body [(vars vals)] ...)
+         (match-define (cons typed-vars calc-type) (maybe-calc-type this-ast (cc-type ctxt) ctxt))
+         ;; (printf "calc-type: ~a ~a\n" vars calc-type)
+         (let* ([cvvs
                  (for/list ([vr vars] [vl vals])
-                   (env-var vr (compile-sequence-var vr vl ctxt)))]
-                [comp-ctxt (update-context! ctxt #:env (update-env (cc-env ctxt) #:val compiled-vvs))]
-                [compiled-body (cexpr body comp-ctxt)])
-           (compile-sequence-comp compiled-body compiled-vvs comp-ctxt))]))
+                   (define vl-elem-type (maybe-first-env-vars (lookup-env-vars typed-vars (pat-var-name vr))))
+                   (define vlt (maybe-calc-type vl (type-sequence #f (or vl-elem-type (type-unknown))) (update-context! ctxt #:env (update-env (cc-env ctxt) #:tvar typed-vars))))
+                   ;; (define res (compile-expr-result (cdr vlt) #f ctxt))
+                   (define cvl (cexpr vl (update-context! ctxt #:type (cdr vlt) #:res #f)))
+                   (list vr #f cvl (cdr vlt)))]
+                [comp-index (compile-sequence-comp-index calc-type ctxt)]
+                [vvs-env (for/list ([vv cvvs]) (env-var (pat-var-name (first vv)) (compile-sequence-comp-var vv comp-index ctxt)))]
+                [comp-result (compile-sequence-comp-result comp-index calc-type ctxt)]
+                [body-ctxt (update-context! ctxt
+                                            #:env (update-env (cc-env ctxt) #:val vvs-env)
+                                            #:res comp-result
+                                            #:type (maybe-sequence-elem-type calc-type))]
+                [compiled-body (cexpr body body-ctxt)])
+           (compile-sequence-comp compiled-body cvvs comp-index comp-result (update-context! ctxt #:type calc-type)))]))
 
 
 (define primitive-typeofs-asts (stx-to-cry-ast primitive-typeofs-stx))
