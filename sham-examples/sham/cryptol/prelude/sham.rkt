@@ -53,5 +53,15 @@
 (define (sequence-len-ptr s) (op-gep s (ui32 0) (ui32 0)))
 (define (sequence-index-ptr s idx) (op-gep (sequence-array-ptr s) (op-int-cast idx (expr-etype i32))))
 
+;; lazy sequences
+(define (lazy-seq-type it)
+  (ll-type-struct i64                   ;; length
+                  (ll-type-pointer it)  ;; ptr to internal values
+                  i64                   ;; calculated upto] including
+                  (ll-type-pointer (ll-type-function ll-void* i64 #f (ll-type-pointer it))) ;; get value @ i, will force all values until i
+                  ))
+(define (lazy-seq-index-ptr s idx)
+  (expr-app (op-load (op-gep s (ui32 0) (ui32 3))) (op-ptr-cast s (expr-etype ll-void*)) idx))
+
 ;; tuple
 (define (tuple-index-ptr t i) (op-gep t (ui32 0) i))

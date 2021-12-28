@@ -59,7 +59,7 @@
        [sz = (length msg)]])
 
 (def [computeRounds : #([16 [32]] MD5State) -> [65 MD5State]]
-  [computeRounds msg st = (@ (<> msg st) 64)])
+  [computeRounds msg st = (@ (rounds #(msg st)) 64)])
 
 (def [rounds : #([16 [32]] MD5State) -> [65 MD5State]]
   [rounds #(msg #(a0 b0 c0 d0)) = [#(a b c d) | a <- as | b <- bs | c <- cs | d <- ds]
