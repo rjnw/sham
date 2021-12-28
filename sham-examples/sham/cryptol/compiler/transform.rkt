@@ -115,6 +115,7 @@
                  (lookup-val-env ctxt (expr-var-name rator))
                  ;; (car (lookup-env-vars (env-val (cc-env ctxt)) (expr-var-name rator)))
                  ])
+            (define (compile-arg arg-expr arg-type arg-res) (cexpr arg-expr (update-context! ctxt #:res arg-res #:type arg-type)))
             (define (compile-args args up-type)
               (for/list ([arg args]
                          [argt (drop-right (get-farg-types up-type) 1)]
@@ -125,8 +126,8 @@
               [(env-primitive-var rator-name rator-pval)
                (define-values (pvar-args rator-up-type)
                  (specialize-poly-type (lookup-typeof ctxt rator-name) targs vargs ctxt))
-               (define compiled-vargs (compile-args vargs rator-up-type))
-               (compile-expr-app-primitive rator-name rator-pval pvar-args compiled-vargs ctxt)]
+               ;; (define compiled-vargs (compile-args vargs rator-up-type))
+               (compile-expr-app-primitive rator-val pvar-args rator-up-type vargs compile-arg ctxt)]
               [(env-lazy-var name valf ast)
                (let* ([compiled-rator (valf targs vargs ctxt)]
                       [new-rator-type (env-special-var-type compiled-rator)]

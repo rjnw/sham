@@ -124,7 +124,7 @@
 ;;  val: expr for the final allocated value, usually a ref to a name
 ;;  allocat/c: let bound values for all internal allocations
 ;;  stmts: assigining sub parts for internal allocations for complex types
-(define (allocate-type ctxt type)
+(define (allocate-type ctxt type (in? #t))
   (define alloca-name #`'#,(gensym 'val))
   (define sham-type (to-sham-type type #f))
   (define alloca-val #`(alloca #,sham-type))
@@ -182,7 +182,7 @@
       [it (list (sham-store #`(alloca #,(to-sham-type itype #f)) val))]))
 
   ;; sub allocation for internal values
-  (define istmts (if (use-ptr-type? type) (allocate-in alloca-ref type) '()))
+  (define istmts (if (and in? (use-ptr-type? type)) (allocate-in alloca-ref type) '()))
 
   (values alloca-ref (list basic-alloca) istmts))
 
@@ -329,6 +329,10 @@
      [(env-var name val)
       ;; #`(expr-op #,(ast-id-stxid name) #,@rand-vals)
       (error 'todo "app env-var ~a" rator)])]
+  [(expr-app-primitive ctxt prim-val poly-vars up-type arg-exprs fcompile)
+   (printf "app-prim: ~a ~a ~a ~a\n" prim-val up-type poly-vars (map pretty-cry arg-exprs))
+   ((hash-ref primitive-apps (syntax->datum (ast-id-stxid (env-var-name prim-val))))
+    ctxt prim-val poly-vars up-type arg-exprs fcompile)]
   [(expr-bind ctxt value) value]
   [(expr-var ctxt name env-value)
    (define-values (stmts result) (unwrap-result (cc-res ctxt)))
@@ -470,3 +474,43 @@
 
 (define primitive-defs
   #`((ll-def-external 'printf (ll-type-function (ll-type-pointer i8) #t i64))))
+
+(define (poly-var-value var pvars) (maybe-first-env-vars (lookup-env-vars pvars var)))
+(define (append-sequence ctxt prim-val poly-vars up-type arg-exprs fcompile)
+  (define-values (res-stmts res) (unwrap-result (cc-res ctxt)))
+  (match-define (type-poly (front back elem) rst) (env-var-val prim-val))
+  (define (get-val v) (poly-var-value v poly-vars))
+  (define-values (front-dim back-dim elem-type) (values (get-val front) (get-val back) (get-val elem)))
+  (define-values (front-type back-type) (values (type-sequence front-dim elem-type) (type-sequence back-dim elem-type)))
+  (match-define (list fst snd) arg-exprs)
+  (define-values (fst-ref fst-allocs fst-alc-stmts) (allocate-type ctxt front-type))
+  (define-values (snd-ref snd-allocs snd-alc-stmts) (allocate-type ctxt back-type))
+  (define-values (fst-stmts fst-val) (unwrap-result (fcompile fst front-type fst-ref)))
+  (define-values (snd-stmts snd-val) (unwrap-result (fcompile snd back-type snd-ref)))
+  (when (or fst-val snd-val) (error 'sham/cryptol "append should just store in result ~a ~a" fst-val snd-val))
+  ;; aliasing pointers for append where the pointers for front and back are just sub parts of original result
+  (maybe-stmts
+   (append res-stmts
+           (list
+            (allocats->let (append fst-allocs snd-allocs)
+                           ;; store dim and res pointer
+                           fst-alc-stmts
+                           (sham-store (sham-dim-value ctxt front-dim) (sham-sequence-dim fst-ref))
+                           (sham-store (load-if-ref (ref-v (sham-sequence-ptr res))) (ref-v (sham-sequence-ptr fst-ref)))
+
+                           ;; alias the current result pointer at dim
+                           snd-alc-stmts
+                           (sham-store (sham-dim-value ctxt back-dim) (sham-sequence-dim snd-ref))
+                           (sham-store #`(op-gep #,(load-if-ref (ref-v (sham-sequence-ptr res)))
+                                                 #,(sham-dim-value ctxt front-dim))
+                                       (ref-v (sham-sequence-ptr snd-ref)))
+
+                           fst-stmts
+                           snd-stmts)))
+   #f)
+  ;; (error 'stop)
+  )
+
+(define primitive-apps
+  (hash '<> append-sequence
+        ))
