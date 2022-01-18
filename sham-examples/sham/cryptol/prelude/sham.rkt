@@ -56,12 +56,22 @@
 ;; lazy sequences
 (define (lazy-seq-type it)
   (ll-type-struct i64                   ;; length
-                  (ll-type-pointer it)  ;; ptr to internal values
-                  i64                   ;; calculated upto] including
+                  (ll-type-pointer it) ;; ptr to internal values
+                  i64                   ;; calculated upto) excluding given; starts at zero
                   (ll-type-pointer (ll-type-function ll-void* i64 #f (ll-type-pointer it))) ;; get value @ i, will force all values until i
+                  i8*                   ;; ptr to closure store of values
                   ))
 (define (lazy-seq-index-ptr s idx)
   (expr-app (op-load (op-gep s (ui32 0) (ui32 3))) (op-ptr-cast s (expr-etype ll-void*)) idx))
+(define (lazy-seq-upto-ptr s) (op-gep s (ui32 0) (ui32 2)))
+(define (lazy-seq-func-ptr s) (op-gep s (ui32 0) (ui32 3)))
+(define (lazy-seq-clos-ptr s) (op-gep s (ui32 0) (ui32 4)))
+(define (lazy-seq-func-type clos-type seq-type) (ll-make-type-function seq-type i64 clos-type #f ll-void))
+(define lazy-func-index (expr-ref 0))
 
+;; closure
+(define (clos-type . locals) (ll-make-type-struct (map ll-make-type-pointer locals)))
+(define (clos-index-ptr c i) (op-gep c (ui32 0) (ui32 i)))
+(define (clos-index c i) (op-load (clos-index-ptr c i)))
 ;; tuple
 (define (tuple-index-ptr t i) (op-gep t (ui32 0) i))

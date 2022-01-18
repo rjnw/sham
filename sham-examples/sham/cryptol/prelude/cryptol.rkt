@@ -47,10 +47,10 @@
 (define prelude-defs-stx
   #`(def
       ;; bitwise and logical operators
-      [bit-impl bit-and bit-or : bit -> bit -> bit]
-      [bit-impl a b = (cond [a b] [else true])]
-      [bit-and a b = (cond [x y] [else false])]
-      [bit-or a b = (cond [x true] [else y])]
+      [logic-impl logic-and logic-or : bit -> bit -> bit]
+      [logic-impl a b = (cond [a b] [else true])]
+      [logic-and a b = (cond [x y] [else false])]
+      [logic-or a b = (cond [x true] [else y])]
       ;; comparisons
 
       ;; [<$ >$ <=$ >=$ : {a} (signed-cmp a) => a -> a -> bit]

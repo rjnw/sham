@@ -7,10 +7,16 @@
 
 (struct env-var [name val] #:transparent)
 
-(struct env-lazy-var env-var [ast] #:transparent) ;; val is wrapped in a function which takes pargs vargs and ctxt to compile
-(struct env-primitive-var env-var [] #:transparent)     ;; primitive value which should compile an app primitively
-(struct env-prelude-var env-var [] #:transparent)     ;; prelude value
-(struct env-special-var env-var [type oname otype pargs] #:transparent) ;; lazy compile returns a specialized value for specific pargs and gensym'd name
+;; a local variable bound by bind or where
+(struct env-bind-var env-var [] #:transparent)
+(struct env-where-var env-var [] #:transparent)
+ ;; val is wrapped in a function which takes pargs vargs and ctxt to compile
+(struct env-lazy-var env-var [ast] #:transparent)
+ ;; primitive value which should compile an app primitively
+(struct env-primitive-var env-var [] #:transparent)
+(struct env-prelude-var env-var [] #:transparent) ;; prelude value
+ ;; lazy compile returns a specialized value for specific pargs and gensym'd name
+(struct env-special-var env-var [type oname otype pargs] #:transparent)
 
 (define (maybe-first-env-vars env-vars (getter env-var-val))
   (match env-vars

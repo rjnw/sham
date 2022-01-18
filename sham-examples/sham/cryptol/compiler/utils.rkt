@@ -148,9 +148,9 @@
          [(var n) (make var (lookup n val-env))]
          [(tvar n) (make tvar (lookup n type-env))]
          [(annot (^ e) (^ t)) (make annot e t)]
-         [(where (^ b) ds ...)
+         [(where b ds ...)
           (let-values ([(new-ds new-val-env new-type-env) (gensym-names-defs ds val-env type-env)])
-            (make where b ;; (cexpr b new-val-env new-type-env)
+            (make where (cexpr b new-val-env new-type-env)
                   (match new-ds
                     [(def-combined () () () ()) (list)]
                     [else (list new-ds)])))]
@@ -163,8 +163,12 @@
         [(enum (^ f) (^ s) (^ t)) (make enum f s t)]
         [(str s) this-ast]
         [(comp body ((v l)) ...)
-         (let-values ([(nvs nns) (do-pats v val-env)])
-           (make comp (cexpr body (append nns val-env) type-env) (map list nvs) (map list l)))])
+         (let*-values ([(nvs nns) (do-pats v val-env)]
+                      [(new-val-env) (append nns val-env)])
+           (make comp
+                 (cexpr body new-val-env type-env)
+                 (map list nvs)
+                 (map list (map (λ (l1) (cexpr l1 new-val-env type-env)) l))))])
   (ctype (type -> type)
          [bit this-ast]
          [integer this-ast]
@@ -201,7 +205,7 @@
          (values (make-def-typed-val name new-type (gensym-names-ast val val-env #;(cons vnn val-env) nte))
                  vnn
                  nte)]))
-    (values new-def-val (cons nvn val-env) type-env))
+    (values new-def-val val-env #;(cons nvn val-env) type-env))
   (define (do-defs defs val-env type-env)
     (define-values (val-defs type-defs typeof-defs test-defs) (split-defs defs))
     (define-values (ctvs rest-typeofs) (combine-val&typeof val-defs typeof-defs))

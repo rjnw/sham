@@ -84,7 +84,8 @@
          [else (error 'cry/unify "weird-result: ~a" tu)]))
 (define (add-type-var name tu ctxt)
   (cond [(and (cons? tu) (or (dim? (cdr tu))
-                             (type? (cdr tu))))
+                             (type? (cdr tu))
+                             (false? (cdr tu))))
          (make-unified-result
           (cons (env-var name (unified-type tu)) (unified-vars tu))
           (unified-type tu))]
@@ -93,7 +94,7 @@
         [else (error 'cry/unify "weird-result: ~a ~a" name tu)]))
 ;;  takes poly-type and maybe a concrete-type, tries to unify and also returns variable values figured
 ;; -> (cons new-type env-vars)
-(trace-define
+(define
  (unify-type t1 t2 ctxt)
  (define (unk? t)
    (or (false? t) (type-unknown? t)))
@@ -164,6 +165,10 @@
    [((dim-int i1) (dim-int i2))
     #:when (equal? i1 i2)
     (no-vars t1)]
+   [((? dim-app?) (? dim-app?))
+    (cond [(calc-dim t1 ctxt) => (λ (cd) (unify-type cd t2 ctxt))]
+          [(calc-dim t2 ctxt) => (λ (cd) (unify-type t1 cd ctxt))]
+          [else (error 'sham/cry/unify "couldn't unify dims: ~a ~a" t1 t2)])]
    [((? dim-app?) t2) (unify-type (calc-dim t1 ctxt) t2 ctxt)]
    [(t1 (? dim-app?)) (unify-type (calc-dim t2 ctxt) t1 ctxt)]
    [(t1 t2) #:when (equal? t1 t2) (no-vars t1)]
@@ -210,7 +215,7 @@
 (define (update-type-md! ast type) type)
 
 ;; returns similar result as unify-type: (cons vars type)
-(trace-define (maybe-calc-type ast maybe-type^ ctxt)
+(define (maybe-calc-type ast maybe-type^ ctxt)
   ;; (debug (printf "maybe-calc-type: ~a ~a\n" (pretty-cry ast) (pretty-cry maybe-type^)))
   ;; (define maybe-utype (unify-type (type-from-md ast) maybe-type^ ctxt))
   (define maybe-type maybe-type^ ;; (cdr maybe-utype)
@@ -336,7 +341,6 @@
     [(dim-var n) (calc-dim (type-from-name ctxt n) ctxt)]
     [(? dim-app?) (calc-dim-app d ctxt)]
     [#f #f]))
-
 (define (contains-var? t)
   (match t
     [(type-var _) #t]
@@ -356,7 +360,7 @@
              [i (length pvars)])
     (env-var pvar (if (< i (length pargs)) (list-ref pargs i) #f))))
 
-(trace-define (specialize-poly-type orig-type poly-args value-args ctxt)
+(define (specialize-poly-type orig-type poly-args value-args ctxt)
   (define-values (uptype pvars cs) (unwrap-poly orig-type))
   (match-define (list varg-types^ ... res-type) (get-farg-types uptype))
   (define given-result-type (cc-type ctxt))

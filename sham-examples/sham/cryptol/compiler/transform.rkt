@@ -43,8 +43,8 @@
                    #:type res-type
                    #:res res-val
                    #:env (update-env (cc-env ctxt)
-                                     #:val (map (λ (po) (env-var (first po) (second po))) pat-vars)
-                                     #:typeof (map (λ (po) (env-var (first po) (third po))) pat-vars))))
+                                     #:val (map (λ (po) (env-bind-var (first po) (second po))) pat-vars)
+                                     #:typeof (map (λ (po) (env-bind-var (first po) (third po))) pat-vars))))
 
 (define (update-ctxt-for-cdef cdef ctxt (evt env-var))
   (match-define (def-combined (type-defs ...) (typeof-defs ...) (tv-defs ...) (test-defs ...)) cdef)
@@ -69,6 +69,36 @@
                            (do-typed-val name type value vals-ctxt pargs vargs app-ctxt))
                          value)))])
     vals-ctxt))
+
+(define (update-ctxt-for-where cdef ctxt)
+  (match-define (def-combined (type-defs ...) (typeof-defs ...) (tv-defs ...) (test-defs ...)) cdef)
+  (define typeof-env (flatten (for/list ([d typeof-defs])
+                        (map (λ (name) (env-var name (def-typeof-val d))) (def-typeof-names d)))))
+  (define type-env (for/list ([d type-defs]) (env-var (def-type-name d) (def-type-val d))))
+  (define new-ctxt
+    (update-context! ctxt
+                     #:env (update-env (and ctxt (cc-env ctxt)) #:typeof typeof-env #:type type-env)))
+
+  ;; fold over values twice for mutually recursive sequences, first just for env next for building value
+  ;; (define val-ctxt
+  ;;   (for/fold ([vc new-ctxt])
+  ;;             ([tv tv-defs])
+  ;;     (match-define (def-typed-val name type value) tv)
+  ;;     (update-env vc
+  ;;                 #:typeof (env-var name type)
+  ;;                 #:val (env-var name (compile-where-val-env name type value vc)))))
+  (define tv-typeofs (for/list ([tv tv-defs]) (env-where-var (def-typed-val-name tv) (def-typed-val-type tv))))
+  (define-values (val-ctxt prep-tvs) (compile-where-val-env tv-defs (update-env new-ctxt #:typeof tv-typeofs)))
+
+  (for/fold ([vc val-ctxt])
+            ([tv tv-defs]
+             [pv prep-tvs])
+    (match-define (def-typed-val name type value) tv)
+    (define cres (compile-where-val-res name type pv ctxt))
+    (define val (match value [(expr-bind () v) v] [else value]))
+    (printf "compiling-where: ~a ~a\n" (pretty-cry val) cres)
+    (define cval #f #;(do-cry val (update-context! vc #:type type #:res cres)))
+    (update-env vc #:val (env-where-var name (compile-where-val name type pv cval ctxt)))))
 
 ;; this creates a lazy compiler which compiles when intrinsic arguments are given and per application
 (define (do-typed-val name type val orig-ctxt pargs vargs app-ctxt)
@@ -132,13 +162,15 @@
                (let* ([compiled-rator (valf targs vargs ctxt)]
                       [new-rator-type (env-special-var-type compiled-rator)]
                       [compiled-vargs (compile-args vargs new-rator-type)])
-                 (compile-expr-app compiled-rator compiled-vargs ctxt))]))]
+                 (compile-expr-app compiled-rator compiled-vargs ctxt))]
+              [#f (error 'cryptol/compile "app rator not found ~a" (pretty-cry rator))]
+              [else (error 'cryptol/compile "unknown app rator: ~a ~a" rator-val this-ast)]))]
          [(cond ((^ chk) (^ thn)) ... (^ els)) (compile-expr-cond chk thn els ctxt)]
          [(var name) (compile-expr-var name (lookup-val-env ctxt name) ctxt)]
          [(tvar name) (compile-expr-tvar name (lookup-type ctxt name) ctxt)]
          [(annot e t) (cexpr e (update-context! ctxt #:type t))]
          [(where (^ body)) body]
-         [(where body ds) (cexpr body (update-ctxt-for-cdef ds ctxt))]
+         [(where body ds) (cexpr body (update-ctxt-for-where ds ctxt))]
          [(error msg) (compile-error-msg msg ctxt)]
 
          [(tuple vs ...)

@@ -6,6 +6,7 @@
 
 (define-for-syntax compiler-functions
   #`(
+     ;; create a new internal context, once for each val and test
      internal-def-context
 
      def-val
@@ -16,6 +17,10 @@
 
      function-arg
      function-result
+
+     where-val-env
+     where-val-res
+     where-val
 
      expr-result
 
