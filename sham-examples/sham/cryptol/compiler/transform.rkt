@@ -97,7 +97,7 @@
     (define cres (compile-where-val-res name type pv ctxt))
     (define val (match value [(expr-bind () v) v] [else value]))
     (printf "compiling-where: ~a ~a\n" (pretty-cry val) cres)
-    (define cval #f #;(do-cry val (update-context! vc #:type type #:res cres)))
+    (define cval (do-cry val (update-context! vc #:type type #:res cres)))
     (update-env vc #:val (env-where-var name (compile-where-val name type pv cval ctxt)))))
 
 ;; this creates a lazy compiler which compiles when intrinsic arguments are given and per application
