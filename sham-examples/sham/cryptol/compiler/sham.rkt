@@ -103,11 +103,6 @@
   (match-define (list argts ... rst) (get-farg-types up-type))
   `(,@(map (λ (t) (to-sham-type t (use-ptr-type? t))) argts) ,(add-ptr-type (to-sham-type rst))))
 
-(define (sham-dim-i dim ctxt)
-  (match dim
-    [(dim-int i) #`(ui32 #,i)]
-    [else (error 'sham/cry "todo dim based on poly variables ~a" (pretty-cry dim))]))
-
 (define (sham-store val ptr)
   (match ptr
     [(ref v) #`(store-val! #,(load-if-ref val) #,(load-if-ref v))]))
@@ -130,7 +125,10 @@
         [else (error 'todo-sham "big integer ~a ~a" i type)]))
 (define (sham-dim-value ctxt dim)
   ;; TODO for variable dims
-  #`(ui64 #,(maybe-dim-i dim)))
+  (define dim-i (or (maybe-dim-i dim)
+                    (maybe-dim-i (try-specialize-type dim ctxt))))
+  (unless dim-i (error 'sham/cry "couldn't specialize sequence dimension ~a" dim))
+  #`(ui64 #,dim-i))
 
 (define (allocat->let a) (match-define (allocat n v t) a) #`(#,n #,v #,t))
 (define (allocats->let allocats . stmts) #`(stmt-let #,(map allocat->let allocats) #,@(flatten stmts)))
@@ -516,14 +514,15 @@
       ;; #`(expr-op #,(ast-id-stxid name) #,@rand-vals)
       (error 'todo "app env-var ~a" rator)])]
   [(expr-app-primitive ctxt prim-val poly-vars up-type arg-exprs fcompile)
-   ;; (printf "app-prim: ~a ~a ~a ~a\n" prim-val up-type poly-vars (map pretty-cry arg-exprs))
+   (printf "app-prim: ~a ~a ~a ~a\n" prim-val up-type poly-vars (map pretty-cry arg-exprs))
    ((hash-ref primitive-apps (syntax->datum (ast-id-stxid (env-var-name prim-val))))
     ctxt prim-val poly-vars up-type arg-exprs fcompile)]
   [(expr-bind ctxt value) value]
   [(expr-var ctxt name env-value)
    (define-values (stmts result) (unwrap-result (cc-res ctxt)))
+   (define type (cc-type ctxt))
    (define name-stx (ast-id-stxid name))
-   (printf "expr-var: ~a ~a ~a\n" name env-value result)
+   (printf "expr-var: ~a ~a ~a ~a\n" name (pretty-cry type) env-value result)
    (define immediate-value
      (match env-value
        [(env-primitive-var name type) (format-id #f "primitive-~a" name-stx)]

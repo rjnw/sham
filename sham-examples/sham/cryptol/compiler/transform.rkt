@@ -73,9 +73,10 @@
     vals-ctxt))
 
 (define (update-ctxt-for-where cdef ctxt)
-  (match-define (def-combined (type-defs ...) (typeof-defs ...) (tv-defs ...) (test-defs ...)) cdef)
+  (match-define (def-combined (type-defs ...) (typeof-defs ...) (otv-defs ...) (test-defs ...)) cdef)
   (define typeof-env (flatten (for/list ([d typeof-defs])
-                        (map (λ (name) (env-var name (def-typeof-val d))) (def-typeof-names d)))))
+                                (map (λ (name) (env-var name (try-specialize-type (def-typeof-val d) ctxt)))
+                                     (def-typeof-names d)))))
   (define type-env (for/list ([d type-defs]) (env-var (def-type-name d) (def-type-val d))))
   (define new-ctxt
     (update-context! ctxt
@@ -89,6 +90,9 @@
   ;;     (update-env vc
   ;;                 #:typeof (env-var name type)
   ;;                 #:val (env-var name (compile-where-val-env name type value vc)))))
+  (define tv-defs (for/list ([tv otv-defs])
+                    (match-define (def-typed-val name type value) tv)
+                    (def-typed-val name (cdr (maybe-calc-type value type new-ctxt)) value)))
   (define tv-typeofs (for/list ([tv tv-defs]) (env-where-var (def-typed-val-name tv) (def-typed-val-type tv))))
   (define-values (val-ctxt prep-tvs) (compile-where-val-env tv-defs (update-env new-ctxt #:typeof tv-typeofs)))
 
@@ -108,6 +112,7 @@
   (debug (printf "forcing-lazy: ~a\n  val:~a\n  pargs:~a\n  vargs:~a\n  ret-type:~a\n"
                  name (pretty-cry val) pargs vargs (cc-type orig-ctxt)))
   (define-values (pargs-evs up-type) (specialize-poly-type type pargs vargs app-ctxt))
+  (printf "pargs-evs: ~a\n" pargs-evs)
   (let* ([new-name (ast-id-gen name)]
          [new-env (update-env (cc-env orig-ctxt) #:tvar pargs-evs)]
          [cctxt (compile-internal-def-context name type orig-ctxt)]
@@ -147,7 +152,9 @@
                  (lookup-val-env ctxt (expr-var-name rator))
                  ;; (car (lookup-env-vars (env-val (cc-env ctxt)) (expr-var-name rator)))
                  ])
-            (define (compile-arg arg-expr arg-type arg-res) (cexpr arg-expr (update-context! ctxt #:res arg-res #:type arg-type)))
+            (define (compile-arg arg-expr arg-type arg-res)
+              (define calc-type (cdr (maybe-calc-type arg-expr (try-specialize-type arg-type ctxt) ctxt)))
+              (cexpr arg-expr (update-context! ctxt #:res arg-res #:type calc-type)))
             (define (compile-args args up-type)
               (for/list ([arg args]
                          [argt (drop-right (get-farg-types up-type) 1)]

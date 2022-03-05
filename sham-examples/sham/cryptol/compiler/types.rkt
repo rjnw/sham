@@ -44,12 +44,35 @@
       [(type-bit) t]
       [(type-integer) #f]
 
-      [(dim i) t]
-      [(dim-var name) (rec (lookup-tvar ctxt name))]
+      [(dim-int i) t]
+      [(dim-var name) (printf "dim-var: ~a ~a\n" name (lookup-tvar ctxt name)) (rec (lookup-tvar ctxt name))]
       [(dim-app rator rands ...)
        (define rands^ (map rec rands))
-       (and (andmap identity rands^) (make-dim-app rator rands^))])))
+       (define st (and (andmap identity rands^) (make-dim-app rator rands^)))
+       (or (calc-dim-app st ctxt) st)])))
+(define (try-specialize-type cry-type ctxt)
+  (let rec ([t cry-type])
+    (match t
+      [(type-poly (vars ...) t) (make-type-poly vars (rec t))]
+      [(type-constraint (cs ...) t)
+       (define t^ (rec t))
+       (and t^ (make-type-constraint cs t^))]
+      [(type-sequence dim t)
+       (type-sequence (rec dim) (rec t))]
+      [(type-tuple ts ...)
+       (make-type-tuple (map rec ts))]
+      [(type-var name)
+       (rec (lookup-tvar ctxt name))]
+      [(type-func from to)
+       (type-func (rec from) (rec to))]
+      [(type-bit) t]
+      [(type-integer) t]
 
+      [(dim-int i) t]
+      [(dim-var name) (rec (lookup-tvar ctxt name))]
+      [(dim-app rator rands ...)
+       (define st (make-dim-app rator (map rec rands)))
+       (or (calc-dim-app st ctxt) st)])))
 (define (unknown-type? t ctxt)
   (match t
     [(type-var n) (unknown-type? (lookup-tvar ctxt n) ctxt)]
@@ -367,11 +390,11 @@
   (define pevs (given-pvars pvars poly-args cs))
   (define pctxt (update-env ctxt #:tvar pevs))
 
-  ;; (debug (printf "specialize-poly-type: ~a\npargs: ~a\nvargs: ~a\n"
-  ;;                (pretty-cry orig-type) (map pretty-cry poly-args) (map pretty-cry value-args))
-  ;;        (printf "\tresult-type: ~a\n\tpevs: ~a\n" given-result-type pevs))
+  (debug (printf "specialize-poly-type: ~a\npargs: ~a\nvargs: ~a\n"
+                 (pretty-cry orig-type) (map pretty-cry poly-args) (map pretty-cry value-args))
+         (printf "\tresult-type: ~a\n\tpevs: ~a\n" given-result-type pevs))
   (define res-ut-type (unify-type res-type given-result-type pctxt))
-  ;; (debug (printf "spt: res-type:~a\n" (pretty-cry res-ut-type)))
+  (debug (printf "spt: res-type:~a\n" (pretty-cry res-ut-type)))
   (define-values (varg-ctxt varg-types)
     (for/fold ([ctxt (update-env pctxt #:tvar (car res-ut-type))]
                [vts '()])
@@ -387,14 +410,17 @@
   ;;   (print-cc varg-ctxt)
   ;;   (error 'sham/cry "cannot specialize: ~a ~a ~a\n" (pretty-cry orig-type) pargs-vals varg-types))
   (define full-func-type (maybe-full-type uptype varg-ctxt))
+  (printf "full-func-type: ~a\n" (pretty-cry full-func-type))
   (define ufunc-type (foldr make-type-func (cdr res-ut-type) (reverse varg-types)))
-  (values (map (λ (p pv) (env-var (env-var-name p) pv)) pevs pargs-vals)
-          (if full-func-type ;; (ormap false? pargs-vals)
-              full-func-type
-              (make-type-poly (filter (λ (v) (and (false? (cdr v))
-                                                  (car v)))
-                                      (map cons pevs pargs-vals))
-                              ufunc-type)))
+  (define final-type
+    (if full-func-type ;; (ormap false? pargs-vals)
+        full-func-type
+        (make-type-poly (filter (λ (v) (and (false? (cdr v))
+                                            (car v)))
+                                (map cons pevs pargs-vals))
+                        ufunc-type)))
+  (printf "specialize-poly-type: final-type: ~a\n" (pretty-cry final-type))
+  (values (map (λ (p pv) (env-var (env-var-name p) pv)) pevs pargs-vals) final-type)
 
   #;(let* ([maybe-result-type (cc-type ctxt)]
          [maybe-varg-types (map (curryr maybe-calc-type ctxt) value-args (drop-right (get-farg-types uptype) 1))]

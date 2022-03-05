@@ -34,7 +34,7 @@
 
 (define sham-top
   (λ (stxs)
-    (debug (printf "compiling:\n") (for ([s stxs]) (pretty-print s)))
+    (debug (printf "compiling:\n") (for ([s stxs]) (pretty-print-ast s)) (newline))
 
     (define cry-asts (map stx-to-cry-ast stxs))
 
