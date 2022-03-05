@@ -18,9 +18,17 @@
 
 (define (update-ctxt-for-bind ctxt pats body)
   ;; (printf "updating-ctxt-for-bind: ~a ~a\n" pats body) (print-cc ctxt)
+  (define ctype (cc-type ctxt))
+  (match-define (list farg-types ... res-type) (get-farg-types ctype))
+  (define farg-vals
+    (build-list (length farg-types) identity)
+    ;; (map cons ;; (λ (ft i) (compile-function-arg ft i ctype ctxt))
+    ;;      (build-list (length farg-types) identity) farg-types)
+    )
+  (define res-val (compile-function-result res-type ctype ctxt))
   (define (do-pat pat-ast val typ)
     (match pat-ast
-      [(pat-var name) (list (list name val typ))]
+      [(pat-var name) (list (list name (compile-function-arg name val typ ctype ctxt) typ))]
       [(pat-tuple ps ...)
        (apply append
               (for/list ([p ps]
@@ -32,12 +40,6 @@
               (for/list ([p ps]
                          [i (length ps)])
                 (do-pat p (compile-sequence-index val typ i ctxt) (type-sequence-t typ))))]))
-  (define ctype (cc-type ctxt))
-  (match-define (list farg-types ... res-type) (get-farg-types ctype))
-  (define farg-vals (map (λ (ft i) (compile-function-arg ft i ctype ctxt))
-                         farg-types
-                         (build-list (length farg-types) identity)))
-  (define res-val (compile-function-result res-type ctype ctxt))
   (define pat-vars (append-map do-pat pats farg-vals farg-types))
   (update-context! ctxt
                    #:type res-type
