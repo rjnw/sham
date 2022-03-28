@@ -19,6 +19,7 @@
 
   (def (stx -> def)
     [['type (id-def name 'type) '= ts:stype] (make type name ts)]
+    [['type (id-def name 'type) '= ts:dim] (make type name (make type:tdim ts))]
     [[(id-ref names 'value)  ... ': ~! ts:stype] (make typeof names ts)]
     [[(id-def name 'value) ps:pat ... '= ~! b:cexpr ws:def ...]
      ;; #:bind-ids [ps -> ws b] [ws -> * b]

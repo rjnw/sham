@@ -202,11 +202,14 @@
     (error 'sham/cryptol/unify "mismatch types: \n~a \n~a" t1 t2)]))
 
 (define (maybe-sequence-elem-type seq-type)
-  (match seq-type
-    [(type-sequence dim t) t]
-    [(type-poly (vs ...) t) (maybe-sequence-elem-type t)]
-    [(type-constraint (cs ...) t) (maybe-sequence-elem-type t)]
-    [else #f]))
+  (define ret
+    (match seq-type
+      [(type-sequence dim t) t]
+      [(type-poly (vs ...) t) (maybe-sequence-elem-type t)]
+      [(type-constraint (cs ...) t) (maybe-sequence-elem-type t)]
+      [else #f]))
+  (unless ret (printf "maybe-seq-elem: #f <- ~a\n" (pretty-cry seq-type)))
+  ret)
 (define (maybe-sequence-dim seq-type)
   (match seq-type
     [(type-sequence dim t) dim]

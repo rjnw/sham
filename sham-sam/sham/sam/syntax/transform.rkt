@@ -55,7 +55,7 @@
 
   (define cmplr-stx (foldr-builders ik-top-bs (build-top cmplr-spec) (map do-group groups)))
 
-  (pretty-print-columns 160) (printf "transform-stx: \n") (pretty-print (map syntax->datum cmplr-stx))
+  ;; (pretty-print-columns 160) (printf "transform-stx: \n") (pretty-print (map syntax->datum cmplr-stx))
 
   (values cmplr-stx cmplr-spec))
 

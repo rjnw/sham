@@ -8,7 +8,8 @@
          [res = (<> [seed]
                     (: [(+ a x) | a <- res | x <- xs] [n [64]]))]])
 
-(test f0 (== (foldp (: 0 [64]) [0 1 2 3 4]) 10))
+(test f0 (== (foldp (: 0 [64]) []) 0))
+;; (test f0 (== (foldp (: 0 [64]) [0 1 2 3 4]) 10))
 
 ;; (def [foldl : {n a b} (fin n) => a -> (a -> b -> a) -> [n b] -> a]
 ;;   [foldl seed f xs = (! res 0)

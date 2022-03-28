@@ -76,6 +76,7 @@
 ;; closure
 (define (clos-type . locals) (ll-make-type-struct (map ll-make-type-pointer locals)))
 (define (clos-index-ptr c i) (op-gep c (ui32 0) (ui32 i)))
+(define (clos-index-val c i) (op-load (clos-index-ptr c i)))
 (define (lazy-func-clos-val idx) (op-load (clos-index-ptr lazy-func-clos idx)))
 
 ;; tuple

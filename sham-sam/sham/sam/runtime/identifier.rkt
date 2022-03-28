@@ -38,11 +38,11 @@
         [(symbol? aid) (datum->syntax #f aid)]
         [else (error 'sham/sam/id "unknown identifier ~a" aid)]))
 (define (ast-id-datum aid) (syntax-e (ast-id-stxid aid)))
-(define (ast-id-gen aid)
+(define (ast-id-gen aid new-stxid)
   (match aid
-    [(ast:id:ref md stxid defs) (ast:id:ref md (car (generate-temporaries (list stxid))) defs)]
+    [(ast:id:ref md stxid defs) (ast:id:ref md new-stxid defs)]
     [(ast:id:def md stxid gen scope refs)
-     (ast:id:def md (car (generate-temporaries (list stxid))) gen scope refs)]
+     (ast:id:def md new-stxid gen scope refs)]
     [else (error 'sham/sam/id "cannot gen id from: ~a" aid)]))
 
 (define (add-id-ref! def ref)

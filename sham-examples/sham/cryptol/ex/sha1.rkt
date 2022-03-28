@@ -1,6 +1,6 @@
 #lang sham/cryptol
 ;;  https://github.com/GaloisInc/cryptol-specs/blob/master/Primitive/Keyless/Hash/SHA1.cry
-#:compile-with test
+#:compile-with ir
 
 (def
   [sha1 : {n} (<= (width (* 8 n)) 64) => [n [8]] -> [160]]
@@ -21,8 +21,8 @@
 (def
   [pad : {msgLen} (fin msgLen) (>= 64 (width msgLen))
        => [msgLen] -> [(/^ (+ msgLen 65) 512) [512]]]
-  [pad msg = (split (<> msg [True] (: zero [padLen]) (: 'msgLen [64])))
-       [type padLen = (%^ (+ 'msgLen 65) 512)]])
+  [pad msg = (split (<> msg [true] (: zero [padLen]) (: 'msgLen [64])))
+       [type padLen = (%^ (+ msgLen 65) 512)]])
 
 (def
   [f : #([8] [32] [32] [32]) -> [32]]
@@ -72,7 +72,7 @@
                   | K <- Ks
                   | t <- [0 .. 79]]]])
 
-(test t0 (== (sha1 "") #xda39a3ee5e6b4b0d3255bfef95601890afd80709))
+;; (test t0 (== (sha1 "") #xda39a3ee5e6b4b0d3255bfef95601890afd80709))
 (test t1 (== (sha1 "abc") #xA9993E364706816ABA3E25717850C26C9CD0D89D))
-(test t2 (== (sha1 "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq") #x84983E441C3BD26EBAAE4AA1F95129E5E54670F1))
-(test t3 (== (sha1 [#\a | i <- [1 .. 1000000]]) #x34AA973CD4C4DAA4F61EEB2BDBAD27316534016F))
+;; (test t2 (== (sha1 "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq") #x84983E441C3BD26EBAAE4AA1F95129E5E54670F1))
+;; (test t3 (== (sha1 [#\a | i <- [1 .. 1000000]]) #x34AA973CD4C4DAA4F61EEB2BDBAD27316534016F))

@@ -9,9 +9,14 @@
          "stx-to-cry-ast.rkt"
          "utils.rkt"
          "ctxt.rkt"
-         "debug.rkt")
+         "debug.rkt"
+         "../prelude/cryptol.rkt"
+         "../ir/to-cry-ir.rkt")
 
 (provide (all-defined-out))
+
+(define primitive-typeofs-asts (stx-to-cry-ast primitive-typeofs-stx))
+(define prelude-defs-asts (stx-to-cry-ast prelude-defs-stx))
 
 (define (create-test-top cmplr)
   (λ (stxs)
@@ -56,8 +61,20 @@
            )))
     (debug (parameterize ([pretty-print-columns 120]) (pretty-print (syntax->datum result-syntax))))
     result-syntax))
+(define cry-ir
+  (λ (stxs)
+    (define cry-asts (map stx-to-cry-ast stxs))
+    (debug (printf "cry-ast:\n") (for ([ca cry-asts]) (pretty-print (pretty-cry ca)) (newline)))
+    (define cry-ir (to-cry-ir cry-asts primitive-typeofs-asts prelude-defs-asts))
+    (printf "cry-ir: \n")
+    (parameterize ([pretty-print-columns 120]) (pretty-print (map pretty-print-ast cry-ir)))
+   (strip-context
+     #`(module default racket
+         ;; #,@result-stxs
+         )) ))
 ;; maps to functions that take a list of stxs and return the final syntax for a file
 (define compiler-maps (make-hash `((test . ,(create-test-top test-compiler))
-                                   (sham . ,sham-top))))
+                                   (sham . ,sham-top)
+                                   (ir . ,cry-ir))))
 
 (define (get-compiler key) (hash-ref compiler-maps key))

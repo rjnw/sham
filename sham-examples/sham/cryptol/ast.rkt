@@ -79,6 +79,7 @@
    [constraint ((cs ...) t)]
    ;; [record ((id t) ...)]
    [func (t_from t_to)]
+   [tdim (dim_dim)]
    [unknown]
    #:alias t)
 

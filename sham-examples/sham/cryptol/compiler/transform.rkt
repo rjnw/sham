@@ -202,7 +202,7 @@
                 [orig-result (cc-res ctxt)]
                 [cvs (for/list ([v vs] [i (length vs)])
                        (define arg-type (maybe-sequence-elem-type type))
-                       (define result (compile-expr-result arg-type (and orig-result (compile-sequence-index orig-result type i ctxt)) ctxt))
+                       (define result (compile-expr-result arg-type (and orig-result (compile-sequence-index-result orig-result type i ctxt)) ctxt))
                        (printf "basic-sequence-val: ~a ~a ~a ~a\n" (pretty-cry v) (pretty-cry arg-type) orig-result result)
                        (cexpr v (update-context! ctxt #:type arg-type #:res result)))])
            (compile-sequence-basic cvs ctxt))]

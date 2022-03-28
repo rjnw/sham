@@ -40,6 +40,7 @@
 
      tuple-index
      sequence-index
+     sequence-index-result
 
      sequence-basic
      sequence-enum
