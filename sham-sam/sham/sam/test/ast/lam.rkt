@@ -7,12 +7,11 @@
 
 (define-ast LC
   (expr
-   [lambda ((args:id ...) body:expr)]
-   [letrec ([(ids:id vals:expr) ...] e:expr)]
+   [lam ((args:id ...) body:expr)]
+   [let ([(ids:id vals:expr) ...] e:expr)]
    [app (rator:expr rand:expr ...)]
-   [sym s:identifier]
-   [num n:integer])
-  #:format (#f - #f - -))
+   [sym s:id]
+   [num n:integer]))
 
 (module+ test
   (begin-for-syntax
