@@ -113,7 +113,7 @@
                  name (pretty-cry val) pargs vargs (cc-type orig-ctxt)))
   (define-values (pargs-evs up-type) (specialize-poly-type type pargs vargs app-ctxt))
   (printf "pargs-evs: ~a\n" pargs-evs)
-  (let* ([new-name (ast-id-gen name)]
+  (let* ([new-name (ast-id-gen name (datum->syntax #f (gensym 'val)))]
          [new-env (update-env (cc-env orig-ctxt) #:tvar pargs-evs)]
          [cctxt (compile-internal-def-context name type orig-ctxt)]
          [new-ctxt (update-context! orig-ctxt #:type up-type #:env new-env #:cc cctxt)]

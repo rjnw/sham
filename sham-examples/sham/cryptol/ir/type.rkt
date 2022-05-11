@@ -62,7 +62,7 @@
 ;; -> (values spec-type poly-args)
 (define (specialize-poly-type orig-type given-type-args given-val-args given-ret-type ctxt)
   (printf "\n\nspecialize: ~a ~a ~a ~a\n" (pretty-cry orig-type) (map pretty-cry given-type-args) (map pretty-cry given-val-args) (pretty-cry given-ret-type))
-  (pretty-ctxt ctxt)
+  ;; (pretty-ctxt ctxt)
   (define-values (uptype pvars cs) (unwrap-poly orig-type))
   (match-define (list varg-types^ ... ret-type) (get-farg-types uptype))
   (define cgtas (map (curryr ctype ctxt) given-type-args))
@@ -71,7 +71,7 @@
               ([pvar pvars]
                [i (length pvars)])
       (if (< i (length given-type-args))
-          (update-ctxt c #:types (env-var pvar (list-ref cgtas i)))
+          (update-ctxt c #:types (list (env-var pvar (list-ref cgtas i))))
           (begin (printf "warn: poly type argument not given for type: ~a, pos: ~a\n" (pretty-cry orig-type) i) c))))
   (define-values (ret-ut-type ret-poly-vars) (unify-type ret-type given-ret-type poly-ctxt))
   (define-values (varg-ctxt varg-types)
@@ -113,7 +113,7 @@
 ;; -> (values ir-type type-vars-vals)
 (define (calc-type c-ast c-ir-type ctxt)
   (define fit (full-ir-type c-ir-type ctxt))
-  (printf "calc-type: ~a\n" (pretty-cry c-ast)) (and c-ir-type (pretty-print-ast c-ir-type)) (newline)
+  (printf "calc-type: ~a\n" (pretty-cry c-ast)) (and c-ir-type (pretty-print-ast c-ir-type)) (when fit (printf " fit: ~a" fit)) (newline)
   ;; (define (rec a i (c ctxt)) (calc-type a i c))
   ;; (define (udpate-ctxt-from-pats ps) c)
   (define (update-ctxt-with-defs ctxt ds)
@@ -133,9 +133,9 @@
                  #:result (values (reverse ts) (reverse pevs)))
                 ([c cs]
                  [i is])
-        (define-values (t evs) (calc-type c i (update-ctxt ctxt #:types pevs)))
-      (values (cons t ts) (append evs pevs))))
-    (printf "calc-type-rec: ~a\n" a) (and it (pretty-print-ast it)) (newline)
+        (define-values (typ evs) (calc-type c i (update-ctxt ctxt #:types pevs)))
+        (values (cons typ ts) (append evs pevs))))
+    (printf "calc-type-rec: ~a " (pretty-cry a)) (print a) (and it (pretty-print-ast it)) (newline)
     (match a
       [(expr-bind () body)
        ;; (error 'stop)
@@ -187,8 +187,8 @@
        ]
       [(expr-tvar name) (values (ctxt-lookup-type-var ctxt name) '())]
       [(expr-annot e t)
-       (define-values (t pvs) (unify-type t it ctxt))
-       (calc-type e t (update-ctxt ctxt #:types pvs))]
+       (define-values (typ pvs) (unify-type t it ctxt))
+       (calc-type e typ (update-ctxt ctxt #:types pvs))]
       [(expr-lit i) (unify-type (type-integer) it ctxt)]
       [(expr-char c) (unify-type (type-sequence (dim-int 8) (type-bit)) it ctxt)]
       [(expr-tuple vs ...)
@@ -674,7 +674,7 @@
 
 (define (cdim d ctxt)
   (printf "calc-dim: ~a\n" (pretty-cry d))
-  (pretty-ctxt ctxt)
+  ;; (pretty-ctxt ctxt)
   (match d
     [(dim-int i) i]
     [(dim-var n) (ctxt-lookup-type-var ctxt n)]

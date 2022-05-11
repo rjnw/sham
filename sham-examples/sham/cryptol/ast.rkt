@@ -37,7 +37,7 @@
   (expr
    [bind ((pat_ps ...) e_body)]
    [app (e_o
-         (e_t ...)
+         (t_ptyps ...)
          e_rands ...)]
    [cond ((e_chk e_then) ... e_else)]
    [var (id_name)]

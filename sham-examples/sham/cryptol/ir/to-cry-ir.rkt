@@ -104,8 +104,10 @@
   (match d
     [(def-typed-val name type val)
      (define ir-type (ctype type ctxt))
-     (printf "def-typed-val: ~a ~a ~a ~a\n" name (pretty-cry type) ir-type (pretty-cry val))
-     (values (list (cry-ir-def-val name ir-type (cexpr val ir-type ctxt))) ctxt)]
+     (printf "\n\ndef-typed-val: ~a ~a ~a ~a\n" name (pretty-cry type) ir-type (pretty-cry val))
+     (match-define (res vl bs sp) (cexpr val ir-type (update-ctxt ctxt #:vals (list (cry-ir-def-val name ir-type (cry-ir-expr-bnv ir-type name))))))
+     (define val-def (cry-ir-def-val name ir-type vl))
+     (values (res #f (append (list val-def) bs) sp) (update-ctxt ctxt #:vals (list val-def)))]
     [(def-combined (ts ...) (tos ...) (tvs ...) ())
      (define type-ctxt
        (update-ctxt ctxt
@@ -125,18 +127,22 @@
                                 (match-define (def-typed-val name type val) tv)
                                 (env-var name (ctype type ctxt)))))
 
-     (define-values (val-binds val-ctxt)
+     (define-values (val-binds val-specs val-ctxt)
        (for/fold ([binds '()]
+                  [specs '()]
                   [ctxt (do-val-ctxt (do-val-ctxt typofs-ctxt))]
-                  #:result (values (reverse binds) ctxt))
+                  #:result (values (reverse binds) specs ctxt))
                  ([tv tvs])
          (match-define (def-typed-val name type val) tv)
          (define ir-type (ctype type ctxt))
-         (define ir-val (cexpr val ir-type (update-ctxt ctxt #:typeofs (list (env-var name ir-type)))))
-         (error 'todo "cry-ir-def-val only needs ir-expr inside res (ir-val)")
-         (define ir-def (cry-ir-def-val name ir-type ir-val))
-         (values (cons ir-def binds) (update-ctxt ctxt #:vals (list ir-def)))))
-     (values val-binds val-ctxt)]))
+         (define ir-val-res (cexpr val ir-type (update-ctxt ctxt
+                                                            #:vals (list (cry-ir-def-val name ir-type (cry-ir-expr-bnv ir-type name)))
+                                                            #:typeofs (list (env-var name ir-type)))))
+         ;; (error 'todo "cry-ir-def-val only needs ir-expr inside res (ir-val)")
+         (match-define (res vl bs sp) ir-val-res)
+         (define ir-def (cry-ir-def-val name ir-type vl))
+         (values (append bs (cons ir-def binds)) (append sp specs) (update-ctxt ctxt #:vals (list ir-def)))))
+     (values (res #f val-binds val-specs) val-ctxt)]))
 
 ;; (define (get-tvs d)
 ;;   (match d
@@ -145,8 +151,8 @@
 
 ;; -> res
 (define (cexpr e maybe-given-type ctxt)
-  (printf "cexpr: ~a : ~a\n" (pretty-cry e) maybe-given-type) (pretty-ctxt ctxt)
-  (printf "expr: ~a\n" e)
+  (printf "\ncexpr: ~a : ~a\n" (pretty-cry e) maybe-given-type)
+  ;; (pretty-ctxt ctxt)
   (define-values (type tvars) (calc-type e maybe-given-type ctxt))
   (printf "\tcexpr-type: ~a\n" type)
   (unless (empty? tvars) (printf "tvars: ~a\n" tvars))
@@ -161,9 +167,10 @@
     ;;    (add-bind (do-one res type) binds))]
     [(expr-where body) (do-one body type ctxt)]
     [(expr-where body def)
-     (define-values (binds ctxt^) (cdef def ctxt))
+     (define-values (d-res ctxt^) (cdef def ctxt))
      ;; (define ctxt^ (update-ctxt ctxt #:vals binds))
-     (add-bind (do-one body type ctxt^) binds)]
+     (do-res [_ d-res]
+             (do-one body type ctxt^))]
     [(expr-app rator (targs ...) vargs ...)
      (let*-values
          ([(rator-val rator-type) (ctxt-lookup-orig ctxt (expr-var-name rator))]
@@ -183,15 +190,15 @@
                            [else
                             (define-values (oval otyp) (ctxt-lookup-orig ctxt name))
                             (eres (cry-ir-expr-pvar (ctype otyp ctxt) name))]
-                         )]
+                           )]
     [(expr-tvar name) (eres (ctxt-lookup-type-var ctxt name))] ;; TODO
     [(expr-annot e t) (do-one e type)]
     [(expr-tuple vs ...)
      (define vts (cry-ir-type-tup-ts type))
      (do-res [cvs (do-list vs vts)]
              (cry-ir-expr-tup type cvs))]
-    [(expr-lit i) (cry-ir-expr-lit type i)]
-    [(expr-char c) (cry-ir-expr-lit type c)]
+    [(expr-lit i) (eres (cry-ir-expr-lit type i))]
+    [(expr-char c) (eres (cry-ir-expr-lit type c))]
 
     [(expr-sequence-basic vs ...)
      (do-res [vsc (do-list vs (map (const (cry-ir-type-seq-elem type)) vs))]
@@ -202,14 +209,15 @@
     [(expr-sequence-comp body [(vars vals)] ...)
      (define et (cry-ir-type-seq-elem type))
      (define cidx (new-comp-idx))
-     (define var-pairs
+     (define var-def-ress
        (for/list ([vr vars] [vl vals])
-         (let*-values ([(var-val) (ctxt-lookup-val ctxt vr)]
-                       [(var-type) (cry-ir-expr-type var-val)]
-                       [(var-calc-type _vct-vars) (calc-type vl var-type ctxt)]
+         (let*-values ([(var-calc-type _vct-vars) (calc-type vl #f ctxt)]
                        [(vl-type) (cry-ir-type-seq-elem var-calc-type)])
-           (cry-ir-def-val vr vl-type (cry-ir-expr-seq-idx vl-type (do-one vl vl-type) cidx)))))
-     (cry-ir-expr-seq-laz type cidx (cexpr body et (update-ctxt ctxt #:vals var-pairs)))]))
+           (do-res [var-val (do-one vl vl-type)]
+                   (cry-ir-def-val (pat-var-name vr) vl-type (cry-ir-expr-seq-idx vl-type var-val cidx))))))
+     (do-res [var-defs (combine-res var-def-ress)]
+             [body-val (cexpr body et (update-ctxt ctxt #:vals var-defs))]
+             (cry-ir-expr-seq-laz type cidx body-val))]))
 
 (define (ctest t ctxt)
   (printf "compiling-test: ~a\n" (pretty-cry t))

@@ -41,8 +41,10 @@
          [('cond [chk:cexpr thn:cexpr] ... ['else els:cexpr]) (make cond chk thn els)]
          [('quote (id-ref name 'type)) (make tvar name)]
          [('error msg:string) (make error msg)]
-         [(rator:cexpr {iargs:cexpr ...} rands:cexpr ...)
+         [(rator:cexpr {iargs:type ...} ~! rands:cexpr ...)
           (make app rator iargs rands)]
+         ;; [(rator:cexpr {iargs:dim ...} rands:cexpr ...)
+         ;;  (make app rator iargs rands)]
          [(rator:cexpr rands:cexpr ...) (make app rator '() rands)]
          [(id-ref name 'value) (make var name)]
          [i:integer (make lit (syntax-e i))]
@@ -55,7 +57,8 @@
         ['integer (make integer)]
         ['bit (make bit)]
         [(id-ref name 'type) (make var name)]
-        [(st:stype) st])
+        [(st:stype) st]
+        [('dim dm:dim) (make tdim dm)])
 
   (stype (stx -> type)
          [(~seq {(id-def pvars 'type) ...} ~! ts:stype)

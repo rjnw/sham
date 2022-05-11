@@ -1,0 +1,72 @@
+
+module Primitive::Keyless::Hash::SHA1 where
+
+sha1 : {n} (width (8*n) <= 64) => [n][8] -> [160]
+sha1 msg = sha1' pmsg
+    where
+        pmsg : [((n * 8) + 65) /^ 512][512]
+        pmsg = pad(join(msg))
+
+sha1' : {chunks} (fin chunks) => [chunks][512] -> [160]
+sha1' pmsg = join (Hs!0)
+  where
+    Hs : [chunks+1][5][32]
+    Hs = [[0x67452301, 0xefcdab89, 0x98badcfe, 0x10325476, 0xc3d2e1f0]] #
+         [ block(H, split(M))
+         | H <- Hs
+         | M <- pmsg
+         ]
+
+pad : {msgLen}
+     ( fin msgLen
+     , 64 >= width msgLen                             // message width fits in a word
+     )
+     => [msgLen] -> [(msgLen + 65) /^ 512][512]
+pad msg = split (msg # [True] # (zero:[padLen]) # (`msgLen:[64]))
+    where type padLen     = (msgLen + 65) %^ 512
+
+f : ([8], [32], [32], [32]) -> [32]
+f (t, x, y, z) =
+       if (0 <= t)  /\ (t <= 19) then (x && y) ^ (~x && z)
+        | (20 <= t) /\ (t <= 39) then x ^ y ^ z
+        | (40 <= t) /\ (t <= 59) then (x && y) ^ (x && z) ^ (y && z)
+        | (60 <= t) /\ (t <= 79) then x ^ y ^ z
+        else error "f: t out of range"
+
+Ks : [80][32]
+Ks = [ 0x5a827999 | t <- [0..19]  ]
+   # [ 0x6ed9eba1 | t <- [20..39] ]
+   # [ 0x8f1bbcdc | t <- [40..59] ]
+   # [ 0xca62c1d6 | t <- [60..79] ]
+
+block : ([5][32], [16][32]) -> [5][32]
+block ([H0, H1, H2, H3, H4], M) =
+ [(H0+As@80), (H1+Bs@80), (H2+Cs@80), (H3+Ds@80), (H4+Es@80)]
+  where
+    Ws : [80][32]
+    Ws = M # [ (W3 ^ W8 ^ W14 ^ W16) <<< 1
+             | W16 <- drop`{16 - 16} Ws
+             | W14 <- drop`{16 - 14} Ws
+             | W8  <- drop`{16 - 8}  Ws
+             | W3  <- drop`{16 - 3}  Ws
+             | t <- [16..79]
+             ]
+    As : [81][32]
+    As = [H0] # TEMP
+    Bs : [82][32]
+    Bs = [H1] # As
+    Cs : [83][32]
+    Cs = [H2] # [ B <<< 30 | B <- Bs ]
+    Ds : [84][32]
+    Ds = [H3] # Cs
+    Es : [85][32]
+    Es = [H4] # Ds
+    TEMP : [80][32]
+    TEMP = [ (A <<< 5) + f(t, B, C, D) + E + W + K
+           | A <- As | B <- Bs | C <- Cs | D <- Ds | E <- Es
+           | W <- Ws | K <- Ks
+           | t <- [0..79]
+           ]
+
+t2 = sha1 "abcdbcdecdefdefgefghfghighijhijkijkljklmklmnlmnomnopnopq" ==
+     0x84983E441C3BD26EBAAE4AA1F95129E5E54670F1

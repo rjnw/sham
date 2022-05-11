@@ -15,7 +15,7 @@
          [Hs = (<>
                 [[#x67452301 #xefcdab89 #x98badcfe #x10325476 #xc3d2e1f0]]
                 [(block H (split M))
-                 | H <- Hs
+                 | H <- (: Hs [(+ chunks 1) [5 [32]]])
                  | M <- pmsg])]])
 
 (def
@@ -51,15 +51,20 @@
          [Ws : [80 [32]]]
          [Ws = (<> M
                    [(<<< (^ W3 W8 W14 W16) 1)
-                    | W16 <- (drop {(- 16 16)} Ws)
-                    | W14 <- (drop {(- 16 14)} Ws)
-                    | W8 <- (drop {(- 16 8)} Ws)
-                    | W3 <- (drop {(- 16 3)} Ws)
+                    | W16 <- (drop {(dim (- 16 16))} Ws)
+                    | W14 <- (drop {(dim (- 16 14))} Ws)
+                    | W8 <- (drop {(dim (- 16 8))} Ws)
+                    | W3 <- (drop {(dim (- 16 3))} Ws)
                     | t <- [16..79]])]
+         [As : [81 [32]]]
          [As = (<> [H0] TEMP)]
+         [Bs : [82 [32]]]
          [Bs = (<> [H1] As)]
+         [Cs : [83 [32]]]
          [Cs = (<> [H2] [(<<< B 30) | B <- Bs])]
+         [Ds : [84 [32]]]
          [Ds = (<> [H3] Cs)]
+         [Es : [85 [32]]]
          [Es = (<> [H4] Ds)]
          [TEMP : [80 [32]]]
          [TEMP = [(+ (<<< A 5) (f t B C D) E W K)
