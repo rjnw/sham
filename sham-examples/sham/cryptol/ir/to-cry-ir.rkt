@@ -81,6 +81,7 @@
                              [i (build-list (length vtypes) identity)])
                     (cry-ir-expr-frg t i)))
     (define pat-binds (append-map cpat ps fargs))
+    (printf "pat-binds: ~a\n" pat-binds)
     (match-define (res cbody bbinds bsp) (cexpr body rtype (update-ctxt ctxt #:vals pat-binds #:types pargs)))
     ;; (printf "pb: ~a, bb: ~a\n" pat-binds bbinds)
     (define cval (cry-ir-def-cfun rator-name spec-type (cry-ir-make-expr-bnd rtype (append pat-binds bbinds) cbody)))
@@ -123,6 +124,10 @@
                                        (map (λ (n) (env-var n t^)) ns)))))
      (define (do-val-ctxt ctxt)
        (update-ctxt ctxt
+                    #:vals (for/list ([tv tvs])
+                             (match-define (def-typed-val name type val) tv)
+                             (define ir-type (ctype type ctxt))
+                             (cry-ir-def-val name ir-type (cry-ir-expr-bnv ir-type name)))
                     #:typeofs (for/list ([tv tvs])
                                 (match-define (def-typed-val name type val) tv)
                                 (env-var name (ctype type ctxt)))))
@@ -136,7 +141,6 @@
          (match-define (def-typed-val name type val) tv)
          (define ir-type (ctype type ctxt))
          (define ir-val-res (cexpr val ir-type (update-ctxt ctxt
-                                                            #:vals (list (cry-ir-def-val name ir-type (cry-ir-expr-bnv ir-type name)))
                                                             #:typeofs (list (env-var name ir-type)))))
          ;; (error 'todo "cry-ir-def-val only needs ir-expr inside res (ir-val)")
          (match-define (res vl bs sp) ir-val-res)
@@ -152,6 +156,8 @@
 ;; -> res
 (define (cexpr e maybe-given-type ctxt)
   (printf "\ncexpr: ~a : ~a\n" (pretty-cry e) maybe-given-type)
+  (unless (or (false? maybe-given-type) (cry-ir-type? maybe-given-type))
+    (error 'cry/ir "cexpr: type is not ir type: ~a" maybe-given-type))
   ;; (pretty-ctxt ctxt)
   (define-values (type tvars) (calc-type e maybe-given-type ctxt))
   (printf "\tcexpr-type: ~a\n" type)
@@ -181,7 +187,7 @@
                          (cry-ir-make-expr-app type rator-sval args))
                  rator-spec))]
     [(expr-cond (chk thn) ... els)
-     (do-res [chkc (do-list chk (map (const (type-bit)) chk))]
+     (do-res [chkc (do-list chk (map (const (cry-ir-type-bit)) chk))]
              [thnc (do-list thn (map (const type) thn))]
              [elsc (do-one els type)]
              (cry-ir-make-expr-cnd type chkc thnc elsc))]
@@ -203,7 +209,7 @@
     [(expr-sequence-basic vs ...)
      (do-res [vsc (do-list vs (map (const (cry-ir-type-seq-elem type)) vs))]
              (cry-ir-make-expr-seq-val type vsc))]
-    [(expr-sequence-enum from step to) (cry-ir-expr-seq-enm type from step to)]
+    [(expr-sequence-enum from step to) (eres (cry-ir-expr-seq-enm type from step to))]
     [(expr-sequence-str s)
      (do-one (make-expr-sequence-basic (map make-expr-lit (bytes->list (string->bytes/locale s)))) type)]
     [(expr-sequence-comp body [(vars vals)] ...)
@@ -217,7 +223,8 @@
                    (cry-ir-def-val (pat-var-name vr) vl-type (cry-ir-expr-seq-idx vl-type var-val cidx))))))
      (do-res [var-defs (combine-res var-def-ress)]
              [body-val (cexpr body et (update-ctxt ctxt #:vals var-defs))]
-             (cry-ir-expr-seq-laz type cidx body-val))]))
+             (cry-ir-expr-seq-laz type cidx body-val))]
+    [(expr-error str) (eres (cry-ir-expr-err maybe-given-type (syntax->datum str)))]))
 
 (define (ctest t ctxt)
   (printf "compiling-test: ~a\n" (pretty-cry t))
@@ -227,7 +234,7 @@
      (define-values (t1 _1) (calc-type e1 t2 ctxt))
      (match-define (res v1 b1 s1) (cexpr e1 t2 ctxt))
      (match-define (res v2 b2 s2) (cexpr e2 t2 ctxt))
-     (res (cry-ir-def-tst name type (cry-ir-make-expr-bnd b1 v1) (cry-ir-make-expr-bnd b2 v2)) #f '() (append s1 s2))]))
+     (res (cry-ir-def-tst name type (cry-ir-make-expr-bnd t1 b1 v1) (cry-ir-make-expr-bnd t2 b2 v2)) '() (append s1 s2))]))
 
 (define (to-cry-ir prog primitives preludes)
   (printf "prog: \n~a\n" prog)
@@ -257,7 +264,7 @@
   ;; (define-values (prog-val-defs prog-type-defs prog-typeof-defs prog-test-defs) (split-defs (remove-gen-defs prog)))
   ;; (define-values (prog-ctvs prog-typeofs) (combine-val&typeof prog-val-defs prog-typeof-defs))
 
-  ;; (printf "rest: ~a\n" (list prl-typeofs prl-type-defs prog-type-defs prog-typeofs))
+  (printf "rest: ~a\n" (list prog-val-defs))
   (define ctxt (foldr
                 update-ctxt-prog
                 (foldr update-ctxt-prelude (foldr update-ctxt-prim (empty-ctxt) prim-typeof-defs)

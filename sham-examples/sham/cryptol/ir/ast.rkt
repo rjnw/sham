@@ -27,6 +27,7 @@
    [fvar (fdef)]
    [pvar (id_name)]
    [frg (idx)]
+   [err (str)]
    #:common t_type
    #:alias e)
 

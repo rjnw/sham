@@ -95,6 +95,8 @@
   (values fun-type (map env-var pvars parg-vals)))
 
 (define (full-ir-type cry-ir-type ctxt)
+  (unless (or (false? cry-ir-type) (cry-ir-type? cry-ir-type))
+    (error 'cry/ir "type is not ir type: ~a" cry-ir-type))
   (let rec ([cit cry-ir-type])
     (match cit
       [(cry-ir-type-bit) cit]
@@ -112,6 +114,7 @@
       [else #f])))
 ;; -> (values ir-type type-vars-vals)
 (define (calc-type c-ast c-ir-type ctxt)
+
   (define fit (full-ir-type c-ir-type ctxt))
   (printf "calc-type: ~a\n" (pretty-cry c-ast)) (and c-ir-type (pretty-print-ast c-ir-type)) (when fit (printf " fit: ~a" fit)) (newline)
   ;; (define (rec a i (c ctxt)) (calc-type a i c))
@@ -146,7 +149,7 @@
       [(expr-where body ds ...) (calc-type body it (update-ctxt-with-defs ctxt ds))]
       [(expr-app rator (pargs ...) vargs ...)
        (define-values (_ rator-type) (ctxt-lookup-orig ctxt (expr-var-name rator)))
-       (printf "calc-app-type: ~a ~a\n" rator (pretty-cry rator-type))
+       (printf "calc-app-type: ~a ~a ~a\n" rator (pretty-cry rator-type) (cry-ir-type? it))
        (define-values (new-type pvars) (specialize-poly-type rator-type pargs vargs it ctxt))
        ;; todo calc types for vargs to get type var vals
        (values (cry-ir-type-fun-to new-type) '())]
@@ -295,7 +298,8 @@
       (cry-ir-type-fun (p2s ...) (v2s ...) r2))
      (cry-ir-make-type-fun (map combine-ir-type p1s p2s)
                            (map combine-ir-type v1s v2s)
-                           (map combine-ir-type r1 r2))]))
+                           (map combine-ir-type r1 r2))]
+    [(it1 it2) (error 'cry/ir "cannot combine ~a ~a" (cry-ir-type-bit? irt1) (cry-ir-type-bit? irt2))]))
 
 (define (unify-dim cry-dim ir-dim ctxt)
   (printf "unifying-dim: ~a ~a\n" (pretty-cry cry-dim) ir-dim)

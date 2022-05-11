@@ -69,7 +69,7 @@
   (define orig (get-first (lookup-env-vars (cc-origs c) name)))
   (cond [(env-var-wt? orig) (values (env-var-val orig) (env-var-wt-type orig))]
         [(env-var-prim-typeof? orig) (values 'primitive (env-var-val orig))]
-        [else (error 'cry/ir "ctxt: lookup-orig: ~a \n" name)]))
+        [else (pretty-ctxt c) (error 'cry/ir "ctxt: lookup-orig: ~a \n" name)]))
 ;; returns original type
 (define (ctxt-lookup-typeof c name)
   (printf "ctxt: lookup-typeof: ~a \n" name)

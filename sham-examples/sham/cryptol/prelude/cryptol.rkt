@@ -49,8 +49,8 @@
       ;; bitwise and logical operators
       [logic-impl logic-and logic-or : bit -> bit -> bit]
       [logic-impl a b = (cond [a b] [else true])]
-      [logic-and a b = (cond [x y] [else false])]
-      [logic-or a b = (cond [x true] [else y])]
+      [logic-and a b = (cond [a b] [else false])]
+      [logic-or a b = (cond [a true] [else b])]
       ;; comparisons
 
       ;; [<$ >$ <=$ >=$ : {a} (signed-cmp a) => a -> a -> bit]
