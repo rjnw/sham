@@ -11,7 +11,9 @@
          "ctxt.rkt"
          "debug.rkt"
          "../prelude/cryptol.rkt"
-         "../ir/to-cry-ir.rkt")
+         "../ir/to-cry-ir.rkt"
+         "../ir/cry-ir-to-datum.rkt"
+         "../ir/cry-ir-to-sham.rkt")
 
 (provide (all-defined-out))
 
@@ -65,9 +67,11 @@
   (λ (stxs)
     (define cry-asts (map stx-to-cry-ast stxs))
     (debug (printf "cry-ast:\n") (for ([ca cry-asts]) (pretty-print (pretty-cry ca)) (newline)))
-    (define cry-ir (to-cry-ir cry-asts primitive-typeofs-asts prelude-defs-asts))
-    (printf "cry-ir: \n")
-    (parameterize ([pretty-print-columns 120]) (pretty-print (map pretty-print-ast cry-ir)))
+    (define cry-ir-tests (to-cry-ir cry-asts primitive-typeofs-asts prelude-defs-asts))
+    ;; (printf "cry-ir: \n")
+    ;; (parameterize ([pretty-print-columns 120]) (pretty-print (map pretty-print-ast cry-ir-tests)))
+    (define sham-ast (to-sham cry-ir-tests))
+    (pretty-print (syntax->datum sham-ast))
    (strip-context
      #`(module default racket
          ;; #,@result-stxs

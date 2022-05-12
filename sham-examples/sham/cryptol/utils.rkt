@@ -97,13 +97,13 @@
   (values ctvs (filter-map remove-used tdefs)))
 
 (define gensym-map (make-hash))
-
+(define (new-id! dat)
+  (define cnt (hash-ref gensym-map dat #f))
+  (hash-set! gensym-map dat (if cnt (add1 cnt) 0))
+  ;; (ast-id-gen old (datum->syntax #f (format "~a_~a" dat (or cnt 0))))
+  (string->symbol (format "~a_~a" dat (or cnt 0))))
 (define (new-name-def old)
-  (define (new-id! dat)
-    (define cnt (hash-ref gensym-map dat #f))
-    (hash-set! gensym-map dat (if cnt (add1 cnt) 0))
-    (ast-id-gen old (datum->syntax #f (format "~a_~a" dat (or cnt 0)))))
-  (new-id! (ast-id-datum old)))
+  (ast-id-gen old (datum->syntax #f (new-id! (ast-id-datum old)))))
 
 (define (lookup name env-vars)
   (define (is-ev? name ev) (id-free=? name ev))

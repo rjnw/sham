@@ -58,7 +58,8 @@
   (define vals (lookup-env-vars (cc-vals c) name))
   (or (get-first vals)
       (error 'cry/ir "ctxt-lookup-val: ~a" name)
-      (begin (printf "warn:ctxt-lookup-val: ~a" name) #f)))
+      (begin ;; (printf "warn:ctxt-lookup-val: ~a" name)
+        #f)))
 (define (ctxt-has-val? c name) (not (empty? (lookup-env-vars (cc-vals c) name))))
 
 (define (get-first evs (f identity))
@@ -80,9 +81,9 @@
       (expr-type val)
       (error 'cry/ir "ctxt-lookup-typeof ~a" name)))
 (define (ctxt-lookup-type-var c name)
-  (printf "ctxt: lookup-type-var: ~a \n" name)
+  ;; (printf "ctxt: lookup-type-var: ~a \n" name)
   (define opts (lookup-env-vars (cc-typs c) name))
   (or (get-first opts env-var-val)
       (begin
-        (printf "warn:ctxt-lookup-type-var ~a ~a\n" name (cc-typs c))
+        ;; (printf "warn:ctxt-lookup-type-var ~a ~a\n" name (cc-typs c))
         #f)))
