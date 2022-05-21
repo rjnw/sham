@@ -41,6 +41,7 @@
 
 (define sham-top
   (λ (stxs)
+
     (debug (printf "compiling:\n") (for ([s stxs]) (pretty-print-ast s)) (newline))
 
     (define cry-asts (map stx-to-cry-ast stxs))
@@ -68,14 +69,11 @@
     (define cry-asts (map stx-to-cry-ast stxs))
     (debug (printf "cry-ast:\n") (for ([ca cry-asts]) (pretty-print (pretty-cry ca)) (newline)))
     (define cry-ir-tests (to-cry-ir cry-asts primitive-typeofs-asts prelude-defs-asts))
-    ;; (printf "cry-ir: \n")
-    ;; (parameterize ([pretty-print-columns 120]) (pretty-print (map pretty-print-ast cry-ir-tests)))
-    (define sham-ast (to-sham cry-ir-tests))
-    (pretty-print (syntax->datum sham-ast))
-   (strip-context
-     #`(module default racket
-         ;; #,@result-stxs
-         )) ))
+
+    (print-ir-datum cry-ir-tests)
+    (define sham-stxs (to-sham cry-ir-tests))
+   (strip-context #`(module default racket #,@sham-stxs))))
+
 ;; maps to functions that take a list of stxs and return the final syntax for a file
 (define compiler-maps (make-hash `((test . ,(create-test-top test-compiler))
                                    (sham . ,sham-top)

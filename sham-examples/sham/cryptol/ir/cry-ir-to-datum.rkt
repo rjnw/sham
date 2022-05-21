@@ -4,7 +4,7 @@
          sham/sam/runtime/ast
          racket/syntax)
 (require "ast.rkt")
-(provide to-datum)
+(provide print-ir-datum)
 
 (define cfuns (box '()))
 (define (add-cfun c) (printf "adding cfun: ~a\n" c) (set-box! cfuns (cons c (unbox cfuns))))
@@ -107,11 +107,12 @@
     [(def-tst name typ v1 v2)
      `(tst ,(ctype typ) ,(cexpr v1) ,(cexpr v2))]))
 
-(define (to-datum test-specs)
+(define (print-ir-datum test-specs)
   (match-define (cons tests specs) test-specs)
+  (printf "cry-ir-datum:\n")
   (pretty-print (map ctest tests))
   (pretty-print (map cdef specs))
   (pretty-print (unbox cfuns))
   (pretty-print special-names)
   (pretty-print special-funs)
-  #`42)
+  (void))

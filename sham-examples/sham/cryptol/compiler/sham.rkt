@@ -288,14 +288,14 @@
            [(env-where-var name val) (ref (sham-ref name))])
          ct))
       (sham-store v ;; (if (use-ptr-type? ct) (ref-v v) v)
-                  (ref #`(clos-index-val #,(ref-v cl-val) #,i)))))
+                  (ref #`(clos-index-ptr #,(ref-v cl-val) #,i)))))
 
   (add-allocatives! ctxt cl-stores)
   (set-closure! ctxt (closure cl-name ctxt types all-stored)))
 
 (define (create-closure-binds clos body)
   (match-define (closure name ctxt types vars) clos)
-  #`(stmt-let #, (cons #`(#,(syn-quote sham-closure-sym) lazy-func-clos (clos-type #,@types))
+  #`(stmt-let #, (cons #`(#,(syn-quote sham-closure-sym) lazy-func-clos (ptr-type (clos-type #,@types)))
                        (for/list ([cv vars]
                                   [t types]
                                   [i (length vars)])
@@ -365,7 +365,8 @@
                                                   #`(op-sub #,(sham-index-value idx) #,(sham-dim-value #f offst))
                                                   laz)]
     [(laz-seq name ltype func-name ctxt)
-     (define addr #`(sequence-index-ptr #,(sham-ref name) #,(sham-index-value idx)))
+     (define addr #`(sequence-index-ptr #,name ;; #,(sham-ref name)
+                                        #,(sham-index-value idx)))
      (if (use-ptr-type? (maybe-sequence-elem-type type)) (ref (ref addr)) (ref addr))]
     [(? ref?) (sham-sequence-index-ref type idx seq)]))
 
@@ -864,7 +865,7 @@
   (define-values (res-stmts res) (unwrap-result (cc-res ctxt)))
   (define type (cc-type ctxt))
   (define-values (fst-stmts fst-val) (unwrap-result (fcompile (first arg-exprs) type #f)))
-  (define-values (snd-stmts snd-val) (unwrap-result (fcompile (first arg-exprs) type #f)))
+  (define-values (snd-stmts snd-val) (unwrap-result (fcompile (second arg-exprs) type #f)))
   (maybe-stmts (append res-stmts fst-stmts snd-stmts) #`(#,op #,fst-val #,snd-val)))
 
 (define primitive-apps

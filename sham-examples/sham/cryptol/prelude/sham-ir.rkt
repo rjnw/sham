@@ -13,10 +13,8 @@
 (define test-function-type (ll-type-function #f ll-void))
 (define (basic-function-type . args) (ll-make-type-function args #f i64))
 (define (ptr-type t) (ll-type-pointer t))
-(define (seq-type it) (ll-type-struct i64 (ll-type-pointer it)))
-(define (tuple-type . ts) (ll-make-type-struct ts))
 (define (alloca t) (op-alloca (expr-etype t)))
-(define (basic-arr-alloc t len) (op-array-alloca (expr-etype t) len))
+(define (arr-alloc t len) (op-array-alloca (expr-etype t) len))
 
 (define (store-val! val ptr) (stmt-expr (op-store! val ptr)))
 
@@ -48,37 +46,25 @@
                         (stmt-set! itr (op-add itr (ui64 1))))))
 
 ;; sequence
-(define (sequence-array-ptr-ptr s) (op-gep s (ui32 0) (ui32 1)))
-(define (sequence-array-ptr s) (op-load (sequence-array-ptr-ptr s)))
-(define (sequence-len-ptr s) (op-gep s (ui32 0) (ui32 0)))
-(define (sequence-index-ptr s idx) (op-gep (sequence-array-ptr s) (op-int-cast idx (expr-etype i32))))
+(define (seq-type it) (ll-type-struct i64 i64 (ll-type-pointer it)))
+(define (seq-len-ptr s) (op-gep s (ui32 0) (ui32 0)))
+(define (seq-upto-ptr s) (op-gep s (ui32 0) (ui32 1)))
+(define (seq-array-ptr-ptr s) (op-gep s (ui32 0) (ui32 2)))
+(define (seq-array-ptr s) (op-load (seq-array-ptr-ptr s)))
+(define (seq-index-ptr s idx) (op-gep (seq-array-ptr s) (op-int-cast idx (expr-etype i32))))
 
-;; lazy sequences
-(define (lazy-seq-type it)
-  (ll-type-struct i64                   ;; length
-                  (ll-type-pointer it) ;; ptr to internal values
-                  i64                   ;; calculated upto) excluding given; starts at zero
-                  ;; (ll-type-pointer (ll-type-function ll-void* i64 #f (ll-type-pointer it))) ;; get value @ i, will force all values until i
-                  ;; i8*                   ;; ptr to closure store of values
-                  ))
-;; (define (lazy-seq-index-ptr s idx) (expr-app (op-load (op-gep s (ui32 0) (ui32 3))) (op-ptr-cast s (expr-etype ll-void*)) idx))
-(define (lazy-seq-upto-ptr s) (op-gep s (ui32 0) (ui32 2)))
-;; (define (lazy-seq-func-ptr s) (op-gep s (ui32 0) (ui32 3)))
-;; (define (lazy-seq-clos-ptr s) (op-gep s (ui32 0) (ui32 4)))
-
-
-(define (lazy-seq-func-type clos-type elem-type) (ll-type-function (ll-type-pointer (lazy-seq-type elem-type)) i64 (ll-type-pointer clos-type) #f elem-type))
+(define (lazy-seq-func-type clos-type elem-type) (ll-type-function (seq-type elem-type) i64 clos-type #f elem-type))
 (define lazy-func-seq (expr-ref 0))
 (define lazy-func-index (expr-ref 1))
 (define lazy-func-clos (expr-ref 2))
-(define lazy-func-upto (op-load (lazy-seq-upto-ptr lazy-func-seq)))
+;; (define lazy-func-upto (op-load (lazy-seq-upto-ptr lazy-func-seq)))
 
 ;; closure
-(define (clos-type . locals) (ll-make-type-struct locals))
+(define (clos-type . locals) (ll-make-type-struct (map ll-make-type-pointer locals)))
 (define (clos-index-ptr c i) (op-gep c (ui32 0) (ui32 i)))
 (define (clos-index-val c i) (op-load (clos-index-ptr c i)))
-(define (lazy-func-clos-ptr idx) (clos-index-ptr lazy-func-clos idx))
 (define (lazy-func-clos-val idx) (op-load (clos-index-ptr lazy-func-clos idx)))
 
 ;; tuple
-(define (tuple-index-ptr t i) (op-gep t (ui32 0) i))
+(define (tup-type . ts) (ll-make-type-struct ts))
+(define (tup-index-ptr t i) (op-gep t (ui32 0) i))
