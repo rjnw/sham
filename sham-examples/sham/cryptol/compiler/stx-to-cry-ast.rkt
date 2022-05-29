@@ -11,9 +11,7 @@
   (rkt-syntax -> cry-ast)
 
   (top (stx -> def)
-       [('def ds:def ...)
-        ;; #:bind-ids [ds -> *]
-        (make gen ds)]
+       [('def ds:def ...) (make gen ds)]
        [('test (id-def name 'test) ('== a:cexpr b:cexpr)) (make test name a b)]
        [('type [(id-def name 'type) '= t:stype]) (make type (id-create-ref name) t)])
 
@@ -22,7 +20,6 @@
     [['type (id-def name 'type) '= ts:dim] (make type name (make type:tdim ts))]
     [[(id-ref names 'value)  ... ': ~! ts:stype] (make typeof names ts)]
     [[(id-def name 'value) ps:pat ... '= ~! b:cexpr ws:def ...]
-     ;; #:bind-ids [ps -> ws b] [ws -> * b]
      (make val name (make expr:bind ps (make expr:where b ws)))])
 
   (pat (stx -> pat)
@@ -61,9 +58,7 @@
         [('dim dm:dim) (make tdim dm)])
 
   (stype (stx -> type)
-         [(~seq {(id-def pvars 'type) ...} ~! ts:stype)
-          ;; #:bind-ids [pvars -> ts]
-          (make poly pvars ts)]
+         [(~seq {(id-def pvars 'type) ...} ~! ts:stype) (make poly pvars ts)]
          [(~seq (~and (~not '=>) cs:expr) ... '=> ~! ts:stype) (make constraint cs ts)]
          [(~seq ffrom:type '-> ~! tto:stype) (make func ffrom tto)]
          [(t:stype) t]

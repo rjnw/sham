@@ -13,6 +13,12 @@
    [sym s:id]
    [num n:integer]))
 
+(define-transform (stx-to-lc)
+  (rkt-syntax -> LC)
+  (cexpr (stx -> expr)
+         [('lambda (args:id ...) body:cexpr) (make lambda args body)]
+         [(rator:cexpr rands:cexpr ...) (make app rator rands)]
+         [n:id (make var n)]))
 (module+ test
   (begin-for-syntax
     (require racket racket/pretty)
