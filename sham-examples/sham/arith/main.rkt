@@ -44,9 +44,6 @@
    [(mul (^ es) ...) (apply set-union es)]
    [(div (^ es) ...) (apply set-union es)]
    [(val v) (set)]
-(define-syntax (arith stx)
-  (syntax-case stx ()
-    [(_ s) #`(compile-arith (stx-to-arith #'s))]))
    [(var s) (set s)]))
 
 (define-transform (stx-to-arith)
@@ -59,6 +56,24 @@
       [n:integer (make val (syntax-e n))]
       [('var n:integer) (make var (syntax->datum n))]
       [n:id (make var (string->number (format "~a" (syntax-e n))))]))
+
+(define (fold-constants op v0 vs)
+  (for/fold ([res v0]
+             [rst '()]
+             #:result (cons (expr-val res) (reverse rst)))
+            ([v vs])
+    (if (expr-val? v)
+        (values (op (expr-val-n v) res) rst)
+        (values res (cons v rst)))))
+
+(define-transform (constant-fold)
+  (arir -> arir)
+  (ce (expr -> expr)
+   [(add (^ es) ...) (make add (fold-constants + 0 es))]
+   [(sub (val vs) ...) (make val (apply - vs))]
+   [(mul (^ es) ...) (make add (fold-constants * 1 es))]
+   [(div (val vs) ...) (make val (apply / vs))]
+   [e e]))
 
 (define (arith-sham-function name arir)
   (define nvars (add1 (apply max (set->list (all-vars arir)))))
