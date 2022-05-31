@@ -6,7 +6,8 @@
          sham/ir
          sham/jit
          (prefix-in ll- sham/llvm/ir/simple)
-         syntax/parse/define)
+         syntax/parse/define
+         syntax/parse)
 
 (define-ast arir
   (expr
@@ -14,7 +15,8 @@
    [sub (es:expr ...)]
    [mul (es:expr ...)]
    [div (es:expr ...)]
-   [var (n:int)])
+   [var (n:int)]
+   [val (n:int)])
   #:format group-node)
 
 (define-syntax-parse-rule (fold-op opf v0 vs)
@@ -31,6 +33,7 @@
    [(mul (^ es) ...) (fold-op op-mul (ui64 1) es)]
    [(div (^ e)) (op-udiv (ui64 1) e)]
    [(div (^ e1) (^ es) ...) (fold-op op-udiv e1 es)]
+   [(val v) (ui64 v)]
    [(var s) (expr-ref s)]))
 
 (define-transform (all-vars)
@@ -40,7 +43,19 @@
    [(sub (^ es) ...) (apply set-union es)]
    [(mul (^ es) ...) (apply set-union es)]
    [(div (^ es) ...) (apply set-union es)]
+   [(val v) (set)]
    [(var s) (set s)]))
+
+(define-transform (stx-to-arith)
+  (rkt-syntax -> arir)
+  (ce (stx -> expr)
+      [('+ e:ce ...) (make add e)]
+      [('- e:ce ...) (make sub e)]
+      [('* e:ce ...) (make mul e)]
+      [('/ e:ce ...) (make div e)]
+      [n:integer (make val (syntax-e n))]
+      [('var n:integer) (make var (syntax->datum n))]
+      [n:id (make var (string->number (format "~a" (syntax-e n))))]))
 
 (define (arith-sham-function name arir)
   (define nvars (add1 (apply max (set->list (all-vars arir)))))
@@ -56,10 +71,16 @@
   (define func (jit-lookup-function mc-env fname))
   func)
 
+(define-syntax (arith stx)
+  (syntax-case stx ()
+    [(_ s) #`(compile-arith (stx-to-arith #'s))]))
+
 (module+ test
   (require rackunit)
   (define fid (compile-arith (expr-var 0)))
   (check-equal? (fid 42) 42)
 
   (define fadd (compile-arith (expr-add (expr-var 0) (expr-var 1))))
-  (check-equal? (fadd 21 21) 42))
+  (check-equal? (fadd 21 21) 42)
+
+  (check-equal? ((arith (+ \0 \1)) 21 21) 42))
