@@ -2,6 +2,7 @@
 
 (require
  (for-syntax "syntax/ast.rkt"
+             "syntax/format.rkt"
              syntax/parse
              racket/match
              racket/pretty
@@ -9,7 +10,8 @@
              (submod "syntax/spec.rkt" ast))
  "runtime.rkt")
 
-(provide define-ast)
+(provide define-ast
+         group-node)
 
 (define-syntax (define-ast stx)
   (syntax-parse stx
@@ -24,3 +26,5 @@
            #,@ast-syntaxes))
      ;; (pretty-print (syntax->datum stx))
      stx]))
+
+(define-syntax group-node (ast:format #f #'- #t #'- #'-))
