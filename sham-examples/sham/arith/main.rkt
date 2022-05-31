@@ -44,6 +44,9 @@
    [(mul (^ es) ...) (apply set-union es)]
    [(div (^ es) ...) (apply set-union es)]
    [(val v) (set)]
+(define-syntax (arith stx)
+  (syntax-case stx ()
+    [(_ s) #`(compile-arith (stx-to-arith #'s))]))
    [(var s) (set s)]))
 
 (define-transform (stx-to-arith)
